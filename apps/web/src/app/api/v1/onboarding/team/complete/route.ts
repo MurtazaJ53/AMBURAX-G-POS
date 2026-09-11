@@ -3,6 +3,7 @@ import { randomUUID } from "node:crypto";
 import { completeTeamStep } from "@/server/tenant/teamStep";
 import { clientIp } from "@/lib/request";
 import { env } from "@/lib/env";
+import { logError } from "@/lib/safeLog";
 
 export const runtime = "nodejs";
 
@@ -43,7 +44,7 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ status: "ok", correlationId }, { status: 200 });
     }
   } catch (err) {
-    console.error("[onboarding/team/complete] failed", { correlationId, err });
+    logError("onboarding/team/complete: failed", err, { correlationId });
     return NextResponse.json(
       { error: { code: "service_unavailable", message: "Please try again shortly." }, correlationId },
       { status: 503 },

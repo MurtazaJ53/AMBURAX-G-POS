@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { randomUUID } from "node:crypto";
 import { revokeInvitation } from "@/server/tenant/invitation";
 import { env } from "@/lib/env";
+import { logError } from "@/lib/safeLog";
 
 export const runtime = "nodejs";
 
@@ -42,7 +43,7 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
         return NextResponse.json({ status: "ok", correlationId }, { status: 200 });
     }
   } catch (err) {
-    console.error("[invitations] revoke failed", { correlationId, err });
+    logError("invitations: revoke failed", err, { correlationId });
     return NextResponse.json(
       { error: { code: "service_unavailable", message: "Team management is temporarily unavailable. Please try again shortly." }, correlationId },
       { status: 503 },

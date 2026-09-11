@@ -3,6 +3,7 @@ import { randomUUID } from "node:crypto";
 import { z } from "zod";
 import { consumePasswordReset } from "@/server/identity/passwordReset";
 import { clientIp } from "@/lib/request";
+import { logError } from "@/lib/safeLog";
 
 export const runtime = "nodejs";
 
@@ -115,7 +116,7 @@ export async function POST(req: NextRequest) {
         );
     }
   } catch (err) {
-    console.error("[auth/password/reset] identity store unavailable", { correlationId, err });
+    logError("auth/password/reset: identity store unavailable", err, { correlationId });
     return NextResponse.json(
       {
         error: {

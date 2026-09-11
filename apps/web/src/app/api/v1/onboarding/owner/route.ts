@@ -4,6 +4,7 @@ import { z } from "zod";
 import { createOwnerAccount } from "@/server/tenant/ownerSetup";
 import { clientIp } from "@/lib/request";
 import { env } from "@/lib/env";
+import { logError } from "@/lib/safeLog";
 
 export const runtime = "nodejs";
 
@@ -126,7 +127,7 @@ export async function POST(req: NextRequest) {
       }
     }
   } catch (err) {
-    console.error("[onboarding/owner] identity store unavailable", { correlationId, err });
+    logError("onboarding/owner: identity store unavailable", err, { correlationId });
     return NextResponse.json(
       {
         error: {

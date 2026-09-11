@@ -4,6 +4,7 @@ import { z } from "zod";
 import { acceptInvitation } from "@/server/tenant/invitationAcceptance";
 import { clientIp } from "@/lib/request";
 import { env } from "@/lib/env";
+import { logError } from "@/lib/safeLog";
 
 export const runtime = "nodejs";
 
@@ -198,7 +199,7 @@ export async function POST(req: NextRequest) {
       }
     }
   } catch (err) {
-    console.error("[invitations/accept] failed", { correlationId, err });
+    logError("invitations/accept: failed", err, { correlationId });
     return NextResponse.json(
       {
         error: {

@@ -7,6 +7,7 @@ import { db } from "@/server/db";
 import { canConfigurePos } from "@/server/pos/posRoles";
 import { PosSetupForm } from "./PosSetupForm";
 import { ServiceUnavailableScreen } from "@/app/ServiceUnavailableScreen";
+import { logError } from "@/lib/safeLog";
 
 export const metadata: Metadata = {
   title: "Set up your POS — AMBURAX POS",
@@ -44,7 +45,7 @@ export default async function PosSetupPage() {
       }
     }
   } catch (err) {
-    console.error("[onboarding/pos] load failed", { err });
+    logError("onboarding/pos: load failed", err);
     return <ServiceUnavailableScreen />;
   }
 

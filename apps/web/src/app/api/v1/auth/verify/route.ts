@@ -4,6 +4,7 @@ import { z } from "zod";
 import { verifyMfaChallenge } from "@/server/identity/mfaChallenge";
 import { env } from "@/lib/env";
 import { clientIp } from "@/lib/request";
+import { logError } from "@/lib/safeLog";
 
 export const runtime = "nodejs";
 
@@ -43,7 +44,7 @@ export async function POST(req: NextRequest) {
       userAgent: req.headers.get("user-agent"),
     });
   } catch (err) {
-    console.error("[auth/verify] identity store unavailable", { correlationId, err });
+    logError("auth/verify: identity store unavailable", err, { correlationId });
     return NextResponse.json(
       {
         error: {

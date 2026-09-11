@@ -4,6 +4,7 @@ import { env } from "@/lib/env";
 import { resolveSession } from "@/server/identity/session";
 import { SignOutButton } from "./SignOutButton";
 import { ServiceUnavailableScreen } from "@/app/ServiceUnavailableScreen";
+import { logError } from "@/lib/safeLog";
 
 export default async function HomePage() {
   const token = (await cookies()).get(env.SESSION_COOKIE_NAME)?.value;
@@ -14,7 +15,7 @@ export default async function HomePage() {
   try {
     session = token ? await resolveSession(token) : null;
   } catch (err) {
-    console.error("[home] session resolution failed", { err });
+    logError("home: session resolution failed", err);
     return <ServiceUnavailableScreen />;
   }
 

@@ -4,6 +4,7 @@ import { env } from "@/lib/env";
 import { resolveSession } from "@/server/identity/session";
 import { previewInvitation } from "@/server/tenant/invitation";
 import { AcceptInvitationForm } from "./AcceptInvitationForm";
+import { logError } from "@/lib/safeLog";
 
 export const metadata: Metadata = {
   title: "You're invited — AMBURAX POS",
@@ -73,7 +74,7 @@ export default async function InvitePage({ params }: { params: Promise<{ token: 
   try {
     preview = await previewInvitation(token);
   } catch (err) {
-    console.error("[invite] preview failed", { err });
+    logError("invite: preview failed", err);
     return (
       <DeadEnd
         title="Temporarily unavailable"
@@ -124,7 +125,7 @@ export default async function InvitePage({ params }: { params: Promise<{ token: 
     const session = sessionToken ? await resolveSession(sessionToken) : null;
     signedInAs = session?.user.email ?? null;
   } catch (err) {
-    console.error("[invite] session resolution failed", { err });
+    logError("invite: session resolution failed", err);
   }
 
   return (

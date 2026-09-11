@@ -7,6 +7,7 @@ import { db } from "@/server/db";
 import { deriveInvitationStatus } from "@/server/tenant/invitation";
 import { TeamInvitationForm } from "./TeamInvitationForm";
 import { ServiceUnavailableScreen } from "@/app/ServiceUnavailableScreen";
+import { logError } from "@/lib/safeLog";
 
 export const metadata: Metadata = {
   title: "Invite your team — AMBURAX POS",
@@ -31,7 +32,7 @@ export default async function TeamInvitationPage() {
       });
     }
   } catch (err) {
-    console.error("[onboarding/team] load failed", { err });
+    logError("onboarding/team: load failed", err);
     return <ServiceUnavailableScreen />;
   }
 

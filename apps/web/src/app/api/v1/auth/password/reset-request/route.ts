@@ -3,6 +3,7 @@ import { randomUUID } from "node:crypto";
 import { z } from "zod";
 import { requestPasswordReset } from "@/server/identity/passwordReset";
 import { clientIp } from "@/lib/request";
+import { logError } from "@/lib/safeLog";
 
 export const runtime = "nodejs";
 
@@ -64,7 +65,7 @@ export async function POST(req: NextRequest) {
       { status: 200 },
     );
   } catch (err) {
-    console.error("[auth/password/reset-request] identity store unavailable", { correlationId, err });
+    logError("auth/password/reset-request: identity store unavailable", err, { correlationId });
     // Deliberately still generic-shaped, not a raw 500 — a distinguishable failure mode
     // here would itself be an enumeration/behavior oracle for a scripted attacker.
     return NextResponse.json(

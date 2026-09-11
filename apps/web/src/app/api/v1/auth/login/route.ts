@@ -4,6 +4,7 @@ import { z } from "zod";
 import { login, GENERIC_INVALID_CREDENTIALS } from "@/server/identity/loginService";
 import { env } from "@/lib/env";
 import { clientIp } from "@/lib/request";
+import { logError } from "@/lib/safeLog";
 
 export const runtime = "nodejs";
 
@@ -44,7 +45,7 @@ export async function POST(req: NextRequest) {
       correlationId,
     });
   } catch (err) {
-    console.error("[auth/login] identity store unavailable", { correlationId, err });
+    logError("auth/login: identity store unavailable", err, { correlationId });
     return NextResponse.json(
       {
         error: {

@@ -4,6 +4,7 @@ import { z } from "zod";
 import { completePosStep, createFirstPosDevice } from "@/server/pos/posDeviceSetup";
 import { clientIp } from "@/lib/request";
 import { env } from "@/lib/env";
+import { logError } from "@/lib/safeLog";
 
 export const runtime = "nodejs";
 
@@ -174,7 +175,7 @@ export async function POST(req: NextRequest) {
         );
     }
   } catch (err) {
-    console.error("[onboarding/pos] POS setup failed", { correlationId, err });
+    logError("onboarding/pos: POS setup failed", err, { correlationId });
     return NextResponse.json(
       {
         error: {

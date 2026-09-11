@@ -6,6 +6,7 @@ import { resolveSession } from "@/server/identity/session";
 import { db } from "@/server/db";
 import { StoreSetupForm } from "./StoreSetupForm";
 import { ServiceUnavailableScreen } from "@/app/ServiceUnavailableScreen";
+import { logError } from "@/lib/safeLog";
 
 export const metadata: Metadata = {
   title: "Set up your first store — AMBURAX POS",
@@ -23,7 +24,7 @@ export default async function StoreSetupPage() {
       ? await db.tenant.findUnique({ where: { id: session.tenantId }, select: { onboardingStep: true } })
       : null;
   } catch (err) {
-    console.error("[onboarding/store] load failed", { err });
+    logError("onboarding/store: load failed", err);
     return <ServiceUnavailableScreen />;
   }
 

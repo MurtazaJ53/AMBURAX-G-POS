@@ -3,6 +3,7 @@ import { randomUUID } from "node:crypto";
 import { resolveSession } from "@/server/identity/session";
 import { getOnboardingReadiness } from "@/server/onboarding/readiness";
 import { env } from "@/lib/env";
+import { logError } from "@/lib/safeLog";
 
 export const runtime = "nodejs";
 
@@ -82,7 +83,7 @@ export async function GET(req: NextRequest) {
         return NextResponse.json({ status: "ok", readiness: result.readiness, correlationId }, { status: 200 });
     }
   } catch (err) {
-    console.error("[onboarding/status] readiness read failed", { correlationId, err });
+    logError("onboarding/status: readiness read failed", err, { correlationId });
     return NextResponse.json(
       {
         error: {

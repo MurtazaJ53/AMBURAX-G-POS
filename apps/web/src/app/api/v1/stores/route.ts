@@ -4,6 +4,7 @@ import { z } from "zod";
 import { createFirstStore } from "@/server/tenant/storeSetup";
 import { clientIp } from "@/lib/request";
 import { env } from "@/lib/env";
+import { logError } from "@/lib/safeLog";
 
 export const runtime = "nodejs";
 
@@ -117,7 +118,7 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ status: "ok", store: result.store, correlationId }, { status: 201 });
     }
   } catch (err) {
-    console.error("[stores] store setup failed", { correlationId, err });
+    logError("stores: store setup failed", err, { correlationId });
     return NextResponse.json(
       {
         error: {

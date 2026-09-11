@@ -3,6 +3,7 @@ import { randomUUID } from "node:crypto";
 import { completeOnboarding } from "@/server/onboarding/completeOnboarding";
 import { clientIp } from "@/lib/request";
 import { env } from "@/lib/env";
+import { logError } from "@/lib/safeLog";
 
 export const runtime = "nodejs";
 
@@ -81,7 +82,7 @@ export async function POST(req: NextRequest) {
         );
     }
   } catch (err) {
-    console.error("[onboarding/complete] completion failed", { correlationId, err });
+    logError("onboarding/complete: completion failed", err, { correlationId });
     return NextResponse.json(
       {
         error: {

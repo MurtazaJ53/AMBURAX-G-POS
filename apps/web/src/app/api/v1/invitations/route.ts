@@ -4,6 +4,7 @@ import { z } from "zod";
 import { createInvitation, listInvitations } from "@/server/tenant/invitation";
 import { clientIp } from "@/lib/request";
 import { env } from "@/lib/env";
+import { logError } from "@/lib/safeLog";
 
 export const runtime = "nodejs";
 
@@ -41,7 +42,7 @@ export async function GET(req: NextRequest) {
         return NextResponse.json({ status: "ok", invitations: result.invitations, correlationId }, { status: 200 });
     }
   } catch (err) {
-    console.error("[invitations] list failed", { correlationId, err });
+    logError("invitations: list failed", err, { correlationId });
     return NextResponse.json(
       { error: { code: "service_unavailable", message: "Team management is temporarily unavailable. Please try again shortly." }, correlationId },
       { status: 503 },
@@ -132,7 +133,7 @@ export async function POST(req: NextRequest) {
         );
     }
   } catch (err) {
-    console.error("[invitations] create failed", { correlationId, err });
+    logError("invitations: create failed", err, { correlationId });
     return NextResponse.json(
       { error: { code: "service_unavailable", message: "Team management is temporarily unavailable. Please try again shortly." }, correlationId },
       { status: 503 },

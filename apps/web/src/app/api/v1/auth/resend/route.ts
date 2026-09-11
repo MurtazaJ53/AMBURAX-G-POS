@@ -5,6 +5,7 @@ import { resendMfaChallenge } from "@/server/identity/mfaChallenge";
 import { isIpRateLimited, recordAttempt } from "@/server/identity/loginGuard";
 import { env } from "@/lib/env";
 import { clientIp } from "@/lib/request";
+import { logError } from "@/lib/safeLog";
 
 export const runtime = "nodejs";
 
@@ -115,7 +116,7 @@ export async function POST(req: NextRequest) {
         );
     }
   } catch (err) {
-    console.error("[auth/resend] identity store unavailable", { correlationId, err });
+    logError("auth/resend: identity store unavailable", err, { correlationId });
     return NextResponse.json(
       {
         error: {

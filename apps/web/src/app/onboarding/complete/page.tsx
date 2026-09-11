@@ -6,6 +6,7 @@ import { resolveSession } from "@/server/identity/session";
 import { getOnboardingReadiness, type ReadinessResult } from "@/server/onboarding/readiness";
 import { ServiceUnavailableScreen } from "@/app/ServiceUnavailableScreen";
 import { OnboardingCompleteView } from "./OnboardingCompleteView";
+import { logError } from "@/lib/safeLog";
 
 export const metadata: Metadata = {
   title: "Setup complete — AMBURAX POS",
@@ -23,7 +24,7 @@ export default async function OnboardingCompletePage() {
       result = await getOnboardingReadiness({ tenantId: session.tenantId, userId: session.userId });
     }
   } catch (err) {
-    console.error("[onboarding/complete] load failed", { err });
+    logError("onboarding/complete: load failed", err);
     return <ServiceUnavailableScreen />;
   }
 

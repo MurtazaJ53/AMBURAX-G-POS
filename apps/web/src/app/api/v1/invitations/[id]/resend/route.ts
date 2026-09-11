@@ -3,6 +3,7 @@ import { randomUUID } from "node:crypto";
 import { resendInvitation } from "@/server/tenant/invitation";
 import { clientIp } from "@/lib/request";
 import { env } from "@/lib/env";
+import { logError } from "@/lib/safeLog";
 
 export const runtime = "nodejs";
 
@@ -68,7 +69,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         );
     }
   } catch (err) {
-    console.error("[invitations] resend failed", { correlationId, err });
+    logError("invitations: resend failed", err, { correlationId });
     return NextResponse.json(
       { error: { code: "service_unavailable", message: "Team management is temporarily unavailable. Please try again shortly." }, correlationId },
       { status: 503 },

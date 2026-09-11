@@ -3,6 +3,7 @@ import { randomUUID } from "node:crypto";
 import { z } from "zod";
 import { registerBusiness } from "@/server/tenant/registrationService";
 import { clientIp } from "@/lib/request";
+import { logError } from "@/lib/safeLog";
 
 export const runtime = "nodejs";
 
@@ -87,7 +88,7 @@ export async function POST(req: NextRequest) {
       { status: 201 },
     );
   } catch (err) {
-    console.error("[tenants] registration failed", { correlationId, err });
+    logError("tenants: registration failed", err, { correlationId });
     return NextResponse.json(
       {
         error: {

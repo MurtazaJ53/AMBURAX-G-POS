@@ -3,6 +3,7 @@ import { randomUUID } from "node:crypto";
 import { z } from "zod";
 import { activatePosDevice } from "@/server/pos/posDeviceActivation";
 import { clientIp } from "@/lib/request";
+import { logError } from "@/lib/safeLog";
 
 export const runtime = "nodejs";
 
@@ -84,7 +85,7 @@ export async function POST(req: NextRequest) {
         );
     }
   } catch (err) {
-    console.error("[pos/devices/activate] activation failed", { correlationId, err });
+    logError("pos/devices/activate: activation failed", err, { correlationId });
     return NextResponse.json(
       {
         error: {
