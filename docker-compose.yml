@@ -1,0 +1,42 @@
+# Local development PostgreSQL for AMBURAX POS.
+#
+# Deliberately minimal: one service, one volume, no orchestration. This exists so that
+# migrations and integration tests run against a real PostgreSQL rather than a mock — it is
+# NOT a deployment artifact and must not become one.
+#
+# Port: defaults to 55432, not 5432. Ports 5432 and 5433 are already in use on this
+# machine by existing PostgreSQL installations, and this file must never collide with or
+# overwrite one of those. Override with POSTGRES_PORT if 55432 is taken too.
+#
+# Credentials: read from the repository-root `.env`, which is gitignored. There is
+# deliberately NO default password — `:?` makes compose fail loudly with a readable message
+# rather than silently starting a database with a credential baked into a committed file.
+# See DATABASE_SETUP.md.
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: amburax-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-amburax}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is not set - copy .env.example to .env at the repository root and choose a local development password}
+      POSTGRES_DB: ${POSTGRES_DB:-amburax_identity}
+      # Deterministic collation so index and ordering behaviour match across machines.
+      POSTGRES_INITDB_ARGS: "--locale=C --encoding=UTF8"
+    ports:
+      - "${POSTGRES_PORT:-55432}:5432"
+    volumes:
+      - amburax_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      # Guards against `migrate deploy` racing a cold start: the container reports healthy
+      # only once the database actually accepts a connection for this user and database.
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-amburax} -d ${POSTGRES_DB:-amburax_identity}"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+      start_period: 5s
+
+volumes:
+  amburax_pgdata:
+    name: amburax_pgdata

@@ -9,6 +9,10 @@ export default defineConfig({
   },
   test: {
     environment: "node",
+    // Unit suites only. Integration tests live in src/test-integration and run under
+    // vitest.integration.config.ts against a real database — they must never pick up the
+    // placeholder DATABASE_URL below.
+    include: ["src/test/**/*.test.ts"],
     // Pure-logic unit tests don't touch a real database, but importing server modules
     // still runs src/lib/env.ts's schema.parse — give it a placeholder so that doesn't throw.
     env: {

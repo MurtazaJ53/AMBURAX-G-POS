@@ -1,5 +1,6 @@
 import { PrismaClient } from "@prisma/client";
 import { hashPassword } from "../src/server/identity/password";
+import { logError } from "../src/lib/safeLog";
 
 const db = new PrismaClient();
 
@@ -84,7 +85,10 @@ async function main() {
 
 main()
   .catch((err) => {
-    console.error(err);
+    // Was `console.error(err)` — the same raw-error pattern P0-2 removed from src/.
+    // A seed failure is usually a connection failure, which is exactly when the raw
+    // object is most likely to carry the connection string.
+    logError("prisma/seed: seeding failed", err);
     process.exit(1);
   })
   .finally(async () => {

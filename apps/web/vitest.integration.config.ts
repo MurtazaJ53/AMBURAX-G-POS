@@ -1,0 +1,74 @@
+import { defineConfig } from "vitest/config";
+import path from "node:path";
+import fs from "node:fs";
+
+/**
+ * Integration tests — these run against a REAL PostgreSQL.
+ *
+ * Deliberately a second config rather than a flag on the first. `vitest.config.ts` injects
+ * a fake `DATABASE_URL` so that unit tests can import server modules without a database;
+ * that fake value is exactly what must not be in scope here. Two configs means the two
+ * suites cannot be accidentally cross-wired, and `npm test` stays fast and offline.
+ *
+ * Requires `docker compose up -d` and a migrated `amburax_test` database.
+ * See DATABASE_SETUP.md.
+ */
+
+/**
+ * Read `.env` directly. Vitest only exposes `VITE_`-prefixed variables by default, and the
+ * database URL is deliberately not prefixed — it is server-only and must never be
+ * bundle-visible.
+ */
+function readEnvFile(file: string): Record<string, string> {
+  const out: Record<string, string> = {};
+  if (!fs.existsSync(file)) return out;
+  for (const line of fs.readFileSync(file, "utf8").split("\n")) {
+    const match = /^\s*([A-Z0-9_]+)\s*=\s*(.*)\s*$/.exec(line);
+    if (!match) continue;
+    const key = match[1]!;
+    let value = match[2]!.trim();
+    if (
+      (value.startsWith('"') && value.endsWith('"')) ||
+      (value.startsWith("'") && value.endsWith("'"))
+    ) {
+      value = value.slice(1, -1);
+    }
+    out[key] = value;
+  }
+  return out;
+}
+
+const appEnv = readEnvFile(path.resolve(import.meta.dirname, ".env"));
+
+// Point at the dedicated test database, never at the development one. Integration tests
+// truncate tables between cases, so aiming them at `amburax_identity` would silently wipe a
+// developer's local data.
+const baseUrl = process.env.DATABASE_URL ?? appEnv.DATABASE_URL ?? "";
+const testUrl = baseUrl.replace(/\/amburax_identity(\?|$)/, "/amburax_test$1");
+
+export default defineConfig({
+  resolve: {
+    alias: {
+      "@": path.resolve(import.meta.dirname, "./src"),
+    },
+  },
+  test: {
+    environment: "node",
+    include: ["src/test-integration/**/*.test.ts"],
+    // Real database work is slower than pure logic, and the concurrency cases deliberately
+    // block on row locks.
+    testTimeout: 30_000,
+    hookTimeout: 30_000,
+    // A shared database cannot be truncated by several workers at once. One worker keeps
+    // the fixtures deterministic; these suites are small enough that it costs nothing.
+    fileParallelism: false,
+    pool: "forks",
+    // Vitest 5 removed `poolOptions`; worker count is a top-level option now.
+    // `minWorkers` is not part of InlineConfig — `maxWorkers: 1` plus
+    // `fileParallelism: false` is what actually serializes the run.
+    maxWorkers: 1,
+    env: {
+      DATABASE_URL: testUrl,
+    },
+  },
+});
