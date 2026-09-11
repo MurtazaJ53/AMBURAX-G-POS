@@ -1,0 +1,53 @@
+# --- existing rules (preserved) ---
+node_modules/
+.next/
+.env
+.env.local
+*.log
+
+# --- environment / secrets ---
+.env.*
+!.env.example
+
+# --- build & generated output ---
+dist/
+build/
+out/
+coverage/
+tsconfig.tsbuildinfo
+*.tsbuildinfo
+next-env.d.ts.bak
+
+# --- database dumps & local databases ---
+*.sql
+*.dump
+*.sqlite
+*.sqlite3
+*.db
+
+# --- certificates & private keys ---
+*.pem
+*.key
+*.p12
+*.pfx
+*.crt
+*.cer
+*.jks
+
+# --- OS metadata ---
+.DS_Store
+Thumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# --- IDE / editor metadata ---
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# --- misc local ---
+.cache/
+.turbo/
+*.local

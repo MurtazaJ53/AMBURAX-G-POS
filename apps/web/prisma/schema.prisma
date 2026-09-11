@@ -1,0 +1,443 @@
+// AMBURAX Identity service data model.
+// Amburax-owned domain (see DATA_STRATEGY.md): tenant/platform metadata, sessions, audit.
+// ERPNext is NOT touched by this schema — no stock, accounting or ERP transactions live here.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserStatus {
+  ACTIVE
+  DISABLED
+}
+
+// Tenant-level role, distinct from StoreMembership.role (which is store-scoped, e.g.
+// "MANAGER"). Not a separate join table: User.tenantId is already a hard 1:1 FK (one
+// user belongs to exactly one tenant), so a "tenant membership" table would just
+// duplicate that fact. OWNER is set exactly once, by A6, for the tenant's first user.
+enum TenantRole {
+  OWNER
+  STAFF
+}
+
+enum TenantStatus {
+  ACTIVE
+  SUSPENDED
+}
+
+// Generic retail/commerce verticals — garment depth lives in later, garment-specific
+// screens (see BRUTAL_TRUTH.md / PROJECT.md), not in the tenant shape itself.
+enum BusinessType {
+  RETAIL
+  WHOLESALE
+  MANUFACTURING
+  SERVICES
+  DISTRIBUTION
+  OTHER
+}
+
+// The onboarding lifecycle A5-A10 advance through, independent of TenantStatus
+// (which is an operational on/off switch, not a setup-progress tracker — conflating
+// the two would make "is this tenant suspended" and "has this tenant finished
+// onboarding" the same field, which they are not).
+enum OnboardingStep {
+  BUSINESS_CREATED
+  OWNER_CREATED
+  STORE_CREATED
+  TEAM_INVITED
+  POS_CONFIGURED
+  COMPLETE
+}
+
+// ERPNext site/company provisioning is explicitly asynchronous and NOT performed by
+// A5 — no ERPNext adapter exists yet (Phase 2). This models the eventual state
+// machine honestly (NOT_PROVISIONED until a real adapter flips it) rather than
+// pretending synchronous ERPNext setup happened. See DECISIONS.md.
+enum ErpnextProvisionStatus {
+  NOT_PROVISIONED
+  PROVISIONING
+  PROVISIONED
+  FAILED
+}
+
+model Tenant {
+  id              String       @id @default(cuid())
+  name            String
+  slug            String       @unique
+  status          TenantStatus @default(ACTIVE)
+  businessType    BusinessType
+  industry        String?
+  country         String
+  taxId           String?
+  contactEmail    String
+  contactPhone    String
+  termsAcceptedAt DateTime
+
+  // Idempotency anchor for POST /tenants: a client-generated key, replayed on
+  // double-click/retry/refresh, maps back to this same tenant instead of creating
+  // a second one. Nullable+unique so other, non-self-serve creation paths (future
+  // admin tooling) aren't forced to fabricate one. See DECISIONS.md.
+  registrationKey String? @unique
+
+  onboardingStep        OnboardingStep @default(BUSINESS_CREATED)
+  onboardingCompletedAt DateTime?
+
+  erpnextProvisionStatus ErpnextProvisionStatus @default(NOT_PROVISIONED)
+  erpnextSiteId          String?
+
+  createdAt DateTime @default(now())
+
+  users              User[]
+  stores             Store[]
+  posDevices         PosDevice[]
+  onboardingSessions OnboardingSession[]
+  invitations        Invitation[]
+
+  @@map("tenants")
+}
+
+// Bridges an anonymous registrant (A5) to the tenant they're setting up, before any
+// User exists to hold a real Session. Deliberately not reusing Session — a Session's
+// whole contract is "belongs to a real authenticated user," which is untrue here.
+// Valid until expiresAt OR the tenant's onboardingStep reaches COMPLETE.
+model OnboardingSession {
+  id        String   @id @default(cuid())
+  tenantId  String
+  tokenHash String   @unique
+  ip        String?
+  userAgent String?
+  createdAt DateTime @default(now())
+  expiresAt DateTime
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+
+  @@index([tenantId])
+  @@map("onboarding_sessions")
+}
+
+// Store IS the Amburax-side location/warehouse concept — see ERPNEXT_DOCTYPE_MAP.md
+// ("Store -> Warehouse/Company setup"). No separate Location/Warehouse model: that would
+// be a second, duplicate inventory concept living outside ERPNext, which the architecture
+// explicitly forbids. `erpnextProvisionStatus`/`erpnextWarehouseId` mirror Tenant's own
+// deferred-ERPNext fields (ADR-038) — no adapter exists yet, so these stay at their
+// defaults; nothing here pretends a Warehouse was actually provisioned in ERPNext.
+enum StoreType {
+  RETAIL
+  WAREHOUSE
+}
+
+model Store {
+  id          String    @id @default(cuid())
+  tenantId    String
+  name        String
+  code        String
+  storeType   StoreType @default(RETAIL)
+  currency    String
+  phone       String?
+  addressLine String
+  city        String
+  state       String
+  postalCode  String?
+  timezone    String    @default("Asia/Kolkata")
+  // True for exactly one store per tenant. Not exposed as a user toggle at A7 (there is
+  // nothing to toggle against yet — the first store is trivially the default); future
+  // multi-store screens are what make this field meaningful.
+  isDefault   Boolean   @default(false)
+
+  erpnextProvisionStatus ErpnextProvisionStatus @default(NOT_PROVISIONED)
+  erpnextWarehouseId     String?
+
+  createdAt DateTime @default(now())
+
+  tenant      Tenant            @relation(fields: [tenantId], references: [id])
+  memberships StoreMembership[]
+  invitations Invitation[]
+  posDevices  PosDevice[]
+
+  @@unique([tenantId, code])
+  @@map("stores")
+}
+
+// A9's model. A POS terminal is an *operational device* bound to a Store — deliberately
+// not a User (a device does not log in, does not hold a role, and must be revocable
+// without touching any person's identity), not a Store (a Store has many terminals), and
+// not a Warehouse (Store already is the Amburax-side warehouse concept — see the Store
+// model above). OFFLINE_POS.md §9 requires exactly this shape: Tenant -> Store -> POS
+// Terminal -> Device, so the server can attribute every offline transaction to the device
+// that produced it.
+//
+// The fields are deliberately grouped into three kinds that must not be conflated:
+//   IDENTITY       — stable, server-assigned, never re-derived from a browser fingerprint.
+//   CREDENTIALS    — two *different* secrets with different lifetimes (see below).
+//   CONFIGURATION  — merchant-chosen presentation/hardware behaviour, Amburax-owned.
+//   RUNTIME        — volatile, written only by device-facing calls, never by A9's form.
+//
+// Two distinct credentials, not one:
+//   `pairingCodeHash`  — one-time, short-lived, shown to the *owner* once at A9 so they can
+//                        pair the physical terminal. Consumed at activation.
+//   `deviceSecretHash` — long-lived, issued to the *device* at activation and never shown
+//                        to a human. This is what a future POS client authenticates with.
+// Neither reuses Session / OnboardingSession / PasswordResetToken / MfaChallenge /
+// Invitation: a device credential has a different subject (a machine), a different
+// lifetime, and a different revocation story. Only `token.ts`'s hash helper is shared.
+//
+// Status is derived from nullable timestamps (activatedAt / disabledAt / pairingExpiresAt),
+// matching the Invitation/PasswordResetToken convention — one source of truth per fact
+// instead of a status column that can drift. Crucially `createdAt` != `activatedAt`: a row
+// existing means "the owner configured a terminal", NOT "a physical terminal has claimed
+// it". A9 must never report the second when only the first is true.
+//
+// Revocation is `disabledAt`, never deletion: historical sales will reference `posDeviceId`
+// forever, so a compromised terminal must be disableable without destroying its history.
+model PosDevice {
+  id       String @id @default(cuid())
+  tenantId String
+  storeId  String
+
+  // --- IDENTITY ---
+  // `code` is the logical terminal name the merchant uses on the floor (POS-01, POS-02).
+  // Unique per store, not per tenant: two stores may each have their own POS-01.
+  name            String
+  code            String
+  createdByUserId String
+  createdAt       DateTime @default(now())
+
+  // --- CREDENTIALS (raw values are never persisted) ---
+  pairingCodeHash  String?   @unique
+  pairingExpiresAt DateTime?
+  deviceSecretHash String?   @unique
+
+  // --- LIFECYCLE (status derived from these) ---
+  activatedAt DateTime?
+  disabledAt  DateTime?
+
+  // --- RUNTIME (volatile — not configuration) ---
+  // Written by device-facing calls only. A heartbeat/online-offline/sync-state model
+  // belongs with the offline engine (OFFLINE_POS.md §4), not here; this single column
+  // is the minimum A9 needs to tell "activated once" from "actually seen".
+  lastSeenAt DateTime?
+
+  // --- CONFIGURATION (Amburax-owned presentation/hardware behaviour) ---
+  // Deliberately excludes invoice prefix / start number / default customer / price list,
+  // even though the A9 wireframe sketches them: numbering is ERPNext-authoritative
+  // (OFFLINE_POS.md §10) and customers/price lists are ERPNext-owned records that no
+  // Amburax model or adapter can validate against yet. See DECISIONS.md ADR-063.
+  receiptHeader     String?
+  receiptFooter     String?
+  showProductImages Boolean @default(true)
+  scanSoundEnabled  Boolean @default(true)
+  cashDrawerEnabled Boolean @default(false)
+
+  tenant    Tenant @relation(fields: [tenantId], references: [id])
+  store     Store  @relation(fields: [storeId], references: [id])
+  createdBy User   @relation("PosDevicesCreated", fields: [createdByUserId], references: [id])
+
+  @@unique([storeId, code])
+  @@index([tenantId])
+  @@index([storeId])
+  @@map("pos_devices")
+}
+
+model User {
+  id               String     @id @default(cuid())
+  tenantId         String
+  email            String     @unique
+  passwordHash     String
+  name             String
+  status           UserStatus @default(ACTIVE)
+  tenantRole       TenantRole @default(STAFF)
+  mfaEnabled       Boolean    @default(false)
+  failedLoginCount Int        @default(0)
+  lockedUntil      DateTime?
+  lastLoginAt      DateTime?
+  createdAt        DateTime   @default(now())
+
+  tenant              Tenant               @relation(fields: [tenantId], references: [id])
+  sessions            Session[]
+  memberships         StoreMembership[]
+  mfaChallenges       MfaChallenge[]
+  passwordResetTokens PasswordResetToken[]
+  invitationsSent     Invitation[]         @relation("InvitationsSent")
+  invitationsAccepted Invitation[]         @relation("InvitationsAccepted")
+  posDevicesCreated   PosDevice[]          @relation("PosDevicesCreated")
+
+  @@index([tenantId])
+  @@map("users")
+}
+
+// `role` is a free string (not a schema enum) matching the existing convention since A1 —
+// changing its type would touch working A7 infrastructure the brief asked not to rebuild.
+// The privilege-escalation guard therefore lives in code, not the column type: see
+// src/server/tenant/storeRoles.ts's INVITABLE_STORE_ROLES allow-list, enforced at
+// invitation creation (this file) and to be enforced identically wherever A11 later
+// creates the membership row from an accepted invitation.
+model StoreMembership {
+  id      String @id @default(cuid())
+  userId  String
+  storeId String
+  role    String
+
+  user  User  @relation(fields: [userId], references: [id])
+  store Store @relation(fields: [storeId], references: [id])
+
+  @@unique([userId, storeId])
+  @@map("store_memberships")
+}
+
+// A8's credential: proves "the tenant's owner invited this email to this store with this
+// role," nothing more. Deliberately its own model, not a reuse of Session, OnboardingSession,
+// PasswordResetToken, or MfaChallenge — see AUTHENTICATION.md's "pre-auth credential types."
+// `role` is validated against INVITABLE_STORE_ROLES at creation (never OWNER, never a future
+// platform-admin role) — the payload itself cannot be used for privilege escalation.
+//
+// Status is deliberately derived (not a stored enum) from three nullable timestamps —
+// acceptedAt / revokedAt / expiresAt — mirroring PasswordResetToken/MfaChallenge/
+// OnboardingSession's established convention, so there's one source of truth per fact
+// instead of a status column that could drift from the timestamps.
+//
+// A11 (not built yet) must accept an invitation with the same atomic-claim shape as A4's
+// token-race fix (ADR-031): `updateMany({ where: { id, acceptedAt: null, revokedAt: null,
+// expiresAt: { gt: now } }, data: { acceptedAt: now, acceptedByUserId } })` as the first
+// statement in its transaction. Documented here so A11 doesn't have to rediscover it.
+//
+// @@unique([tenantId, storeId, email]) is deliberate, not incidental: it makes "invite
+// this email to this store" a single atomic `upsert` rather than a read-then-write
+// (check for a pending invite, then create) — the latter raced under concurrent
+// double-clicks (two overlapping transactions could each pass the "no pending invite
+// yet" check before either committed, producing two live invitations for the same
+// email+store). One row per (tenant, store, email) forever, refreshed on every new
+// invite, closes that race at the database level instead of trying to out-time it.
+model Invitation {
+  id               String    @id @default(cuid())
+  tenantId         String
+  storeId          String
+  email            String
+  role             String
+  inviterUserId    String
+  tokenHash        String    @unique
+  createdAt        DateTime  @default(now())
+  lastSentAt       DateTime  @default(now())
+  resendCount      Int       @default(0)
+  expiresAt        DateTime
+  acceptedAt       DateTime?
+  acceptedByUserId String?
+  revokedAt        DateTime?
+
+  tenant     Tenant @relation(fields: [tenantId], references: [id])
+  store      Store  @relation(fields: [storeId], references: [id])
+  inviter    User   @relation("InvitationsSent", fields: [inviterUserId], references: [id])
+  acceptedBy User?  @relation("InvitationsAccepted", fields: [acceptedByUserId], references: [id])
+
+  @@unique([tenantId, storeId, email])
+  @@index([tenantId])
+  @@index([email])
+  @@index([storeId])
+  @@map("invitations")
+}
+
+model Session {
+  id        String    @id @default(cuid())
+  userId    String
+  tenantId  String
+  tokenHash String    @unique
+  ip        String?
+  userAgent String?
+  createdAt DateTime  @default(now())
+  expiresAt DateTime
+  revokedAt DateTime?
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@map("sessions")
+}
+
+// Durable rate-limit + audit source for login/MFA attempts (LoginSucceeded/LoginFailed, MFA verify/resend).
+// `context` scopes the IP rate-limit window per attempt type so a burst of OTP
+// guesses can't be laundered through the plain-login limiter or vice versa.
+model LoginAttempt {
+  id        String   @id @default(cuid())
+  email     String
+  ip        String
+  context   String   @default("password")
+  success   Boolean
+  reason    String?
+  createdAt DateTime @default(now())
+
+  @@index([email, createdAt])
+  @@index([ip, context, createdAt])
+  @@map("login_attempts")
+}
+
+enum MfaChannel {
+  SMS
+  WHATSAPP
+  EMAIL
+}
+
+// One row per OTP challenge issued after a password-correct, MFA-required login.
+// tokenHash identifies the challenge to the client (opaque, like Session.tokenHash);
+// codeHash is the OTP itself. Neither the raw token nor the raw code is ever persisted.
+model MfaChallenge {
+  id          String     @id @default(cuid())
+  userId      String
+  tenantId    String
+  tokenHash   String     @unique
+  codeHash    String
+  channel     MfaChannel @default(SMS)
+  attempts    Int        @default(0)
+  resendCount Int        @default(0)
+  ip          String?
+  userAgent   String?
+  createdAt   DateTime   @default(now())
+  lastSentAt  DateTime   @default(now())
+  expiresAt   DateTime
+  consumedAt  DateTime?
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@map("mfa_challenges")
+}
+
+// One row per password reset request that actually issued a token (silent no-op
+// requests — unknown email, disabled account, within cooldown — create no row,
+// by design: the response is identical either way, so nothing here should be
+// queryable as a "did this email request a reset" oracle beyond what's already
+// implied by the user existing at all).
+// Issuing a new token supersedes (consumes) every prior unconsumed token for the
+// same user — see DECISIONS.md ADR-027. Only one reset link is ever valid at a time.
+model PasswordResetToken {
+  id         String    @id @default(cuid())
+  userId     String
+  tenantId   String
+  tokenHash  String    @unique
+  ip         String?
+  userAgent  String?
+  createdAt  DateTime  @default(now())
+  expiresAt  DateTime
+  consumedAt DateTime?
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@map("password_reset_tokens")
+}
+
+model AuditLog {
+  id            String   @id @default(cuid())
+  tenantId      String?
+  userId        String?
+  action        String
+  correlationId String
+  metadata      Json?
+  createdAt     DateTime @default(now())
+
+  @@index([tenantId, createdAt])
+  @@map("audit_logs")
+}
