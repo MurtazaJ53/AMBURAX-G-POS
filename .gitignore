@@ -20,6 +20,10 @@ next-env.d.ts.bak
 
 # --- database dumps & local databases ---
 *.sql
+# ...but Prisma migrations ARE source code and must always be committed.
+# Without this exception the `*.sql` dump rule silently swallows every migration,
+# which is exactly how a "reproducible migrations" commit ends up containing no SQL.
+!**/prisma/migrations/**/*.sql
 *.dump
 *.sqlite
 *.sqlite3
