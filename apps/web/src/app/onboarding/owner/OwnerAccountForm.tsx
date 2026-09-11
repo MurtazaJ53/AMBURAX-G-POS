@@ -46,11 +46,19 @@ export function OwnerAccountForm() {
   const [error, setError] = useState<FormError | null>(null);
 
   useEffect(() => {
+    // react-hooks/set-state-in-effect is suppressed on these two calls only.
+    // Same constraint as VerifyForm: `readOnboarding()` reads sessionStorage, which is
+    // absent during server rendering, so a lazy useState initializer would cause a
+    // hydration mismatch. `phase` also transitions later (dead_end on a rejected
+    // registration), so it cannot be replaced by a derived snapshot. Revisit with
+    // useSyncExternalStore once this flow has component coverage.
     const stored = readOnboarding();
     if (!stored) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- see comment above
       setPhase({ kind: "no_session" });
       return;
     }
+
     setPhase({ kind: "form", onboardingToken: stored.onboardingToken });
   }, []);
 
@@ -128,7 +136,7 @@ export function OwnerAccountForm() {
     return (
       <div className="mt-8 space-y-4">
         <div role="alert" className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-          We couldn't find an in-progress business registration. This can happen if you
+          We couldn&apos;t find an in-progress business registration. This can happen if you
           refreshed the page or opened this link in a new tab.
         </div>
         <Link
@@ -201,7 +209,7 @@ export function OwnerAccountForm() {
             className="mt-1.5 block w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 shadow-sm focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/30"
             placeholder="you@business.com"
           />
-          <p className="mt-1 text-xs text-slate-400">You'll sign in with this email.</p>
+          <p className="mt-1 text-xs text-slate-400">You&apos;ll sign in with this email.</p>
         </div>
 
         <div>

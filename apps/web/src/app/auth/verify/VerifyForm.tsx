@@ -57,12 +57,23 @@ export function VerifyForm() {
   const inputRefs = useRef<Array<HTMLInputElement | null>>([]);
 
   useEffect(() => {
+    // react-hooks/set-state-in-effect is suppressed on these three calls only.
+    // `readChallenge()` reads sessionStorage, which does not exist during server rendering.
+    // A lazy useState initializer would therefore return null on the server and the real
+    // challenge on the client, producing a hydration mismatch. The sanctioned alternative
+    // is useSyncExternalStore, but `phase` and `challenge` are a state machine that keeps
+    // transitioning afterwards (dead_end on expiry/attempt limits, and setChallenge on
+    // resend), so adopting it means restructuring an auth-critical component that has no
+    // component or end-to-end coverage today. Deferred deliberately, not overlooked.
     const stored = readChallenge();
     if (!stored) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- see comment above
       setPhase({ kind: "no_challenge" });
       return;
     }
+
     setChallenge(stored);
+
     setPhase({ kind: "ready" });
     inputRefs.current[0]?.focus();
   }, []);
@@ -253,7 +264,7 @@ export function VerifyForm() {
     return (
       <div className="mt-8 space-y-4">
         <div role="alert" className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-          We couldn't find an active sign-in to verify. This can happen if you refreshed the page or the tab was
+          We couldn&apos;t find an active sign-in to verify. This can happen if you refreshed the page or the tab was
           closed.
         </div>
         <Link

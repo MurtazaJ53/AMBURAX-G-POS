@@ -86,7 +86,7 @@ export function AcceptInvitationForm({ token, email, accountExists, signedInAs }
     return (
       <div className="mt-8 space-y-4">
         <div role="alert" className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
-          This invitation was sent to <span className="font-medium">{email}</span>, but you're signed in as{" "}
+          This invitation was sent to <span className="font-medium">{email}</span>, but you&apos;re signed in as{" "}
           <span className="font-medium">{signedInAs}</span>. Sign out and open this link again.
         </div>
         <Link

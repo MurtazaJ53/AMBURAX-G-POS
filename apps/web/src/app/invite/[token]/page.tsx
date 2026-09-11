@@ -130,7 +130,7 @@ export default async function InvitePage({ params }: { params: Promise<{ token: 
 
   return (
     <Shell>
-      <h2 className="text-2xl font-semibold text-slate-900">You're invited</h2>
+      <h2 className="text-2xl font-semibold text-slate-900">You&apos;re invited</h2>
       <p className="mt-1 text-sm text-slate-500">
         <span className="font-medium text-slate-700">{preview.tenantName}</span> invited you to join{" "}
         <span className="font-medium text-slate-700">{preview.storeName}</span> as{" "}

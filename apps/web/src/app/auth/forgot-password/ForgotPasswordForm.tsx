@@ -82,7 +82,7 @@ export function ForgotPasswordForm() {
         )}
 
         <p className="text-sm text-slate-500">
-          Didn't get it?{" "}
+          Didn&apos;t get it?{" "}
           <button
             type="button"
             onClick={() => setPhase({ kind: "form" })}

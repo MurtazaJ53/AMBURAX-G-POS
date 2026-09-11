@@ -18,9 +18,9 @@ export function ServiceUnavailableScreen() {
         <div className="text-lg font-semibold tracking-tight">AMBURAX POS</div>
         <div className="space-y-4">
           <h1 className="text-3xl font-semibold leading-tight text-white">One moment.</h1>
-          <p className="text-sm text-slate-300">We're having trouble reaching your data right now.</p>
+          <p className="text-sm text-slate-300">We&apos;re having trouble reaching your data right now.</p>
         </div>
-        <p className="text-xs text-slate-400">Nothing you've set up has been lost.</p>
+        <p className="text-xs text-slate-400">Nothing you&apos;ve set up has been lost.</p>
       </section>
 
       <section className="flex items-center justify-center px-6 py-16">
@@ -33,8 +33,8 @@ export function ServiceUnavailableScreen() {
             role="alert"
             className="mt-6 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800"
           >
-            We couldn't load this page right now. Please try again in a few minutes — nothing
-            you've already set up has been lost.
+            We couldn&apos;t load this page right now. Please try again in a few minutes — nothing
+            you&apos;ve already set up has been lost.
           </div>
         </div>
       </section>

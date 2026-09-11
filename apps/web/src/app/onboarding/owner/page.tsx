@@ -21,7 +21,7 @@ export default async function OwnerAccountPage() {
       <section className="hidden flex-col justify-between bg-slate-950 p-12 text-white lg:flex">
         <div className="text-lg font-semibold tracking-tight">AMBURAX POS</div>
         <div className="space-y-4">
-          <h1 className="text-3xl font-semibold leading-tight text-white">You're almost in.</h1>
+          <h1 className="text-3xl font-semibold leading-tight text-white">You&apos;re almost in.</h1>
           <p className="text-sm text-slate-300">
             Create your owner account to finish setting up your workspace and sign in for
             the first time.
@@ -38,7 +38,7 @@ export default async function OwnerAccountPage() {
           <p className="text-xs font-medium uppercase tracking-wide text-brand-600">Step 2 of 6</p>
           <h2 className="mt-1 text-2xl font-semibold text-slate-900">Create your owner account</h2>
           <p className="mt-1 text-sm text-slate-500">
-            This is how you'll sign in to manage your business.
+            This is how you&apos;ll sign in to manage your business.
           </p>
           <OwnerAccountForm />
         </div>

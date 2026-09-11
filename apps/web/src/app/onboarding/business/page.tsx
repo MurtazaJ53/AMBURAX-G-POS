@@ -34,7 +34,7 @@ export default function BusinessRegistrationPage() {
           <p className="text-xs font-medium uppercase tracking-wide text-brand-600">Step 1 of 6</p>
           <h2 className="mt-1 text-2xl font-semibold text-slate-900">Tell us about your business</h2>
           <p className="mt-1 text-sm text-slate-500">
-            We'll use this to set up your workspace. You can change it later.
+            We&apos;ll use this to set up your workspace. You can change it later.
           </p>
           <BusinessRegistrationForm />
         </div>

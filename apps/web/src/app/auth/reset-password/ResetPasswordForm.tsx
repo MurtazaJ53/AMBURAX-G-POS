@@ -30,10 +30,19 @@ export function ResetPasswordForm() {
 
   useEffect(() => {
     const token = searchParams.get("token");
+    // react-hooks/set-state-in-effect is suppressed on the two setPhase calls below, and
+    // only here. This is the capture-then-destroy case: the very next statement calls
+    // router.replace() to scrub the token out of the URL, so the token MUST be copied into
+    // state first. Deriving `phase` from searchParams during render would be actively
+    // wrong — the scrub empties searchParams, the derived token becomes null, and the form
+    // would flip itself to "no_token" the instant it rendered. Tracked as a follow-up to
+    // revisit with useSyncExternalStore once these flows have component coverage.
     if (!token) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- see comment above
       setPhase({ kind: "no_token" });
       return;
     }
+
     setPhase({ kind: "form", token });
     // Scrub the token out of the visible URL/history immediately after reading it — a
     // reset token has to arrive via a URL to be a clickable email link at all, but it
@@ -133,7 +142,7 @@ export function ResetPasswordForm() {
           aria-live="polite"
           className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800"
         >
-          Password updated. For your security, you'll need to sign in again on every device.
+          Password updated. For your security, you&apos;ll need to sign in again on every device.
         </div>
         <Link
           href="/auth/login"

@@ -149,7 +149,7 @@ export function PosSetupForm({ storeId, storeName, isWarehouse, suggestedCode }:
             className="mt-4 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800"
           >
             <span className="font-semibold">Shown once.</span> We store only a hash of this code,
-            so it can't be shown again. If you lose it, create a new pairing code from POS
+            so it can&apos;t be shown again. If you lose it, create a new pairing code from POS
             Configuration.
           </div>
         </div>
@@ -267,7 +267,7 @@ export function PosSetupForm({ storeId, storeName, isWarehouse, suggestedCode }:
             />
           </div>
           <p className="text-xs text-slate-400">
-            Invoice numbering isn't set here — your accounting system issues invoice numbers so
+            Invoice numbering isn&apos;t set here — your accounting system issues invoice numbers so
             they stay unique and auditable.
           </p>
         </div>
