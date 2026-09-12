@@ -60,7 +60,7 @@ true at all. That is a defensible *position*, but it is not a freeze.
 | Schema verified against a real database | P1-2 | **FAILED** — no PostgreSQL has ever run this code |
 | No false product claims shipped | P1-3 | **FAILED** — login page advertises offline POS |
 | Event/outbox foundation decided | P1-4 | **FAILED** — no outbox; audit rows only |
-| No orphaned/dead code masking a live defect | P1-5 | **FAILED** — `resume.ts` unused, defect live |
+| No orphaned/dead code masking a live defect | P1-5 | **PASSED** (2026-09-12) — `resume.ts` wired into `/home`; resume covered by unit and real-PostgreSQL tests |
 | Static analysis runs | P1-6 | **FAILED** — lint has never worked |
 | Two-database (PostgreSQL/MariaDB) decision recorded | P1-7 | **FAILED** — undecided |
 | CI pipeline | P2-3 | Not a freeze gate, but noted |

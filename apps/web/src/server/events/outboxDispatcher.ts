@@ -81,7 +81,7 @@ export async function claimDueEvents(params: {
     ? Prisma.sql`AND "tenantId" = ${params.tenantId}`
     : Prisma.empty;
 
-  return db.$queryRaw<ClaimedRow[]>`
+  const rows = await db.$queryRaw<ClaimedRow[]>`
     UPDATE "outbox_events" AS o
        SET "attempts"      = o."attempts" + 1,
            "nextAttemptAt" = ${now} + (LEAST(3600000, 30000 * POWER(2, o."attempts")) || ' milliseconds')::interval
@@ -99,6 +99,16 @@ export async function claimDueEvents(params: {
               o."occurredAt", o."actorUserId", o."correlationId", o."causationId",
               o."entityId", o."payload", o."attempts"
   `;
+
+  // The subquery's ORDER BY decides *which* rows are claimed — that part is guaranteed.
+  // The order of rows coming back from UPDATE ... RETURNING is NOT: PostgreSQL makes no
+  // such promise, and in practice this returned them shuffled about two runs in three.
+  // Sorting here is what actually makes oldest-first delivery a guarantee rather than an
+  // accident. `id` breaks ties so the order is fully deterministic when two events share
+  // a millisecond.
+  return rows.sort(
+    (a, b) => a.occurredAt.getTime() - b.occurredAt.getTime() || a.id.localeCompare(b.id),
+  );
 }
 
 function toPublishable(row: ClaimedRow): PublishableEvent {

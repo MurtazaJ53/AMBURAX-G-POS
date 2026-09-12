@@ -84,7 +84,17 @@ notifications — has no foundation. Writing an audit row and calling it an even
 the anti-pattern the docs explicitly warn against.
 **Fix:** Design the outbox before the first side-effecting integration, not after.
 
-### P1-5 — Orphaned dead code, and the defect it was meant to fix is still live
+### P1-5 — Orphaned dead code, and the defect it was meant to fix is still live — **CLOSED 2026-09-12**
+
+**Resolution:** `getOnboardingResume()` is now called by `src/app/(app)/home/page.tsx`, the
+single point every authenticated entry path funnels through (sign-in, MFA completion, the
+root redirect, a bookmark, a refresh). An owner at OWNER_CREATED / STORE_CREATED /
+TEAM_INVITED / POS_CONFIGURED is redirected to the screen that accepts that step; a
+COMPLETE tenant and any STAFF user are never redirected. Wiring it surfaced a latent
+redirect loop for a tenant whose step implies a Store that does not exist — that state now
+stops with an explicit notice instead of cycling. No schema change. See ADR-075.
+
+*Original finding, retained for history:*
 **Evidence:** `src/server/onboarding/resume.ts` exports `onboardingResumePath()`;
 repository-wide grep finds no importer. `LoginForm.tsx:43` and `VerifyForm.tsx:152`
 both push to `/home`.
