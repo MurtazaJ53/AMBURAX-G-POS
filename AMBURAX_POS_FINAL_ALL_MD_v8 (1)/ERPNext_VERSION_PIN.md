@@ -46,6 +46,27 @@ The only occurrences of the string `erpnext` in source are:
 These are **placeholders for a future integration**, all sitting at their
 `NOT_PROVISIONED` default. They are not an integration.
 
+## 2b. Which version to pin, and why (P1-7)
+
+**No version can be pinned yet, because nothing is installed.** What P1-7 settles is the
+*criteria*, so that the choice at implementation time is made on evidence rather than
+whatever is newest that week:
+
+1. **A currently-supported major, never the newest release.** A `.0` carries migration risk
+   and thin community coverage; the newest is exactly where adapter-breaking changes live.
+2. **Frappe and ERPNext pinned together.** ERPNext depends on a specific Frappe major.
+   Recording one without the other is not a pin.
+3. **A version with a stated support window** long enough to cover the planned Phase 2-5
+   build, so an EOL does not force an upgrade mid-build.
+4. **MariaDB version pinned alongside**, since Frappe constrains it.
+5. **Contract-tested before adoption** — see section 8 of ERPNEXT_ARCHITECTURE.md.
+
+**Deliberately not naming a version here.** The current ERPNext release and support calendar
+must be read at implementation time from the vendor, not asserted from memory in this
+document; stating a version that later proves wrong would be worse than stating none. The
+last major this project can speak to with any confidence is the v15 line, and even that must
+be re-checked rather than trusted.
+
 ## 3. Support / EOL status
 
 **Not applicable.** No version is deployed, so there is no support window, no EOL

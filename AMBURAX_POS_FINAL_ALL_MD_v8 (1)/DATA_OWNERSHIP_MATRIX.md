@@ -1,6 +1,13 @@
 # AMBURAX POS — DATA OWNERSHIP MATRIX
 
-Audit date: 2026-09-11
+Audit date: 2026-09-11 · Physical-store column added 2026-09-12 (P1-7)
+
+**Physical stores** (settled by ADR-076): every **AMBURAX MASTER** domain lives in AMBURAX
+**PostgreSQL**; every **ERPNEXT MASTER** domain lives in ERPNext **MariaDB**, one database
+per Frappe site, one site per tenant. **SHARED-ORCHESTRATED** domains are split — the
+experience/policy/mapping half in PostgreSQL, the financial/stock consequence in MariaDB —
+and **READ MODEL** rows live in PostgreSQL but are never authoritative there. Topology,
+synchronization rules and the open questions are in ERPNEXT_ARCHITECTURE.md.
 
 Classification vocabulary:
 
@@ -90,15 +97,18 @@ UI — OFFLINE_POS.md §14's "Local estimate — server confirmation pending" ru
    while that is true. A10 already enforces this by reporting `inventory` as
    `UNAVAILABLE`.
 
-## 6. Open ownership question requiring a decision
+## 6. The two-database question — SETTLED 2026-09-12 (P1-7)
 
-**AMBURAX runs PostgreSQL; Frappe/ERPNext requires MariaDB.** That makes the
-target a two-database system, and no document currently states:
+**AMBURAX runs PostgreSQL; Frappe/ERPNext requires MariaDB.** That makes the target a
+two-database system. It is now documented in ERPNEXT_ARCHITECTURE.md and decided in
+ADR-076/077/078:
 
-- whether they share a host,
-- how a cross-database transaction failure is reconciled,
-- which system is consulted first during a POS sale,
-- what the backup/restore ordering is between them.
+| Question | Answer |
+|---|---|
+| Do they share a host? | Tiered. Tier 1 shares a MariaDB server (one database per Frappe site); Tiers 2 and 3 get dedicated instances. |
+| How is a cross-database failure reconciled? | No distributed transaction. Eventual consistency through the existing durable outbox, then a scheduled reconciliation sweep that raises a case for a human — never an automatic financial resolution. |
+| Which system is consulted first during a POS sale? | ERPNext is authoritative for the invoice either way. **Whether the cashier waits for it is still open** — the documents genuinely contradict each other and it is a product decision (ADR-078). |
+| Backup/restore ordering? | **Still open.** A tenant's state spans both databases and no coordinated per-tenant restore is defined. There is no backup of anything today. |
 
-This is recorded as **P1-7** in ARCHITECTURE_GAPS.md and must be settled before
-the first ERPNext write path is designed.
+Two of the four are deliberately left open rather than invented. See
+ERPNEXT_ARCHITECTURE.md section 14.

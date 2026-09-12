@@ -97,7 +97,9 @@ revocable DB-backed tokens (ADR-022); that decision is unrealised until it ships
 
 ## What is explicitly NOT next
 
-- **Do not start ERPNext integration.** P1-7 is undecided, and the first ERPNext
+- **Do not start ERPNext integration yet.** P1-7 is now decided (ERPNEXT_ARCHITECTURE.md,
+  ADR-076/077/078), but two questions remain open — the hosting shape and online sale
+  synchrony — and the first ERPNext
   commit is when GPLv3 obligations become live (LICENSE_RECONCILIATION.md section 2,
   action L-3). Decide the topology and create `amburax_erp` before writing any of it.
 - **Do not build offline POS.** A9 delivered device identity only. The offline

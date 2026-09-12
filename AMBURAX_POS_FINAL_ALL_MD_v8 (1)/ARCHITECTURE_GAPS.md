@@ -115,7 +115,18 @@ codebase at all.
 **Fix:** Add a flat ESLint config with the TypeScript and React plugins; expect an
 initial backlog and triage it.
 
-### P1-7 — The two-database question is undecided
+### P1-7 — The two-database question is undecided — **CLOSED 2026-09-12**
+
+**Resolution:** ERPNEXT_ARCHITECTURE.md records the decision; ADR-076/077/078 record the
+reasoning. AMBURAX owns PostgreSQL, ERPNext owns MariaDB, neither holds an authoritative
+copy of the other's domain, and consistency is eventual through the existing outbox with no
+distributed transaction. ERPNext tenancy is tiered with the Frappe site as the unit at every
+tier; Tenant maps 1:1 to site and Company, Store 1:1 to Warehouse. Four alternatives were
+evaluated and rejected with reasons. **Two questions are deliberately left open rather than
+invented** (ADR-078): online POS sale synchrony is a product decision the documents genuinely
+contradict, and the ERPNext hosting shape is commercial. Neither blocks Phase 2.
+
+*Original finding, retained for history:*
 **Evidence:** AMBURAX runs PostgreSQL. Frappe/ERPNext requires MariaDB. No
 document states how they coexist.
 **Impact:** The first ERPNext write path cannot be designed correctly without
