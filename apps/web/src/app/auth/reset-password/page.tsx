@@ -27,7 +27,7 @@ export default async function ResetPasswordPage() {
             This link is single-use and time-limited. Signing in elsewhere will require your new password.
           </p>
         </div>
-        <p className="text-xs text-slate-400">Trusted by garment and general retail businesses.</p>
+        <p className="text-xs text-slate-400">Built for garment and general retail.</p>
       </section>
 
       <section className="flex items-center justify-center px-6 py-16">

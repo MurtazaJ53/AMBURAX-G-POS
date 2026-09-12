@@ -29,7 +29,7 @@ function Shell({ children }: { children: React.ReactNode }) {
             One system for the counter, stock, and everything in between.
           </p>
         </div>
-        <p className="text-xs text-slate-400">Trusted by garment and general retail businesses.</p>
+        <p className="text-xs text-slate-400">Built for garment and general retail.</p>
       </section>
 
       <section className="flex items-center justify-center px-6 py-16">
