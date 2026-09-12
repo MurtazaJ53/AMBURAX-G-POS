@@ -21,6 +21,9 @@ import { Prisma } from "@prisma/client";
  * EVENTS.md's catalogue is added as each producer is built, not in advance.
  */
 export const OUTBOX_EVENT_TYPES = [
+  // EVENTS.md lists this under "Transaction events". Emitted by saleService inside the
+  // sale transaction, so it exists if and only if the sale committed.
+  "SaleCompleted",
   "PosDeviceCreated",
   "PosDeviceActivated",
   "PosDeviceDisabled",

@@ -96,6 +96,9 @@ model Tenant {
   stores             Store[]
   posDevices         PosDevice[]
   outboxEvents       OutboxEvent[]
+  products           Product[]
+  customers          Customer[]
+  sales              Sale[]
   onboardingSessions OnboardingSession[]
   invitations        Invitation[]
 
@@ -153,12 +156,20 @@ model Store {
   erpnextProvisionStatus ErpnextProvisionStatus @default(NOT_PROVISIONED)
   erpnextWarehouseId     String?
 
+  // Per-store bill counter. Incremented inside the sale transaction, so PostgreSQL's row
+  // lock serialises concurrent tills and two sales can never take the same number.
+  // This is an AMBURAX *retail reference*, NOT an ERPNext invoice number — invoice
+  // numbering stays ERPNext-authoritative (ADR-063). See ADR-079.
+  nextBillSeq Int @default(1)
+
   createdAt DateTime @default(now())
 
   tenant      Tenant            @relation(fields: [tenantId], references: [id])
   memberships StoreMembership[]
   invitations Invitation[]
   posDevices  PosDevice[]
+  sales       Sale[]
+  stockLevels StockLevel[]
 
   @@unique([tenantId, code])
   @@map("stores")
@@ -266,6 +277,7 @@ model User {
   invitationsSent     Invitation[]         @relation("InvitationsSent")
   invitationsAccepted Invitation[]         @relation("InvitationsAccepted")
   posDevicesCreated   PosDevice[]          @relation("PosDevicesCreated")
+  salesRung           Sale[]               @relation("SalesRung")
 
   @@index([tenantId])
   @@map("users")
@@ -491,6 +503,247 @@ model OutboxEvent {
   @@index([publishedAt, deadLetteredAt, nextAttemptAt])
   @@index([tenantId, occurredAt])
   @@map("outbox_events")
+}
+
+// -----------------------------------------------------------------------------
+// RETAIL COMMERCE DOMAIN
+//
+// Money is stored as INTEGER MINOR UNITS (paise) everywhere, never as Float. Binary
+// floating point cannot represent 0.1 exactly, and a POS that accumulates rounding error
+// across a day's takings reconciles to nothing. Every `*Minor` column is an exact integer
+// count of the smallest currency unit.
+//
+// Tax rates are stored in BASIS POINTS (`taxRateBp`): 1800 == 18.00%. Same reasoning.
+//
+// What this domain does NOT do: it is not an accounting system and not a stock ledger.
+// ERPNext remains authoritative for the Sales Invoice, Payment Entry, GL impact and the
+// stock ledger (ADR-001, ERPNEXT_ARCHITECTURE.md). These tables hold the AMBURAX retail
+// record and the operational projection needed to run a counter - see StockLevel.
+// -----------------------------------------------------------------------------
+
+model Product {
+  id       String  @id @default(cuid())
+  tenantId String
+  name     String
+  category String?
+  brand    String?
+  isActive Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  tenant   Tenant           @relation(fields: [tenantId], references: [id])
+  variants ProductVariant[]
+
+  @@index([tenantId, name])
+  @@map("products")
+}
+
+// The sellable unit. A non-garment retailer simply has one variant per product with null
+// size/colour - the model stays generic rather than assuming apparel, while `size`/`colour`
+// give the garment-first vertical first-class columns instead of burying them in JSON.
+model ProductVariant {
+  id        String @id @default(cuid())
+  tenantId  String
+  productId String
+
+  sku     String
+  barcode String?
+  size    String?
+  colour  String?
+
+  // Selling price and MRP in minor units. `taxRateBp` is the rate configured on the
+  // variant; the rate actually charged is snapshotted onto the sale line.
+  priceMinor Int
+  mrpMinor   Int?
+  taxRateBp  Int  @default(0)
+
+  isActive Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  product     Product      @relation(fields: [productId], references: [id])
+  saleItems   SaleItem[]
+  stockLevels StockLevel[]
+
+  // SKU and barcode are unique per tenant, not globally: two businesses may legitimately
+  // use the same SKU string, and a global constraint would leak one tenant's namespace
+  // into another's.
+  @@unique([tenantId, sku])
+  @@unique([tenantId, barcode])
+  @@index([tenantId, productId])
+  @@map("product_variants")
+}
+
+model Customer {
+  id       String  @id @default(cuid())
+  tenantId String
+  name     String
+  phone    String?
+  email    String?
+  isActive Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+  sales  Sale[]
+
+  // Phone is the retail identity key in this market. Unique per tenant so selecting an
+  // existing customer can never silently create a duplicate.
+  @@unique([tenantId, phone])
+  @@index([tenantId, name])
+  @@map("customers")
+}
+
+// COMPLETED means AMBURAX holds the sale. It does NOT mean ERPNext posted an invoice -
+// `erpSyncStatus` carries that separately and honestly (OFFLINE_POS.md section 16).
+enum SaleStatus {
+  COMPLETED
+  VOIDED
+}
+
+enum ErpSyncStatus {
+  PENDING
+  SYNCED
+  FAILED
+}
+
+enum PaymentMethod {
+  CASH
+  UPI
+  CARD
+}
+
+enum PaymentStatus {
+  PENDING
+  CONFIRMED
+  FAILED
+}
+
+model Sale {
+  id       String @id @default(cuid())
+  tenantId String
+  storeId  String
+
+  // Human-facing retail reference, unique per store, allocated from Store.nextBillSeq
+  // inside the sale transaction. NOT an ERPNext invoice number (ADR-063 / ADR-079).
+  billNumber String
+
+  cashierUserId String
+  customerId    String?
+
+  status SaleStatus @default(COMPLETED)
+
+  // Every amount is server-calculated from the variant's stored price. Nothing here is
+  // ever taken from the browser - see saleService.ts.
+  subtotalMinor Int
+  discountMinor Int @default(0)
+  taxMinor      Int
+  totalMinor    Int
+  paidMinor     Int
+
+  // Client-supplied request identity. Unique per tenant, so a double-click, a browser
+  // retry or a network retry returns the original sale instead of ringing it twice.
+  idempotencyKey String
+
+  // ERPNext is not connected. PENDING is the truthful state, not a placeholder for
+  // success - the UI must say "ERP sync pending", never "posted to ERPNext".
+  erpSyncStatus ErpSyncStatus @default(PENDING)
+  erpInvoiceId  String?
+
+  completedAt DateTime @default(now())
+  createdAt   DateTime @default(now())
+
+  tenant   Tenant        @relation(fields: [tenantId], references: [id])
+  store    Store         @relation(fields: [storeId], references: [id])
+  cashier  User          @relation("SalesRung", fields: [cashierUserId], references: [id])
+  customer Customer?     @relation(fields: [customerId], references: [id])
+  items    SaleItem[]
+  payments SalePayment[]
+
+  @@unique([tenantId, idempotencyKey])
+  @@unique([storeId, billNumber])
+  @@index([tenantId, completedAt])
+  @@index([storeId, completedAt])
+  @@map("sales")
+}
+
+// Line values are SNAPSHOTS taken at the moment of sale. A later price change must never
+// retroactively alter what a customer was charged, so name, sku and unit price are copied
+// here rather than joined from the variant at read time.
+model SaleItem {
+  id     String @id @default(cuid())
+  saleId String
+
+  variantId    String
+  skuSnapshot  String
+  nameSnapshot String
+
+  quantity          Int
+  unitPriceMinor    Int
+  lineDiscountMinor Int @default(0)
+  taxRateBp         Int
+  taxMinor          Int
+  lineTotalMinor    Int
+
+  sale    Sale           @relation(fields: [saleId], references: [id], onDelete: Cascade)
+  variant ProductVariant @relation(fields: [variantId], references: [id])
+
+  @@index([saleId])
+  @@index([variantId])
+  @@map("sale_items")
+}
+
+// A sale may be settled by more than one tender. No payment gateway is integrated, so
+// CASH/UPI/CARD are all operator-confirmed at the counter - `reference` holds a UPI or
+// card reference the operator typed. A timeout must never become CONFIRMED.
+model SalePayment {
+  id     String @id @default(cuid())
+  saleId String
+
+  method      PaymentMethod
+  status      PaymentStatus @default(PENDING)
+  amountMinor Int
+  reference   String?
+  confirmedAt DateTime?
+
+  createdAt DateTime @default(now())
+
+  sale Sale @relation(fields: [saleId], references: [id], onDelete: Cascade)
+
+  @@index([saleId])
+  @@map("sale_payments")
+}
+
+// AMBURAX OPERATIONAL STOCK PROJECTION - NOT AN AUTHORITATIVE STOCK LEDGER.
+//
+// ERPNext owns the stock ledger (ADR-001, DATA_OWNERSHIP_MATRIX.md). This table exists so a
+// counter can show an on-hand figure and so a sale visibly moves stock, and it is
+// explicitly a read/operational projection: no valuation, no costing, no stock entries, no
+// accounting impact, and rebuildable from ERPNext once the adapter exists.
+//
+// It must never be presented as a confirmed global stock figure - the UI labels it as an
+// operational count, per OFFLINE_POS.md section 14's "local estimate" rule. See ADR-080.
+model StockLevel {
+  id        String @id @default(cuid())
+  tenantId  String
+  storeId   String
+  variantId String
+
+  // Signed on purpose: a projection that has drifted negative is information, and clamping
+  // it at zero would hide the drift a reconciliation sweep needs to find.
+  quantity Int @default(0)
+
+  updatedAt DateTime @updatedAt
+
+  store   Store          @relation(fields: [storeId], references: [id])
+  variant ProductVariant @relation(fields: [variantId], references: [id])
+
+  @@unique([storeId, variantId])
+  @@index([tenantId])
+  @@map("stock_levels")
 }
 
 model AuditLog {

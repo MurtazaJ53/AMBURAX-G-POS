@@ -1,6 +1,7 @@
 import { PrismaClient } from "@prisma/client";
 import { hashPassword } from "../src/server/identity/password";
 import { logError } from "../src/lib/safeLog";
+import { seedCatalogue } from "./seedCatalogue";
 
 const db = new PrismaClient();
 
@@ -78,9 +79,14 @@ async function main() {
     create: { userId: mfaUser.id, storeId: store.id, role: "MANAGER" },
   });
 
+  const counts = await seedCatalogue(db, { tenantId: tenant.id, storeId: store.id });
+
   console.log("Seeded demo tenant.");
   console.log("  owner@demo.amburax.test / Passw0rd!123 (no MFA)");
   console.log("  manager.mfa@demo.amburax.test / Passw0rd!123 (MFA — set DEV_OTP_ECHO=true to see the code)");
+  console.log(
+    `  catalogue: ${counts.products} products, ${counts.variants} variants, ${counts.customers} customers`,
+  );
 }
 
 main()

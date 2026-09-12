@@ -25,6 +25,23 @@ export const IDS = {
 } as const;
 
 /**
+ * Catalogue fixtures, kept separate from `IDS` because only the sale tests need them.
+ *
+ * Each tenant gets its own product, variant and customer. That symmetry is what makes the
+ * cross-tenant assertions meaningful: "tenant A cannot sell tenant B's product" is only a
+ * real test if tenant B's product genuinely exists and is genuinely sellable — by B.
+ */
+export const COMMERCE_IDS = {
+  productA: "p-aaaaaaaaaaaaaaaaaaaaaaaa",
+  productB: "p-bbbbbbbbbbbbbbbbbbbbbbbb",
+  variantA1: "v-aaaaaaaaaaaaaaaaaaaaaaa1",
+  variantA2: "v-aaaaaaaaaaaaaaaaaaaaaaa2",
+  variantB1: "v-bbbbbbbbbbbbbbbbbbbbbbb1",
+  customerA: "c-aaaaaaaaaaaaaaaaaaaaaaaa",
+  customerB: "c-bbbbbbbbbbbbbbbbbbbbbbbb",
+} as const;
+
+/**
  * Truncate every table between tests. `RESTART IDENTITY CASCADE` in one statement is both
  * faster than per-table deletes and immune to foreign-key ordering, which would otherwise
  * make the reset depend on the schema's shape.
@@ -141,5 +158,108 @@ export async function seedTwoTenants(): Promise<void> {
   });
   await db.storeMembership.create({
     data: { userId: IDS.ownerB, storeId: IDS.storeB, role: "OWNER" },
+  });
+
+  // Note what is deliberately absent: staffA has no StoreMembership at all. That is what
+  // makes the "unauthorized cashier is blocked" test test something — the user is real,
+  // belongs to tenant A, and still may not sell.
+}
+
+/**
+ * A sellable catalogue and a customer for each tenant.
+ *
+ * Prices are round numbers in paise with a 5% (500bp) inclusive tax rate, chosen so that
+ * an assertion failure reads as arithmetic rather than as a puzzle.
+ */
+export async function seedCommerce(): Promise<void> {
+  await db.product.create({
+    data: { id: COMMERCE_IDS.productA, tenantId: IDS.tenantA, name: "A Shirt", category: "Shirts" },
+  });
+  await db.product.create({
+    data: { id: COMMERCE_IDS.productB, tenantId: IDS.tenantB, name: "B Shirt", category: "Shirts" },
+  });
+
+  await db.productVariant.create({
+    data: {
+      id: COMMERCE_IDS.variantA1,
+      tenantId: IDS.tenantA,
+      productId: COMMERCE_IDS.productA,
+      sku: "A-SHIRT-M",
+      barcode: "1000000000001",
+      size: "M",
+      colour: "White",
+      priceMinor: 100_000,
+      mrpMinor: 120_000,
+      taxRateBp: 500,
+    },
+  });
+  await db.productVariant.create({
+    data: {
+      id: COMMERCE_IDS.variantA2,
+      tenantId: IDS.tenantA,
+      productId: COMMERCE_IDS.productA,
+      sku: "A-SHIRT-L",
+      barcode: "1000000000002",
+      size: "L",
+      colour: "White",
+      priceMinor: 200_000,
+      mrpMinor: 240_000,
+      taxRateBp: 500,
+    },
+  });
+  await db.productVariant.create({
+    data: {
+      id: COMMERCE_IDS.variantB1,
+      tenantId: IDS.tenantB,
+      productId: COMMERCE_IDS.productB,
+      sku: "B-SHIRT-M",
+      barcode: "2000000000001",
+      size: "M",
+      colour: "Black",
+      priceMinor: 150_000,
+      taxRateBp: 500,
+    },
+  });
+
+  await db.stockLevel.create({
+    data: {
+      tenantId: IDS.tenantA,
+      storeId: IDS.storeA,
+      variantId: COMMERCE_IDS.variantA1,
+      quantity: 10,
+    },
+  });
+  await db.stockLevel.create({
+    data: {
+      tenantId: IDS.tenantA,
+      storeId: IDS.storeA,
+      variantId: COMMERCE_IDS.variantA2,
+      quantity: 4,
+    },
+  });
+  await db.stockLevel.create({
+    data: {
+      tenantId: IDS.tenantB,
+      storeId: IDS.storeB,
+      variantId: COMMERCE_IDS.variantB1,
+      quantity: 7,
+    },
+  });
+
+  await db.customer.create({
+    data: {
+      id: COMMERCE_IDS.customerA,
+      tenantId: IDS.tenantA,
+      name: "Customer A",
+      phone: "+919000000001",
+    },
+  });
+  await db.customer.create({
+    data: {
+      id: COMMERCE_IDS.customerB,
+      tenantId: IDS.tenantB,
+      name: "Customer B",
+      phone: "+919000000002",
+    },
   });
 }
