@@ -6,6 +6,7 @@ import { isIpRateLimited, recordAttempt } from "@/server/identity/loginGuard";
 import { writeAuditLog } from "@/server/identity/audit";
 import { canConfigurePos } from "@/server/pos/posRoles";
 import { formatPairingCode, generatePairingCode, hashPairingCode } from "@/server/pos/posDevice";
+import { enqueueOutboxEvent } from "@/server/events/outbox";
 
 /**
  * A9 — the store's first POS terminal.
@@ -168,7 +169,7 @@ export async function createFirstPosDevice(
         throw new StepAlreadyClaimedError();
       }
 
-      return tx.posDevice.create({
+      const created = await tx.posDevice.create({
         data: {
           tenantId: session.tenantId,
           storeId: store.id,
@@ -184,6 +185,31 @@ export async function createFirstPosDevice(
           cashDrawerEnabled: input.cashDrawerEnabled,
         },
       });
+
+      // The domain event is enqueued with `tx`, so it commits with the device or not at
+      // all — the guarantee the audit writes below deliberately do not provide (they use
+      // the global client and would survive a rollback). First real producer for ADR-010's
+      // durable outbox; see events/outbox.ts.
+      //
+      // The payload carries ids and configuration only. The pairing code is a live
+      // credential and must never enter an event body, which is replayable and readable by
+      // every future consumer.
+      await enqueueOutboxEvent(tx, {
+        tenantId: session.tenantId,
+        storeId: store.id,
+        eventType: "PosDeviceCreated",
+        actorUserId: session.userId,
+        correlationId: input.correlationId,
+        entityId: created.id,
+        payload: {
+          code: created.code,
+          name: created.name,
+          storeId: store.id,
+          status: "PENDING_ACTIVATION",
+        },
+      });
+
+      return created;
     });
 
     await recordAttempt({ email: session.user.email, ip: input.ip, success: true, context: "pos_setup" });

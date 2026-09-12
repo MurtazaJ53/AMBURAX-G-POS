@@ -95,6 +95,7 @@ model Tenant {
   users              User[]
   stores             Store[]
   posDevices         PosDevice[]
+  outboxEvents       OutboxEvent[]
   onboardingSessions OnboardingSession[]
   invitations        Invitation[]
 
@@ -427,6 +428,69 @@ model PasswordResetToken {
 
   @@index([userId])
   @@map("password_reset_tokens")
+}
+
+// ADR-010's durable outbox. Closes audit finding P1-4.
+//
+// Why this is NOT AuditLog. `writeAuditLog` uses the global `db` client, so all 53 of its
+// call sites write *outside* the business transaction: if the transaction rolls back the
+// audit row survives, and if the process dies after committing the mutation the audit row
+// never appears. Either way the record and the fact disagree. That is acceptable for an
+// operator's action trail, which is what AuditLog is; it is fatal for a domain event,
+// which something downstream must act on. The two coexist and mean different things —
+// AuditLog answers "who did what", OutboxEvent answers "what must happen next".
+//
+// The transactional guarantee is the entire point: a row here is INSERTed by the same
+// PostgreSQL transaction as the mutation it describes (see events/outbox.ts, which only
+// accepts a Prisma.TransactionClient). So the event exists if and only if the business
+// change committed. No two-phase commit, no lost events, no phantom events.
+//
+// Envelope fields are EVENTS.md's "Event requirements" list verbatim: event_id (`id`),
+// event_type, event_version, occurred_at, tenant_id, store_id, actor, correlation_id,
+// causation_id, entity_id, payload.
+//
+// Delivery state is derived from nullable timestamps (publishedAt / deadLetteredAt),
+// matching the Invitation / PasswordResetToken / PosDevice convention — one source of
+// truth per fact instead of a status column that can drift from them.
+model OutboxEvent {
+  id String @id @default(cuid())
+
+  // --- ENVELOPE ---
+  // tenantId is required and FK-enforced: an event that cannot be attributed to a tenant
+  // cannot be dispatched safely, and every read path scopes on it.
+  tenantId      String
+  storeId       String?
+  eventType     String
+  eventVersion  Int      @default(1)
+  occurredAt    DateTime @default(now())
+  actorUserId   String?
+  correlationId String
+  causationId   String?
+  entityId      String?
+  payload       Json
+
+  // Producer-side deduplication. Deterministically derived from the business fact
+  // (tenant + event type + entity + discriminator), so a retried operation that reaches
+  // the insert twice is rejected by the database rather than enqueuing a duplicate.
+  // Consumer-side idempotency is still required — delivery is at-least-once by design.
+  idempotencyKey String @unique
+
+  // --- DELIVERY STATE ---
+  // `attempts` and `nextAttemptAt` are advanced by the claim itself, so a dispatcher that
+  // crashes mid-publish cannot hot-loop: the row is already scheduled into the future.
+  attempts       Int       @default(0)
+  nextAttemptAt  DateTime  @default(now())
+  publishedAt    DateTime?
+  deadLetteredAt DateTime?
+  lastError      String?
+  createdAt      DateTime  @default(now())
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+
+  // The dispatcher's hot path: unpublished, not dead-lettered, due now, oldest first.
+  @@index([publishedAt, deadLetteredAt, nextAttemptAt])
+  @@index([tenantId, occurredAt])
+  @@map("outbox_events")
 }
 
 model AuditLog {

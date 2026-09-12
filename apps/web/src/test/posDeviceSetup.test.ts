@@ -19,6 +19,9 @@ function uniqueViolation(field: string) {
 const mockTx = {
   tenant: { updateMany: vi.fn() },
   posDevice: { create: vi.fn() },
+  // The outbox event is enqueued on this same transaction client — that is the whole
+  // point of the pattern, so the fixture has to model it rather than mock it away.
+  outboxEvent: { create: vi.fn() },
 };
 
 const mockDb = {
@@ -81,6 +84,7 @@ beforeEach(() => {
   mockDb.tenant.updateMany.mockResolvedValue({ count: 1 });
   mockTx.tenant.updateMany.mockResolvedValue({ count: 1 });
   mockTx.posDevice.create.mockResolvedValue(createdDevice());
+  mockTx.outboxEvent.create.mockResolvedValue({ id: "evt-1", idempotencyKey: "k" });
 });
 
 describe("createFirstPosDevice — happy path", () => {
@@ -141,6 +145,26 @@ describe("createFirstPosDevice — happy path", () => {
     expect(written.receiptFooter).toBeNull();
     expect(written.cashDrawerEnabled).toBe(true);
     expect(written.scanSoundEnabled).toBe(false);
+  });
+
+  it("enqueues a PosDeviceCreated event on the SAME transaction client", async () => {
+    await createFirstPosDevice(input());
+
+    expect(mockTx.outboxEvent.create).toHaveBeenCalledTimes(1);
+    const data = mockTx.outboxEvent.create.mock.calls[0]![0].data as Record<string, unknown>;
+    expect(data.eventType).toBe("PosDeviceCreated");
+    expect(data.tenantId).toBe("tenant-1");
+    expect(data.entityId).toBe("device-1");
+  });
+
+  it("never puts the pairing code in the event payload", async () => {
+    const result = await createFirstPosDevice(input());
+    expect(result.status).toBe("ok");
+    if (result.status !== "ok") return;
+
+    const data = mockTx.outboxEvent.create.mock.calls[0]![0].data as Record<string, unknown>;
+    const raw = result.pairingCode.replace(/-/g, "");
+    expect(JSON.stringify(data.payload)).not.toContain(raw);
   });
 
   it("does not set activatedAt — a created row is not a paired terminal", async () => {
@@ -272,6 +296,18 @@ describe("createFirstPosDevice — concurrency (the A9 invariant)", () => {
     expect(actions).not.toContain("PosDeviceCreated");
     expect(actions).not.toContain("PosDevicePairingCodeIssued");
     expect(actions).not.toContain("OnboardingStepAdvanced");
+  });
+
+  it("the loser enqueues no outbox event either", async () => {
+    // The event is written with the transaction client, so a rolled-back claim leaves no
+    // event behind. Proven for real against PostgreSQL in
+    // src/test-integration/outbox.test.ts; this asserts the code path reaches it.
+    mockTx.tenant.updateMany.mockResolvedValue({ count: 0 });
+
+    const result = await createFirstPosDevice(input());
+
+    expect(result.status).toBe("wrong_step");
+    expect(mockTx.outboxEvent.create).not.toHaveBeenCalled();
   });
 
   it("claims the onboarding step BEFORE creating the device", async () => {

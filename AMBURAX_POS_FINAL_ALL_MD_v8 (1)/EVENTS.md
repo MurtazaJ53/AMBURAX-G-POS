@@ -55,16 +55,27 @@
 - PosDeviceDisabled (not yet emitted - no revoke screen exists; the model supports it via
   `disabledAt`)
 
-All of the above are currently **audit log entries, not published domain events**: the durable
-outbox of ADR-010 is not built, so nothing downstream reacts to them. Raw pairing codes and
-device secrets are never included in any of these records.
+`PosDeviceCreated` is emitted through the durable outbox (ADR-070): the event row is
+INSERTed by the same PostgreSQL transaction that creates the device, so it exists if and
+only if the device does. The rest are still audit-log entries only, and migrate to the
+outbox as each producer is wired.
+
+Raw pairing codes and device secrets are never included in any of these records, in the
+audit log or in an event payload — an outbox row is replayable and readable by every
+future consumer.
+
+**What "published" means today:** the outbox is real (durable, transactional, retried,
+dead-lettered), but no message transport is connected. Delivery goes through the
+`OutboxPublisher` interface whose only implementation is a disclosed development stand-in.
+Nothing downstream consumes anything yet, because nothing downstream exists.
 
 ## Team / Invitations (A8)
 - InvitationCreated
 - InvitationResent
 - InvitationRevoked
-- InvitationAccepted (A11 — recorded as an audit log entry on successful acceptance; the durable
-  outbox/event bus of ADR-010 is not built yet, so this is not yet a published domain event)
+- InvitationAccepted (A11 — recorded as an audit log entry on successful acceptance. The
+  outbox now exists and `InvitationAccepted` is a declared event type, but this producer is
+  not wired yet; it moves to the outbox when A11's acceptance transaction is revisited.)
 
 ## AI
 - AIRecommendationCreated
@@ -74,6 +85,25 @@ device secrets are never included in any of these records.
 - AIActionExecuted
 - AIActionFailed
 - AIActionVerified
+
+## Outbox mechanics (ADR-070)
+
+- **Transactional insert.** `enqueueOutboxEvent(tx, …)` accepts a `Prisma.TransactionClient`
+  and nothing else, so an event cannot be written outside the transaction that produced the
+  fact. This is the difference between `outbox_events` and `AuditLog`, which deliberately
+  writes on the global client and survives a rollback.
+- **Idempotency.** A deterministic `idempotencyKey` — `tenant:eventType:entity:discriminator`
+  — is unique-indexed, so a retried operation collides rather than enqueuing a duplicate.
+- **Tenant isolation.** `tenantId` is required and FK-enforced; the dispatcher accepts an
+  optional `tenantId` that scopes the claim, and a per-tenant dispatcher can never observe
+  another tenant's events.
+- **Claiming.** `UPDATE … WHERE id IN (SELECT … FOR UPDATE SKIP LOCKED)` in one statement.
+  Several dispatchers run safely in parallel; there is no select-then-claim window.
+- **Retry.** Exponential backoff from 30 s, capped at 1 h, applied by the claim itself so a
+  crashed dispatcher cannot hot-loop. Dead-lettered after 8 attempts.
+- **Delivery is at-least-once.** Exactly-once across a database and a separate transport is
+  not achievable without distributed transactions, which is precisely why the requirement
+  below exists.
 
 ## Event requirements
 
