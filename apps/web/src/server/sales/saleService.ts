@@ -2,6 +2,7 @@ import { Prisma } from "@prisma/client";
 import { db } from "@/server/db";
 import { writeAuditLog } from "@/server/identity/audit";
 import { enqueueOutboxEvent } from "@/server/events/outbox";
+import { applyStockMovement, movementKey } from "@/server/inventory/stockLedger";
 import {
   computeSaleTotals,
   validateQuantity,
@@ -281,18 +282,22 @@ export async function createSale(input: CreateSaleInput): Promise<CreateSaleResu
         select: SALE_SELECT,
       });
 
-      // Operational stock projection, NOT a ledger posting (ADR-080). Upsert because a
-      // variant may never have been counted in this store before.
+      // Routed through the inventory ledger (P1-8B) rather than writing `stock_levels`
+      // directly. The decrement itself is unchanged — same transaction, same quantity, same
+      // resulting balance — but it now leaves a SALE movement behind, so the balance can
+      // explain itself. Still an operational projection, NOT an ERPNext ledger posting
+      // (ADR-080 / ADR-085).
       for (const line of totals.lines) {
-        await tx.stockLevel.upsert({
-          where: { storeId_variantId: { storeId: store.id, variantId: line.variantId } },
-          update: { quantity: { decrement: line.quantity } },
-          create: {
-            tenantId: input.tenantId,
-            storeId: store.id,
-            variantId: line.variantId,
-            quantity: -line.quantity,
-          },
+        await applyStockMovement(tx, {
+          tenantId: input.tenantId,
+          storeId: store.id,
+          variantId: line.variantId,
+          type: "SALE",
+          quantityDelta: -line.quantity,
+          referenceType: "SALE",
+          referenceId: created.id,
+          actorUserId: input.cashierUserId,
+          idempotencyKey: movementKey.sale(created.id, line.variantId),
         });
       }
 

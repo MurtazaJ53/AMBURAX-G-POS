@@ -101,6 +101,7 @@ model Tenant {
   sales              Sale[]
   onboardingSessions OnboardingSession[]
   invitations        Invitation[]
+  stockMovements     StockMovement[]
 
   @@map("tenants")
 }
@@ -168,8 +169,9 @@ model Store {
   memberships StoreMembership[]
   invitations Invitation[]
   posDevices  PosDevice[]
-  sales       Sale[]
-  stockLevels StockLevel[]
+  sales          Sale[]
+  stockLevels    StockLevel[]
+  stockMovements StockMovement[]
 
   @@unique([tenantId, code])
   // Same purpose as User's: the referencable half of StoreMembership's composite foreign
@@ -589,9 +591,10 @@ model ProductVariant {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  product     Product      @relation(fields: [productId], references: [id])
-  saleItems   SaleItem[]
-  stockLevels StockLevel[]
+  product        Product         @relation(fields: [productId], references: [id])
+  saleItems      SaleItem[]
+  stockLevels    StockLevel[]
+  stockMovements StockMovement[]
 
   // SKU and barcode are unique per tenant, not globally: two businesses may legitimately
   // use the same SKU string, and a global constraint would leak one tenant's namespace
@@ -599,6 +602,11 @@ model ProductVariant {
   @@unique([tenantId, sku])
   @@unique([tenantId, barcode])
   @@index([tenantId, productId])
+  // Target for StockMovement's composite foreign key, the same shape User and Store already
+  // carry for StoreMembership (invariant I-4). `id` is already the primary key, so this adds
+  // no new rule about variants — it exists so PostgreSQL can prove a movement's variant
+  // really belongs to the tenant that movement claims.
+  @@unique([id, tenantId])
   @@map("product_variants")
 }
 
@@ -770,6 +778,102 @@ model StockLevel {
   @@unique([storeId, variantId])
   @@index([tenantId])
   @@map("stock_levels")
+}
+
+// Why a movement exists, stated in the row rather than inferred from its sign. A
+// reconciliation sweep asking "why is this store three short" needs the reason, and `-3`
+// does not carry one.
+//
+// Deliberately short. These are the movements the shared core can actually produce today.
+// Purchase receipts, transfers between stores, manufacturing consumption and job-work issues
+// each need an entity that does not exist yet (supplier, warehouse, work order), and naming
+// them here would be reserving vocabulary for systems nobody has built.
+enum StockMovementType {
+  // The balance a store already had when the ledger began. Written once per stock level by
+  // the migration that introduced this table, never by application code.
+  OPENING_BALANCE
+  // Goods arriving. Not a purchase receipt — there is no supplier or purchase order yet —
+  // just a controlled, audited increase performed by someone authorised to make it.
+  RECEIPT
+  // The POS decrement. Produced inside the sale transaction, so it exists if and only if the
+  // sale does.
+  SALE
+  // A correction with a stated reason: damage, theft, shrinkage, a data-entry error.
+  ADJUSTMENT
+  // The delta between a physical count and the recorded balance. Distinct from ADJUSTMENT
+  // because a count is evidence about reality, while an adjustment is an assertion about it.
+  STOCK_TAKE
+}
+
+// The authoritative inventory ledger. `StockLevel` is its projection.
+//
+// Before this table, stock could only ever fall: the sole writer in the entire codebase was
+// the decrement inside `createSale`, and `StockLevel.quantity` was a bare number with no
+// provenance — nothing recorded who changed it, when, why, or from what. A balance that
+// cannot explain itself cannot be reconciled against ERPNext's stock ledger when the adapter
+// arrives, and cannot be audited at all.
+//
+// Append-only by convention and by API: nothing in `server/inventory` updates or deletes a
+// movement. Corrections are new movements, which is what makes the history true rather than
+// merely current.
+model StockMovement {
+  id       String @id @default(cuid())
+  tenantId String
+  storeId  String
+
+  variantId String
+
+  type StockMovementType
+
+  // Signed. Positive adds to the balance, negative removes from it. Stored as the delta
+  // rather than as a before/after pair because the projection is a running sum, and a pair
+  // would let the two disagree.
+  //
+  // Integer, matching the quantity contract the rest of the system already enforces
+  // (`validateQuantity`). Decimal quantities are deferred to the phase that introduces UOM;
+  // changing the type here without changing that contract would leave half the system
+  // rounding and the other half not.
+  quantityDelta Int
+
+  // What the balance became, captured inside the same transaction that applied the delta.
+  // Not authoritative — the running sum is — but it makes a ledger readable without
+  // replaying it, and makes drift obvious to a sweep comparing the two.
+  balanceAfter Int
+
+  // Free text for ADJUSTMENT and STOCK_TAKE. An unexplained correction is indistinguishable
+  // from a mistake.
+  reason String?
+
+  // What caused this movement, when something did. `SALE` movements carry ("SALE", saleId);
+  // an operator-initiated receipt carries nothing, because the movement IS the record.
+  referenceType String?
+  referenceId   String?
+
+  // Null for movements the system produced without a person — currently only the migration's
+  // opening balances.
+  actorUserId String?
+
+  // Producer-side deduplication, the same discipline the outbox uses: derived from the
+  // business fact rather than randomly generated, so a retried request collides on the
+  // unique index instead of double-counting stock. Scoped per tenant.
+  idempotencyKey String
+
+  occurredAt DateTime @default(now())
+  createdAt  DateTime @default(now())
+
+  tenant  Tenant         @relation(fields: [tenantId], references: [id])
+  // Composite foreign keys, following invariant I-4 from the start rather than retrofitting
+  // them later: a movement's store and variant must both belong to the tenant the movement
+  // claims, and PostgreSQL enforces that regardless of what the calling code believes.
+  store   Store          @relation(fields: [storeId, tenantId], references: [id, tenantId])
+  variant ProductVariant @relation(fields: [variantId, tenantId], references: [id, tenantId])
+
+  @@unique([tenantId, idempotencyKey])
+  // The ledger read path: one store's movements for one variant, newest first.
+  @@index([tenantId, storeId, variantId, occurredAt])
+  // Answering "what did this sale do to stock".
+  @@index([referenceType, referenceId])
+  @@map("stock_movements")
 }
 
 model AuditLog {

@@ -31,6 +31,12 @@ export const IDS = {
  * cross-tenant assertions meaningful: "tenant A cannot sell tenant B's product" is only a
  * real test if tenant B's product genuinely exists and is genuinely sellable — by B.
  */
+/**
+ * The stock each seeded variant starts with, and the opening movement that explains it.
+ * Exported so a test can reason about deltas instead of hard-coding the fixture's numbers.
+ */
+export const SEEDED_STOCK = { variantA1: 10, variantA2: 4, variantB1: 7 } as const;
+
 export const COMMERCE_IDS = {
   productA: "p-aaaaaaaaaaaaaaaaaaaaaaaa",
   productB: "p-bbbbbbbbbbbbbbbbbbbbbbbb",
@@ -221,30 +227,29 @@ export async function seedCommerce(): Promise<void> {
     },
   });
 
-  await db.stockLevel.create({
-    data: {
-      tenantId: IDS.tenantA,
-      storeId: IDS.storeA,
-      variantId: COMMERCE_IDS.variantA1,
-      quantity: 10,
-    },
-  });
-  await db.stockLevel.create({
-    data: {
-      tenantId: IDS.tenantA,
-      storeId: IDS.storeA,
-      variantId: COMMERCE_IDS.variantA2,
-      quantity: 4,
-    },
-  });
-  await db.stockLevel.create({
-    data: {
-      tenantId: IDS.tenantB,
-      storeId: IDS.storeB,
-      variantId: COMMERCE_IDS.variantB1,
-      quantity: 7,
-    },
-  });
+  // Each seeded balance gets the OPENING_BALANCE movement that explains it. Writing a
+  // `stock_levels` row on its own would seed a state the real system can no longer produce:
+  // since P1-8B every balance is the sum of its movements, and a fixture that violated that
+  // invariant would make `findProjectionMismatches` report a fixture as a bug.
+  for (const seeded of [
+    { tenantId: IDS.tenantA, storeId: IDS.storeA, variantId: COMMERCE_IDS.variantA1, quantity: 10 },
+    { tenantId: IDS.tenantA, storeId: IDS.storeA, variantId: COMMERCE_IDS.variantA2, quantity: 4 },
+    { tenantId: IDS.tenantB, storeId: IDS.storeB, variantId: COMMERCE_IDS.variantB1, quantity: 7 },
+  ]) {
+    await db.stockLevel.create({ data: seeded });
+    await db.stockMovement.create({
+      data: {
+        tenantId: seeded.tenantId,
+        storeId: seeded.storeId,
+        variantId: seeded.variantId,
+        type: "OPENING_BALANCE",
+        quantityDelta: seeded.quantity,
+        balanceAfter: seeded.quantity,
+        reason: "Fixture opening balance.",
+        idempotencyKey: `FIXTURE_OPENING:${seeded.storeId}:${seeded.variantId}`,
+      },
+    });
+  }
 
   await db.customer.create({
     data: {

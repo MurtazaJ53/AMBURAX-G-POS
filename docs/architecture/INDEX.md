@@ -23,6 +23,7 @@ architectural rule is that there is only ever one.
 | [ERP_ADAPTER.md](ERP_ADAPTER.md) | The adapter contract: interface, errors, retries, idempotency, mapping | `ERPNEXT_ARCHITECTURE.md` settles placement, not the boundary contract |
 | [PROVISIONING.md](PROVISIONING.md) | Tenant provisioning state machine and compensation | Onboarding was documented; provisioning was not |
 | [TENANT_MIGRATION.md](TENANT_MIGRATION.md) | Moving a tenant between cells or ERP placements | No migration document existed |
+| [INVENTORY.md](INVENTORY.md) | Inventory ledger authority, projection invariant, concurrency, opening-balance backfill (P1-8B) | Added when the ledger was built |
 
 ## Documents updated in the existing corpus
 
