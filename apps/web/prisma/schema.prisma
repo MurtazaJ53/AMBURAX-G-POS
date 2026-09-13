@@ -102,6 +102,8 @@ model Tenant {
   onboardingSessions OnboardingSession[]
   invitations        Invitation[]
   stockMovements     StockMovement[]
+  uoms               Uom[]
+  uomConversions     UomConversion[]
 
   @@map("tenants")
 }
@@ -560,11 +562,102 @@ model Product {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  // The unit this product's quantities are counted in. Nullable because it arrived after the
+  // products did: the migration backfills every existing product with its tenant's PCS, and a
+  // product created before a tenant has any unit defined is still a valid product.
+  //
+  // "Base" is load-bearing. Every stored quantity in the system — SaleItem.quantity,
+  // StockLevel.quantity, StockMovement.quantityDelta — is in this unit, always. Packaging
+  // units (PACK, DOZEN, CARTON) exist only at the edges, where a person types one, and are
+  // converted to base units before anything is stored. Nothing persists a packaging quantity.
+  baseUomId String?
+
   tenant   Tenant           @relation(fields: [tenantId], references: [id])
+  baseUom  Uom?             @relation(fields: [baseUomId, tenantId], references: [id, tenantId])
   variants ProductVariant[]
 
   @@index([tenantId, name])
+  // Referencable half for composite keys, the same shape User, Store and ProductVariant
+  // already carry (invariant I-4).
+  @@unique([id, tenantId])
   @@map("products")
+}
+
+// A unit a tenant counts things in.
+//
+// Tenant-scoped rather than global: two businesses may both use "BOX" and mean different
+// quantities, and a shared catalogue would let one tenant's edit change another's stock. The
+// cost is that every tenant defines its own PCS; the migration does that once.
+//
+// Deliberately NOT a dimensional measurement system. There is no length/mass/volume dimension,
+// no SI base units, no unit algebra. A garment business needs to say "a carton holds 24
+// pieces", and that is a factor, not a physics engine.
+model Uom {
+  id       String @id @default(cuid())
+  tenantId String
+
+  /// Short operator-facing symbol: PCS, PACK, DOZEN, CARTON. Uppercased on write.
+  code String
+  name String
+
+  // Metadata only, and deliberately inert in this phase. A unit may declare that it would
+  // naturally carry decimals (METRE, KG) so the catalogue can describe reality, but every
+  // quantity in this system is still an integer: `convertQuantity` refuses to compute with a
+  // unit whose decimalPlaces is greater than zero rather than silently truncating. Enabling
+  // fractional quantities is a separate, deliberate migration of every quantity column.
+  decimalPlaces Int @default(0)
+
+  isActive Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  tenant          Tenant          @relation(fields: [tenantId], references: [id])
+  products        Product[]
+  conversionsFrom UomConversion[] @relation("ConversionFrom")
+  conversionsTo   UomConversion[] @relation("ConversionTo")
+
+  @@unique([tenantId, code])
+  // Referencable half of the composite foreign keys on Product and UomConversion.
+  @@unique([id, tenantId])
+  @@index([tenantId])
+  @@map("uoms")
+}
+
+// "One `fromUom` contains `factor` of `toUom`."
+//
+// One direction only, and the direction is the contract: the row always points from the larger
+// packaging unit to the smaller counting unit, with `factor` greater than one. `1 DOZEN = 12
+// PCS` is a row; `1 PCS = 1/12 DOZEN` is not, because the reverse is derived by division and a
+// derived fact does not need storage. Storing both directions would let them disagree.
+//
+// `factor` is an integer for the same reason every quantity in this system is: exact
+// arithmetic. A fractional factor would make `quantity x factor` produce a fractional quantity,
+// which nothing here can store.
+model UomConversion {
+  id       String @id @default(cuid())
+  tenantId String
+
+  fromUomId String
+  toUomId   String
+
+  /// How many `toUom` are in one `fromUom`. Always >= 2 — see the service's validation.
+  factor Int
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  tenant  Tenant @relation(fields: [tenantId], references: [id])
+  // Composite, so PostgreSQL proves both units belong to the tenant the conversion claims.
+  fromUom Uom    @relation("ConversionFrom", fields: [fromUomId, tenantId], references: [id, tenantId])
+  toUom   Uom    @relation("ConversionTo", fields: [toUomId, tenantId], references: [id, tenantId])
+
+  // The database's guarantee against duplicate definitions: one conversion per ordered pair per
+  // tenant. Two concurrent creates of the same pair cannot both succeed, so the service never
+  // relies on a check-then-insert.
+  @@unique([tenantId, fromUomId, toUomId])
+  @@index([tenantId, toUomId])
+  @@map("uom_conversions")
 }
 
 // The sellable unit. A non-garment retailer simply has one variant per product with null
