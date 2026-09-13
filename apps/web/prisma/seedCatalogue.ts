@@ -1,7 +1,8 @@
 import type { PrismaClient } from "@prisma/client";
 
 /**
- * Demo catalogue seed data.
+ * Demo catalogue seed data — and the reusable engine both the minimal seed (`db:seed`)
+ * and the richer demo dataset (`db:seed:demo`) build on.
  *
  * Kept in its own module so that seed *data* stays separate from the identity seeding
  * logic in seed.ts. Nothing in src/ imports this file: the POS reads whatever the
@@ -22,7 +23,11 @@ export interface SeedVariant {
   colour: string | null;
   priceMinor: number;
   mrpMinor: number | null;
-  openingStock: number;
+  /**
+   * Opening stock for this store. `null` means "do not create a StockLevel row at all" —
+   * the ADR-080 "never counted" state — genuinely different from an opening count of 0.
+   */
+  openingStock: number | null;
 }
 
 export interface SeedProduct {
@@ -88,7 +93,12 @@ export const DEMO_CATALOGUE: SeedProduct[] = [
   },
 ];
 
-export const DEMO_CUSTOMERS = [
+export interface SeedCustomer {
+  name: string;
+  phone: string;
+}
+
+export const DEMO_CUSTOMERS: SeedCustomer[] = [
   { name: "Priya Sharma", phone: "+919000000101" },
   { name: "Rahul Verma", phone: "+919000000102" },
 ];
@@ -96,24 +106,27 @@ export const DEMO_CUSTOMERS = [
 export interface SeedCatalogueCounts {
   products: number;
   variants: number;
-  customers: number;
 }
 
 /**
- * Write the demo catalogue for one tenant and store.
+ * Write one catalogue of products/variants/stock for a tenant and store.
+ *
+ * This is the reusable engine: `seedCatalogue` below calls it with the minimal baseline
+ * catalogue, and `prisma/seedDemoCatalogue.ts`'s richer set is applied through the same
+ * function for `db:seed:demo` — one idempotent write path, not two.
  *
  * Product has no natural unique key in the schema, so it is resolved by (tenant, name)
  * rather than blind-created; otherwise a second run would produce duplicate products.
- * Variants resolve on the tenant-scoped SKU, stock on (store, variant), customers on the
- * tenant-scoped phone.
+ * Variants resolve on the tenant-scoped SKU; stock resolves on (store, variant).
  */
-export async function seedCatalogue(
+export async function seedProductCatalogue(
   db: PrismaClient,
   params: { tenantId: string; storeId: string },
+  catalogue: SeedProduct[],
 ): Promise<SeedCatalogueCounts> {
   let variantCount = 0;
 
-  for (const entry of DEMO_CATALOGUE) {
+  for (const entry of catalogue) {
     const existing = await db.product.findFirst({
       where: { tenantId: params.tenantId, name: entry.name },
       select: { id: true },
@@ -151,31 +164,60 @@ export async function seedCatalogue(
       variantCount += 1;
 
       // Opening stock for the operational projection. `update: {}` is deliberate:
-      // re-seeding must not reset a count that real sales have since moved.
-      await db.stockLevel.upsert({
-        where: { storeId_variantId: { storeId: params.storeId, variantId: variant.id } },
-        update: {},
-        create: {
-          tenantId: params.tenantId,
-          storeId: params.storeId,
-          variantId: variant.id,
-          quantity: v.openingStock,
-        },
-      });
+      // re-seeding must not reset a count that real sales have since moved. A null
+      // openingStock skips this write entirely — that variant stays "never counted"
+      // (ADR-080), not silently forced to zero.
+      if (v.openingStock !== null) {
+        await db.stockLevel.upsert({
+          where: { storeId_variantId: { storeId: params.storeId, variantId: variant.id } },
+          update: {},
+          create: {
+            tenantId: params.tenantId,
+            storeId: params.storeId,
+            variantId: variant.id,
+            quantity: v.openingStock,
+          },
+        });
+      }
     }
   }
 
-  for (const c of DEMO_CUSTOMERS) {
+  return { products: catalogue.length, variants: variantCount };
+}
+
+/**
+ * Write one roster of customers for a tenant.
+ *
+ * Resolved on the tenant-scoped phone, matching `createCustomer`'s own deduplication rule
+ * (`server/sales/customers.ts`) — re-seeding can never produce a second "Priya Sharma".
+ */
+export async function seedCustomerRoster(
+  db: PrismaClient,
+  params: { tenantId: string },
+  customers: SeedCustomer[],
+): Promise<number> {
+  for (const c of customers) {
     await db.customer.upsert({
       where: { tenantId_phone: { tenantId: params.tenantId, phone: c.phone } },
       update: {},
       create: { tenantId: params.tenantId, name: c.name, phone: c.phone },
     });
   }
+  return customers.length;
+}
 
-  return {
-    products: DEMO_CATALOGUE.length,
-    variants: variantCount,
-    customers: DEMO_CUSTOMERS.length,
-  };
+/**
+ * Write the minimal baseline catalogue and customers for a tenant and store.
+ *
+ * This is `db:seed`'s entry point — unchanged in behaviour from before this module grew a
+ * reusable engine underneath it. `db:seed:demo` calls `seedProductCatalogue` and
+ * `seedCustomerRoster` directly with its own, larger data.
+ */
+export async function seedCatalogue(
+  db: PrismaClient,
+  params: { tenantId: string; storeId: string },
+): Promise<{ products: number; variants: number; customers: number }> {
+  const catalogueCounts = await seedProductCatalogue(db, params, DEMO_CATALOGUE);
+  const customerCount = await seedCustomerRoster(db, { tenantId: params.tenantId }, DEMO_CUSTOMERS);
+  return { ...catalogueCounts, customers: customerCount };
 }

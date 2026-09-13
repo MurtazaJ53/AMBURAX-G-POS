@@ -50,6 +50,10 @@ $RECYCLE.BIN/
 *.swp
 *.swo
 *~
+# Local state written by an authoring tool, not AMBURAX source: machine-specific config and
+# a hook cache. Committing it would version one developer's tooling state as if it were part
+# of the product.
+.impeccable/
 
 # --- misc local ---
 .cache/
