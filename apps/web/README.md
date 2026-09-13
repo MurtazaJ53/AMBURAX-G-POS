@@ -2,6 +2,12 @@
 
 ## Run
 
+**npm is the package manager** — pinned as `packageManager` in the root `package.json`.
+There is one lockfile, `package-lock.json`, and CI installs with `npm ci`. A `pnpm-lock.yaml`
+stub used to sit beside it; anyone who ran `pnpm install` got a divergent tree from the same
+commit, so it was removed. Use `npm ci` for a reproducible install, and `npm install` only
+when you intend to change dependencies.
+
 ```bash
 cp .env.example .env   # point DATABASE_URL at a real Postgres
 npm install

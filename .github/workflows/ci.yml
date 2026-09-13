@@ -1,0 +1,139 @@
+name: CI
+
+# Every backend gate this repository has, run by a machine instead of by hand.
+#
+# Until now all of them — lint, typecheck, 292 unit tests, 109 PostgreSQL integration
+# tests, the production build, migration status and the drift check — were run manually.
+# A gate nobody runs is a gate that has already failed; the P1-7 freeze record named the
+# absence of CI as an open objection, and this closes it.
+#
+# Two jobs on purpose. `static` needs no database and finishes quickly, so a typo fails
+# fast. `database` spends the time to prove the expensive properties: that the migrations
+# apply to a genuinely empty PostgreSQL, that the schema has not drifted from them, and
+# that the integration suite passes against a real server rather than a mock.
+#
+# The fresh-database migration step is the one gate that has never been verified
+# mechanically anywhere — locally, migrations are applied to a database that already has
+# them.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# A superseded run tells you nothing useful; cancel it and keep the runner free.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # Matches the local toolchain (node 24 / npm 11) and the @types/node major in
+  # apps/web/package.json.
+  NODE_VERSION: "24"
+
+jobs:
+  static:
+    name: Lint, typecheck, unit tests, build
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      # `npm ci` rather than `npm install`: it installs exactly the tree in
+      # package-lock.json and fails if the lockfile and package.json disagree, which is
+      # the determinism this phase exists to establish.
+      - name: Install
+        run: npm ci
+
+      # Explicit rather than relying on @prisma/client's postinstall hook. In a workspace
+      # the client is hoisted to the root while the schema lives in apps/web, and a
+      # generate that silently no-ops leaves typecheck compiling against stale types.
+      - name: Generate Prisma client
+        run: npm run prisma:generate -w @amburax/web
+
+      - name: Lint
+        run: npm run lint -w @amburax/web
+
+      - name: Typecheck
+        run: npm run typecheck -w @amburax/web
+
+      - name: Unit tests
+        run: npm test -w @amburax/web
+
+      - name: Build
+        # The build reads DATABASE_URL through lib/env.ts's schema but never connects —
+        # verified before this workflow was written. A syntactically valid URL pointing
+        # nowhere is therefore correct here, and keeps this job database-free.
+        env:
+          DATABASE_URL: postgresql://ci:ci@127.0.0.1:1/build_only_never_connected
+        run: npm run build -w @amburax/web
+
+  database:
+    name: Migrations, drift, integration tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: amburax
+          POSTGRES_PASSWORD: amburax_ci_only
+          POSTGRES_DB: amburax_test
+          # Same deterministic collation as docker-compose.yml, so ordering and index
+          # behaviour in CI match a developer's machine.
+          POSTGRES_INITDB_ARGS: "--locale=C --encoding=UTF8"
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U amburax -d amburax_test"
+          --health-interval 2s
+          --health-timeout 3s
+          --health-retries 30
+
+    env:
+      # One database for the whole job. vitest.integration.config.ts rewrites a URL ending
+      # in /amburax_identity to /amburax_test; this one already names the test database, so
+      # it passes through untouched and every step below works on the same server.
+      DATABASE_URL: postgresql://amburax:amburax_ci_only@localhost:5432/amburax_test
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      - name: Generate Prisma client
+        run: npm run prisma:generate -w @amburax/web
+
+      # The gate no manual run has ever performed: apply every migration, in order, to a
+      # database that has never seen one. A migration that only works against an
+      # already-migrated database is not reproducible, and this is where that is caught.
+      - name: Apply migrations to a fresh database
+        run: npm run prisma:deploy -w @amburax/web
+
+      - name: Migration status
+        run: npm run prisma:status -w @amburax/web
+
+      # Proves schema.prisma and the migration history describe the same database. A
+      # difference here means someone edited the schema without generating a migration.
+      - name: Schema drift check
+        working-directory: apps/web
+        run: >-
+          npx prisma migrate diff
+          --from-url "$DATABASE_URL"
+          --to-schema-datamodel prisma/schema.prisma
+          --exit-code
+
+      - name: Integration tests
+        run: npm run test:integration -w @amburax/web

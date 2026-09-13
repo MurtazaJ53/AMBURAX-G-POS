@@ -1,5 +1,10 @@
 {
   "name": "amburax-pos",
   "private": true,
-  "workspaces": ["apps/*"]
+  "workspaces": ["apps/*"],
+  "packageManager": "npm@11.9.0",
+  "engines": {
+    "node": ">=22",
+    "npm": ">=10"
+  }
 }
