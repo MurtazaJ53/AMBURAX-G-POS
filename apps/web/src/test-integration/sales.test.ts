@@ -238,7 +238,7 @@ describe("createSale — negative cases", () => {
 
   it("(3b) blocks a store membership whose role may not take money", async () => {
     await db.storeMembership.create({
-      data: { userId: IDS.staffA, storeId: IDS.storeA, role: "VIEWER" },
+      data: { tenantId: IDS.tenantA, userId: IDS.staffA, storeId: IDS.storeA, role: "VIEWER" },
     });
 
     const result = await createSale(saleInput({ cashierUserId: IDS.staffA }));

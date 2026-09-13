@@ -122,7 +122,7 @@ describe("store authorization", () => {
 
   it("a cashier membership does not grant POS configuration", async () => {
     await db.storeMembership.create({
-      data: { userId: IDS.staffA, storeId: IDS.storeA, role: "CASHIER" },
+      data: { tenantId: IDS.tenantA, userId: IDS.staffA, storeId: IDS.storeA, role: "CASHIER" },
     });
     const m = await db.storeMembership.findUnique({
       where: { userId_storeId: { userId: IDS.staffA, storeId: IDS.storeA } },
@@ -135,7 +135,7 @@ describe("store authorization", () => {
 
   it("a store manager membership does grant it", async () => {
     await db.storeMembership.create({
-      data: { userId: IDS.staffA, storeId: IDS.storeA, role: "STORE_MANAGER" },
+      data: { tenantId: IDS.tenantA, userId: IDS.staffA, storeId: IDS.storeA, role: "STORE_MANAGER" },
     });
     const m = await db.storeMembership.findUnique({
       where: { userId_storeId: { userId: IDS.staffA, storeId: IDS.storeA } },
@@ -221,7 +221,7 @@ describe("database constraints are actually enforced by PostgreSQL", () => {
     await expectUniqueViolationOn(
       () =>
         db.storeMembership.create({
-          data: { userId: IDS.ownerA, storeId: IDS.storeA, role: "CASHIER" },
+          data: { tenantId: IDS.tenantA, userId: IDS.ownerA, storeId: IDS.storeA, role: "CASHIER" },
         }),
       "userId",
     );
@@ -267,21 +267,52 @@ describe("database constraints are actually enforced by PostgreSQL", () => {
     ).rejects.toMatchObject({ code: "P2003" });
   });
 
-  it("records that a cross-tenant membership is NOT blocked by the schema", async () => {
-    // Deliberately documented rather than asserted-away: the foreign keys are satisfied, so
-    // PostgreSQL permits a tenant-A user to be given membership of a tenant-B store. Nothing
-    // in the schema prevents it. The guard is application-level (posRoles.canConfigurePos
-    // and the tenant-scoped store lookup), and this test exists so that fact stays visible
-    // instead of being assumed away.
-    const created = await db.storeMembership.create({
-      data: { userId: IDS.staffA, storeId: IDS.storeB, role: "CASHIER" },
-    });
-    expect(created.id).toBeTruthy();
+  // These four replace the test that used to stand here, which asserted the opposite:
+  // "records that a cross-tenant membership is NOT blocked by the schema". That was an
+  // honest record of a real gap (audit finding F-02) and it passed, because independent
+  // foreign keys on userId and storeId are each satisfiable by rows from different
+  // tenants. The composite keys added in 20260913071500_enforce_store_membership_tenant
+  // close it, so the invariant is now the reverse and is asserted rather than recorded.
 
-    const leak = await db.storeMembership.findMany({
-      where: { storeId: IDS.storeB, user: { tenantId: IDS.tenantA } },
+  it("PostgreSQL rejects a cross-tenant membership — tenant-A user on a tenant-B store", async () => {
+    // The row the old test proved was creatable. Every column is individually valid: the
+    // user exists, the store exists, the tenant exists. Only the *combination* is wrong,
+    // which is exactly what a composite foreign key can see and two separate ones cannot.
+    await expect(
+      db.storeMembership.create({
+        data: { tenantId: IDS.tenantA, userId: IDS.staffA, storeId: IDS.storeB, role: "CASHIER" },
+      }),
+    ).rejects.toMatchObject({ code: "P2003" });
+
+    const leak = await db.storeMembership.findMany({ where: { storeId: IDS.storeB } });
+    expect(leak.map((m) => m.userId)).not.toContain(IDS.staffA);
+  });
+
+  it("rejects it from the other direction too — tenant-B tenantId with a tenant-A user", async () => {
+    // Claiming the store's tenant instead of the user's does not help: the user half of
+    // the key fails instead of the store half.
+    await expect(
+      db.storeMembership.create({
+        data: { tenantId: IDS.tenantB, userId: IDS.staffA, storeId: IDS.storeB, role: "CASHIER" },
+      }),
+    ).rejects.toMatchObject({ code: "P2003" });
+  });
+
+  it("rejects a membership whose tenantId matches neither parent", async () => {
+    await expect(
+      db.storeMembership.create({
+        data: { tenantId: IDS.tenantB, userId: IDS.staffA, storeId: IDS.storeA, role: "CASHIER" },
+      }),
+    ).rejects.toMatchObject({ code: "P2003" });
+  });
+
+  it("still accepts an ordinary same-tenant membership", async () => {
+    // The constraint has to reject the wrong rows without rejecting the right ones —
+    // otherwise the tests above would pass just as well with the table made read-only.
+    const created = await db.storeMembership.create({
+      data: { tenantId: IDS.tenantA, userId: IDS.staffA, storeId: IDS.storeA, role: "CASHIER" },
     });
-    expect(leak).toHaveLength(1);
+    expect(created.tenantId).toBe(IDS.tenantA);
   });
 });
 

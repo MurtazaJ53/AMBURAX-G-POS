@@ -172,6 +172,9 @@ model Store {
   stockLevels StockLevel[]
 
   @@unique([tenantId, code])
+  // Same purpose as User's: the referencable half of StoreMembership's composite foreign
+  // key. Adds no new rule about stores on its own.
+  @@unique([id, tenantId])
   @@map("stores")
 }
 
@@ -280,6 +283,11 @@ model User {
   salesRung           Sale[]               @relation("SalesRung")
 
   @@index([tenantId])
+  // Target for StoreMembership's composite foreign key. `id` alone is already the primary
+  // key, so this adds no new integrity rule about users — it exists solely so PostgreSQL
+  // can reference (id, tenantId) as a unit and prove a membership's user really belongs to
+  // the tenant that membership claims.
+  @@unique([id, tenantId])
   @@map("users")
 }
 
@@ -289,16 +297,34 @@ model User {
 // src/server/tenant/storeRoles.ts's INVITABLE_STORE_ROLES allow-list, enforced at
 // invitation creation (this file) and to be enforced identically wherever A11 later
 // creates the membership row from an accepted invitation.
+// A user's role at one store.
+//
+// `tenantId` is not denormalisation for query convenience — it is the field that makes the
+// tenant invariant expressible to PostgreSQL. With independent FKs on `userId` and
+// `storeId`, a tenant-A user could be given membership of a tenant-B store: both keys were
+// individually valid and nothing tied them together. The application never did this,
+// because every call site resolves the store through the session's tenant first, but that
+// was a convention spread across call sites rather than a rule the database enforced.
+//
+// The two composite foreign keys below close it. `(userId, tenantId)` must match a real
+// `(users.id, users.tenantId)` pair and `(storeId, tenantId)` a real
+// `(stores.id, stores.tenantId)` pair, so a row can only exist when the user and the store
+// agree on the same tenant. A cross-tenant membership is now rejected by PostgreSQL with a
+// foreign-key violation, whatever the calling code believes.
 model StoreMembership {
-  id      String @id @default(cuid())
-  userId  String
-  storeId String
-  role    String
+  id       String @id @default(cuid())
+  tenantId String
+  userId   String
+  storeId  String
+  role     String
 
-  user  User  @relation(fields: [userId], references: [id])
-  store Store @relation(fields: [storeId], references: [id])
+  user  User  @relation(fields: [userId, tenantId], references: [id, tenantId])
+  store Store @relation(fields: [storeId, tenantId], references: [id, tenantId])
 
+  // Unchanged: one membership per (user, store). Double acceptance of an invitation is
+  // still impossible, and this stays the constraint the acceptance path relies on.
   @@unique([userId, storeId])
+  @@index([tenantId])
   @@map("store_memberships")
 }
 

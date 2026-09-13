@@ -18,7 +18,7 @@ function uniqueViolation(field: string) {
 
 const mockTx = {
   invitation: { updateMany: vi.fn(), update: vi.fn() },
-  user: { create: vi.fn(), findUnique: vi.fn() },
+  user: { create: vi.fn(), findUnique: vi.fn(), findFirst: vi.fn() },
   storeMembership: { create: vi.fn() },
 };
 
@@ -89,6 +89,9 @@ beforeEach(() => {
   mockTx.invitation.updateMany.mockResolvedValue({ count: 1 });
   mockTx.user.create.mockResolvedValue({ id: "user-new", name: "Priya Sharma", email: "new.hire@example.com" });
   mockTx.user.findUnique.mockResolvedValue({ id: "user-existing", name: "Priya", email: "new.hire@example.com" });
+  // The in-transaction re-read is tenant-scoped (see invitationAcceptance.ts): it returns
+  // the user only while they still belong to the invitation's tenant.
+  mockTx.user.findFirst.mockResolvedValue({ id: "user-existing", name: "Priya", email: "new.hire@example.com" });
   mockTx.storeMembership.create.mockResolvedValue({});
 });
 
@@ -208,6 +211,39 @@ describe("acceptInvitation — existing user", () => {
     const result = await acceptInvitation({ token: TOKEN, ip: "1.2.3.4", userAgent: null, correlationId: "c1" });
     expect(result.status).toBe("identity_conflict");
     expect(mockDb.$transaction).not.toHaveBeenCalled();
+  });
+
+  it("blocks an account re-tenanted between the pre-check and the transaction", async () => {
+    // The TOCTOU window the audit named: the tenant check above runs before the
+    // transaction opens, so it is only a snapshot. The in-transaction re-read is scoped by
+    // tenantId, so a user who no longer belongs to the invitation's tenant is simply not
+    // found — acceptance conflicts instead of creating a membership that the composite
+    // foreign keys would reject anyway.
+    mockDb.user.findUnique.mockResolvedValue({
+      id: "user-existing",
+      email: "new.hire@example.com",
+      tenantId: "tenant-1",
+      status: "ACTIVE",
+    });
+    vi.mocked(resolveSession).mockResolvedValue({
+      userId: "user-existing",
+      tenantId: "tenant-1",
+      user: { id: "user-existing", email: "new.hire@example.com" },
+    } as never);
+    // The transaction's tenant-scoped re-read finds nothing: by the time it runs, this
+    // user no longer belongs to the invitation's tenant.
+    mockTx.user.findFirst.mockResolvedValue(null);
+
+    const result = await acceptInvitation({
+      token: TOKEN,
+      sessionToken: "existing-session",
+      ip: "1.2.3.4",
+      userAgent: null,
+      correlationId: "c1",
+    });
+
+    expect(result.status).toBe("identity_conflict");
+    expect(mockTx.storeMembership.create).not.toHaveBeenCalled();
   });
 
   it("blocks a disabled account", async () => {

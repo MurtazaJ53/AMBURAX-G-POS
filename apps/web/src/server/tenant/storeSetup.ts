@@ -122,8 +122,16 @@ export async function createFirstStore(input: CreateFirstStoreInput): Promise<Cr
         },
       });
 
+      // tenantId is part of the membership's identity now, not a convenience column: the
+      // composite foreign keys reject this row unless the user and the store both belong
+      // to it. Taken from the resolved session, never from input.
       await tx.storeMembership.create({
-        data: { userId: session.userId, storeId: store.id, role: "OWNER" },
+        data: {
+          tenantId: session.tenantId,
+          userId: session.userId,
+          storeId: store.id,
+          role: "OWNER",
+        },
       });
 
       return store;

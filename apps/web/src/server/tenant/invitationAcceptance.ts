@@ -184,7 +184,16 @@ export async function acceptInvitation(input: AcceptInvitationInput): Promise<Ac
       }
 
       const accepting = existingUser
-        ? await tx.user.findUnique({ where: { id: existingUser.id } })
+        ? // Re-asserted inside the transaction rather than trusted from the read above.
+          // That earlier check ran before this transaction opened, so the account could in
+          // principle have changed tenant in between; scoping this lookup by `tenantId`
+          // makes a mismatched user simply not found, which the `!accepting` branch below
+          // already turns into an identity conflict. The composite foreign keys are the
+          // final authority either way — this only fails earlier, with a specific status
+          // instead of a constraint violation.
+          await tx.user.findFirst({
+            where: { id: existingUser.id, tenantId: invitation.tenantId },
+          })
         : await tx.user.create({
             data: {
               tenantId: invitation.tenantId,
@@ -206,8 +215,16 @@ export async function acceptInvitation(input: AcceptInvitationInput): Promise<Ac
         data: { acceptedByUserId: accepting.id },
       });
 
+      // The invitation's own tenant, so the membership can only be created when the
+      // accepting user and the invited store both belong to it — enforced by the composite
+      // foreign keys, not by this line.
       await tx.storeMembership.create({
-        data: { userId: accepting.id, storeId: invitation.storeId, role: invitation.role },
+        data: {
+          tenantId: invitation.tenantId,
+          userId: accepting.id,
+          storeId: invitation.storeId,
+          role: invitation.role,
+        },
       });
 
       return accepting;

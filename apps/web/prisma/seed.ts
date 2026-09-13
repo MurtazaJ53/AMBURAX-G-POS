@@ -57,7 +57,7 @@ async function main() {
   await db.storeMembership.upsert({
     where: { userId_storeId: { userId: owner.id, storeId: store.id } },
     update: {},
-    create: { userId: owner.id, storeId: store.id, role: "OWNER" },
+    create: { tenantId: tenant.id, userId: owner.id, storeId: store.id, role: "OWNER" },
   });
 
   const mfaUser = await db.user.upsert({
@@ -76,7 +76,28 @@ async function main() {
   await db.storeMembership.upsert({
     where: { userId_storeId: { userId: mfaUser.id, storeId: store.id } },
     update: {},
-    create: { userId: mfaUser.id, storeId: store.id, role: "MANAGER" },
+    create: { tenantId: tenant.id, userId: mfaUser.id, storeId: store.id, role: "STORE_MANAGER" },
+  });
+
+  // A third demo login at the till-operator end of the permission model — PERMISSIONS.md's
+  // Cashier: "POS sales, customer lookup, payment collection, limited discount." No MFA,
+  // same pattern as the owner account.
+  const cashierUser = await db.user.upsert({
+    where: { email: "cashier@demo.amburax.test" },
+    update: {},
+    create: {
+      tenantId: tenant.id,
+      email: "cashier@demo.amburax.test",
+      passwordHash,
+      name: "Demo Cashier",
+      status: "ACTIVE",
+    },
+  });
+
+  await db.storeMembership.upsert({
+    where: { userId_storeId: { userId: cashierUser.id, storeId: store.id } },
+    update: {},
+    create: { tenantId: tenant.id, userId: cashierUser.id, storeId: store.id, role: "CASHIER" },
   });
 
   const counts = await seedCatalogue(db, { tenantId: tenant.id, storeId: store.id });
@@ -84,6 +105,7 @@ async function main() {
   console.log("Seeded demo tenant.");
   console.log("  owner@demo.amburax.test / Passw0rd!123 (no MFA)");
   console.log("  manager.mfa@demo.amburax.test / Passw0rd!123 (MFA — set DEV_OTP_ECHO=true to see the code)");
+  console.log("  cashier@demo.amburax.test / Passw0rd!123 (no MFA)");
   console.log(
     `  catalogue: ${counts.products} products, ${counts.variants} variants, ${counts.customers} customers`,
   );

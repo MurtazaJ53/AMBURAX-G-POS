@@ -154,10 +154,10 @@ export async function seedTwoTenants(): Promise<void> {
   });
 
   await db.storeMembership.create({
-    data: { userId: IDS.ownerA, storeId: IDS.storeA, role: "OWNER" },
+    data: { tenantId: IDS.tenantA, userId: IDS.ownerA, storeId: IDS.storeA, role: "OWNER" },
   });
   await db.storeMembership.create({
-    data: { userId: IDS.ownerB, storeId: IDS.storeB, role: "OWNER" },
+    data: { tenantId: IDS.tenantB, userId: IDS.ownerB, storeId: IDS.storeB, role: "OWNER" },
   });
 
   // Note what is deliberately absent: staffA has no StoreMembership at all. That is what
