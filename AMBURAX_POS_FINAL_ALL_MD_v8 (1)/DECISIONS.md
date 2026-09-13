@@ -85,3 +85,147 @@ ADR-080 `StockLevel` is an operational projection, not an authoritative stock le
 ADR-081 Prices are tax-inclusive and tax is extracted from the line rather than added to it (`tax = round(gross * rateBp / (10000 + rateBp))`). This matches the MRP convention of the Indian retail market AMBURAX targets first: the price on the tag is the price the customer pays, and a bill that adds tax to that figure would show a total the customer did not agree to. Money is integer minor units (paise) and tax rates are basis points throughout; no float touches money at any point, because a till that accumulates binary floating-point error across a day's takings produces a figure that reconciles to nothing - the kind of defect found in an audit rather than in testing. Tax is rounded per line rather than once across the sale, because the line is what a customer checks against a printed receipt; a single whole-sale rounding leaves individual lines that visibly do not add up. `subtotal + tax = total` is therefore an invariant the tests pin directly. ERPNext remains authoritative for the tax *posting*; what is computed here is what the customer is charged at the counter, which is a different question from how it is booked.
 
 ADR-082 AMBURAX records payments; it does not process them. Every supported tender (cash, UPI, card) is confirmed by the operator on their own equipment - a cash drawer, a UPI app, a card terminal - and AMBURAX stores the method, the amount and an optional operator-typed reference. There is no gateway integration, no webhook, and therefore no asynchronous confirmation to await, which is why `SalePayment.status` is written as CONFIRMED at the counter: the operator has already confirmed it elsewhere, and marking it PENDING would describe a state nothing will ever resolve. The screens say this in plain words rather than implying verification ("Recorded as taken on your own card terminal - AMBURAX doesn't process the payment"), because a system that appears to have verified a payment it never saw is the most expensive possible lie at a till. `PaymentStatus` retains PENDING and FAILED because the model must not need reshaping when a real gateway arrives: at that point a gateway-backed tender is created PENDING and moves to CONFIRMED only on the provider's confirmation, and the reference column holds a provider identifier rather than a typed string. The operator-typed reference is never placed in an outbox event payload - an outbox row is replayable and readable by every future consumer.
+
+---
+
+## P1-7 architecture freeze (2026-09-13)
+
+ADR-083 through ADR-092 record the P1-7 freeze. They continue this file's existing flat
+numbering rather than restarting at ADR-001 — those numbers are taken, and renumbering a
+decision log breaks every citation already written into the codebase. Supporting detail
+lives in `docs/architecture/`.
+
+**ADR-083 — Multi-tenancy model: shared schema, tenant-scoped rows, cell placement.**
+*Status:* Accepted.
+*Context:* 100k+ tenants is a stated target; a database per tenant at that count is an
+unpatchable fleet, and a single global cluster makes every incident platform-wide.
+*Decision:* One shared PostgreSQL schema within a cell, every tenant-owned table carrying
+`tenantId`, tenants placed on cells by control-plane metadata. Isolation evolves shared cell
+DB → cell-specific DB → dedicated tenant DB, driven by measured need rather than by default.
+*Alternatives:* database-per-tenant from day one (rejected: operational surface and migration
+fan-out, with no evidence it is needed); schema-per-tenant (rejected: same fan-out, weaker
+tooling); single global cluster (rejected: blast radius).
+*Consequences:* tenant scoping becomes the most load-bearing invariant in the system;
+cross-tenant leakage is the primary risk class and is tested as such.
+*Revisit:* first tenant requiring contractual or data-residency isolation.
+
+**ADR-084 — ERPNext boundary: AMBURAX orchestrates, ERPNext accounts.**
+*Status:* Accepted. Makes ADR-001 and ADR-002 operational.
+*Context:* Rebuilding accounting, tax and the stock ledger is years of work with a regulatory
+tail attached.
+*Decision:* ERPNext is authoritative for accounting, GL, tax/GST, stock ledger, warehouses,
+items as ERP records, suppliers, sales and purchase invoices, payments, BOM, work orders and
+production accounting. AMBURAX is authoritative for tenant, identity, sessions, RBAC,
+capabilities, stores, POS devices, commerce channels and mappings, sync state, the outbox,
+operational read models, AI and the B2B pipeline. No entity has two authorities.
+*Alternatives:* build our own ERP (rejected: scope and regulatory risk); ship ERPNext as the
+product (rejected: it is not a garment POS, and the experience is the thing being sold).
+*Consequences:* AMBURAX must tolerate eventual consistency and reconciliation; every
+financial claim depends on an adapter that does not yet exist.
+*Revisit:* if a garment-specific requirement cannot be met without ERPNext core modification.
+
+**ADR-085 — Transitional sole-record status for sales and stock.**
+*Status:* Accepted, explicitly transitional.
+*Context:* The retail slice stores sales, payments and per-store stock in PostgreSQL while no
+ERPNext exists, which reads as a contradiction of ADR-084 unless it is stated plainly.
+*Decision:* Record it: until the adapter lands, AMBURAX is in practice the only record of a
+sale and of stock. These stay operational records and projections — stock quantity signed so
+drift stays visible, `erpSyncStatus` defaulting to `PENDING`, bill number distinct from
+invoice number — and no interface may describe a sale as posted to ERPNext.
+*Alternatives:* block POS until ERPNext exists (rejected: nothing to demonstrate or test
+against); assert the boundary is already honoured (rejected: untrue).
+*Consequences:* a genuine reconciliation obligation at adapter time for interim data.
+*Revisit:* when the first adapter posts a real invoice.
+
+**ADR-086 — Database ownership and evolution.**
+*Status:* Accepted. Extends ADR-076/077/078.
+*Context:* Two engines are unavoidable: AMBURAX on PostgreSQL, Frappe on MariaDB.
+*Decision:* PostgreSQL is the AMBURAX application database; MariaDB is ERPNext's, one
+database per site. No distributed transaction — eventual consistency through the outbox plus
+a reconciliation sweep that raises a case for a human rather than resolving money
+automatically. Schema changes are versioned Prisma migrations; `prisma db push` is forbidden
+in every environment.
+*Alternatives:* two-phase commit across engines (rejected: operational fragility for a
+guarantee that is not needed); a single database (impossible — different engines).
+*Consequences:* per-tenant coordinated backup and restore ordering across two engines remains
+an open question.
+*Revisit:* when backups exist and a coordinated restore can be designed against them.
+
+**ADR-087 — Capability architecture: configuration over one shared core.**
+*Status:* Accepted.
+*Context:* Retail, wholesale, manufacturing, job work, distribution and commerce are all
+intended. Building each as its own core produces six products and six inventories.
+*Decision:* Capabilities are tenant configuration over one shared domain core, with a
+declared dependency graph, server-side gating at the API and domain boundary, and
+hide-don't-delete deactivation. A capability may add tables; it may never fork an existing
+one.
+*Alternatives:* separate modules with their own models (rejected: duplicate cores, the exact
+failure this freeze exists to prevent); one always-on monolith (rejected: a small retailer
+should never meet manufacturing concepts).
+*Consequences:* the gate must exist before the second capability ships, or it never will.
+*Revisit:* when Wholesale starts.
+
+**ADR-088 — Cell-based scaling with stable tenant identity.**
+*Status:* Accepted.
+*Context:* Scaling toward 100k tenants needs both a unit of isolation and a unit of
+migration.
+*Decision:* Region → cell → tenant placement held as control-plane metadata; no cross-cell
+runtime queries; `tenantId` permanent across every migration.
+*Alternatives:* one large cluster (rejected: blast radius); a cell per tenant (rejected:
+cost and patch surface).
+*Consequences:* capacity per cell is unknown until benchmarked and must not be quoted.
+*Revisit:* first capacity benchmark, or the first multi-region requirement.
+
+**ADR-089 — Outbox and event architecture.**
+*Status:* Accepted. Extends ADR-010 and ADR-070..074.
+*Context:* Side effects must survive crashes without a distributed transaction.
+*Decision:* Events are written in the same transaction as the fact they describe (enforced by
+the type signature), claimed with `FOR UPDATE SKIP LOCKED`, retried with capped exponential
+backoff, dead-lettered after eight attempts, and dispatched by a standalone runner process.
+Delivery is at-least-once, consumers must be idempotent, and exactly-once is never claimed.
+An unconfigured transport refuses to run rather than marking events published.
+*Alternatives:* publishing to a broker inside the transaction (rejected: that is a
+distributed transaction); best-effort fire-and-forget (rejected: silent loss).
+*Consequences:* no broker exists, so events accumulate PENDING until one is configured. That
+is the honest state, and the runner says so at startup.
+*Revisit:* when the first consumer is built, or when a broker is selected.
+
+**ADR-090 — AI permission boundary.**
+*Status:* Accepted. Makes ADR-012 structural.
+*Context:* An AI with database access is an unauditable privilege escalation.
+*Decision:* AI reaches the system only through typed tools behind an AI Gateway, authorised
+through the same RBAC path as a human request, with risk classes deciding autonomy: low may
+auto-execute, medium requires policy approval, high — financial, stock-moving,
+credit-affecting, destructive or externally visible — requires human approval. No arbitrary
+SQL, no direct Prisma access, no direct ERPNext call, no privileged principal.
+*Alternatives:* a broadly privileged AI service account (rejected: unauditable); read-only AI
+(rejected: forecloses useful automation and is still a leakage path without scoping).
+*Consequences:* every AI capability costs a typed tool. That friction is the point.
+*Revisit:* when the first AI tool is specified.
+
+**ADR-091 — Commerce channel adapter architecture.**
+*Status:* Accepted. Extends ADR-006/007/008/009.
+*Decision:* Every marketplace or storefront integrates through a channel adapter with an
+explicit external-id mapping layer, schema-driven publishing, per-channel rate-limit and
+retry handling, and reconciliation. External identifiers never become domain identity, and
+channel allocation is policy, never authoritative stock.
+*Alternatives:* bespoke per-channel code paths (rejected: N copies of order handling);
+storing channel ids as primary keys (rejected: identity owned by a third party).
+*Consequences:* each channel costs an adapter; the core stays one core.
+*Revisit:* at the second channel integration.
+
+**ADR-092 — RBAC and teams model.**
+*Status:* Accepted as target; the implementation is a documented subset.
+*Context:* `PERMISSIONS.md` specifies `resource.action` permissions and named roles. The code
+has three hardcoded role allowlists and a free-string `StoreMembership.role`.
+*Decision:* Freeze the evaluation order — authenticate → resolve tenant → resolve capability
+→ resolve role/team → evaluate permission → evaluate resource scope → execute — and the rule
+that AI and API automation traverse the same path. Permissions are scoped at tenant, store
+and, later, warehouse and team level. The hardcoded allowlists are an honest subset for a
+single-capability product, not a competing model.
+*Alternatives:* build the full permission table now (rejected: a permission model designed
+before its consumers exist is guesswork); leave the gap undocumented (rejected: it becomes
+folklore).
+*Consequences:* the allowlists must be replaced, not extended, when roles become
+customer-configurable.
+*Revisit:* when a customer needs a custom role, or at Wholesale, whichever comes first.

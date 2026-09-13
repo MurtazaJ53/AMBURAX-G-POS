@@ -1,6 +1,13 @@
 # AMBURAX POS — DATA OWNERSHIP MATRIX
 
-Audit date: 2026-09-11 · Physical-store column added 2026-09-12 (P1-7)
+Audit date: 2026-09-11 · Physical-store column added 2026-09-12 · **Corrected 2026-09-13 (P1-7 freeze)**
+
+> **2026-09-13 correction.** Sections 1, 3 and 5 described the retail domain as NOT
+> IMPLEMENTED and asserted that no stock-quantity column existed. Commit `bbc0948` shipped
+> `Product`, `ProductVariant`, `Customer`, `Sale`, `SaleItem`, `SalePayment` and
+> `StockLevel` before that text was revisited, so the matrix disagreed with the schema for
+> a day. The rows below are corrected. This is recorded rather than silently edited because
+> a stale ownership matrix is the most dangerous document in a two-system architecture.
 
 **Physical stores** (settled by ADR-076): every **AMBURAX MASTER** domain lives in AMBURAX
 **PostgreSQL**; every **ERPNEXT MASTER** domain lives in ERPNext **MariaDB**, one database
@@ -64,17 +71,22 @@ boundary.
 
 | Domain | AMBURAX owns | ERPNext owns | State |
 |---|---|---|---|
-| Sale / checkout | Cart UX, discount policy, device/shift attribution, idempotency key | Sales Invoice, Payment Entry, GL impact | **NOT IMPLEMENTED** |
+| Sale / checkout | Cart UX, discount policy, device attribution, idempotency key, bill number | Sales Invoice, Payment Entry, GL impact | **AMBURAX HALF IMPLEMENTED** — `Sale`, `SaleItem`, `SalePayment`; ERP half unbuilt, `erpSyncStatus = PENDING` |
 | Pricing / promotions | Promotion rules, display price, campaign logic | Price List, final taxable amount | **NOT IMPLEMENTED** |
 | Returns / exchanges | Eligibility UX and policy | Credit Note, stock and accounting reversal | **NOT IMPLEMENTED** |
-| Customer | Customer 360 experience, segmentation, Khata UX | Customer record, receivable balance | **NOT IMPLEMENTED** |
+| Customer | Customer 360 experience, segmentation, Khata UX | Customer record, receivable balance | **AMBURAX HALF IMPLEMENTED** — `Customer`; no receivable balance stored, correctly |
 | Shifts / cash register | Shift lifecycle, cash counts, staff attribution | Journal/Payment entries arising | **NOT IMPLEMENTED** |
-| Product / variant catalog | Canonical product & variant identity (ADR-005), garment attributes | Item, Item Variant, valuation | **NOT IMPLEMENTED** |
+| Product / variant catalog | Canonical product & variant identity (ADR-005), garment attributes | Item, Item Variant, valuation | **AMBURAX HALF IMPLEMENTED** — `Product`, `ProductVariant`; no valuation stored, correctly |
 | Channel / marketplace | Channel accounts, capabilities, schemas, external ID mapping, allocation policy (ADR-009) | Resulting invoices and stock movement | **NOT IMPLEMENTED** |
 
-## 4. READ MODEL — none implemented
+## 4. READ MODEL
 
-No projection, cache, search index or offline replica exists.
+| Projection | Model | State |
+|---|---|---|
+| Per-store stock position | `StockLevel` | **IMPLEMENTED** — non-authoritative by design; signed quantity keeps drift visible for a future reconciliation sweep |
+| Offline POS cache | — | **NOT IMPLEMENTED** |
+
+No cache, search index or offline replica exists.
 
 The offline POS cache described in OFFLINE_POS.md §5 (product master, price, tax
 metadata, cached stock, customer subset) is the first planned READ MODEL. It is
@@ -84,8 +96,17 @@ UI — OFFLINE_POS.md §14's "Local estimate — server confirmation pending" ru
 ## 5. Standing rules this matrix enforces
 
 1. **No duplicate authoritative ledger.** AMBURAX must never store a stock
-   quantity, account balance, receivable, or tax computation it treats as true.
-   Currently satisfied: no such column exists in `schema.prisma`.
+   quantity, account balance, receivable, or tax computation it treats as **authoritative**.
+   **Status as of 2026-09-13: qualified, not satisfied outright.** `stock_levels.quantity`
+   and the money columns on `sales` do exist. They are operational records and projections,
+   not a ledger, and the schema says so where it matters: the stock quantity is signed on
+   purpose so drift stays visible instead of being clamped away, `Sale.erpSyncStatus`
+   defaults to `PENDING`, and `Sale.billNumber` is explicitly not an invoice number
+   (ADR-063/ADR-079). The honest reading is that **with no ERPNext connected, AMBURAX is
+   currently the only record of a sale and of stock** — a transitional state (ADR-085), not
+   a claim that the boundary is already being honoured in practice. When the adapter lands,
+   ERPNext becomes authoritative for the invoice, the payment and the stock ledger, and
+   these columns become projections in fact as well as in intent.
 2. **Identity is AMBURAX's, always.** `User`, `Session`, `StoreMembership` and the
    credential models are never delegated to ERPNext, and ERPNext's user table is
    never an authentication source for AMBURAX.

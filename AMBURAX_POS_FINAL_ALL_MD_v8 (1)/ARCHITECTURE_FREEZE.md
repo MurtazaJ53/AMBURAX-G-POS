@@ -1,7 +1,24 @@
 # AMBURAX POS — ARCHITECTURE FREEZE
 
-Status: **NOT FROZEN.**
-Evaluated against the actual repository on **2026-09-11** (see REPO_AUDIT.md).
+Status: **DECISION FREEZE RECORDED 2026-09-13 (P1-7).** Architecture *decisions* are frozen;
+the architecture is **not** declared proven. See `docs/architecture/P1_7_FREEZE.md` for the
+freeze record, the contradiction audit and the revisit checkpoints.
+
+The distinction is deliberate and is the whole point of this document's history:
+
+| | Status |
+|---|---|
+| Boundaries, ownership, invariants, planes, capability model, event model, AI boundary | **FROZEN** — changing one now requires a superseding ADR |
+| Capacity numbers, RPO/RTO, synchronous-ERP question (ADR-078), cross-engine restore ordering, multi-region posture | **NOT DECIDED** and not claimed |
+| ERPNext principles below (1, 3, 4, 6) | **STILL UNEXERCISED** — no ERPNext is connected |
+| CI enforcement of the gates | **STILL ABSENT** — every gate is run by hand |
+
+The last two rows are the same objections this document raised on 2026-09-12. They have not
+been resolved and are not waved away; they block a *proven-architecture* freeze and are
+carried as named checkpoints. P1-7 was scoped to freeze decisions so the next wave of
+implementation builds against something stable, and that is what is recorded here.
+
+*Original evaluation against the repository on **2026-09-11** (see REPO_AUDIT.md) follows.*
 
 ---
 

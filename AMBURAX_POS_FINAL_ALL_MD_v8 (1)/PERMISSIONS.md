@@ -1,5 +1,24 @@
 # AMBURAX POS — Permission Model
 
+> **Implementation status, recorded 2026-09-13 (P1-7 freeze).** Everything below is the
+> *target* model and is frozen as such (ADR-092). What exists in code today is a deliberate
+> subset, and the difference matters when reading this file:
+>
+> | Target | Implemented today |
+> |---|---|
+> | `resource.action` permissions | None. No permission or role table exists. |
+> | Named roles with permission sets | Three hardcoded allowlists: `SELLING_STORE_ROLES`, `POS_CONFIGURABLE_STORE_ROLES`, `INVITABLE_STORE_ROLES` |
+> | Role assignment | `StoreMembership.role`, a free-form `String` column |
+> | Tenant-level role | `User.tenantRole` — `OWNER` or `STAFF` |
+> | Approval limits | Not implemented |
+> | Teams | Not implemented |
+> | Warehouse scope | Not implemented (no warehouse entity) |
+>
+> The evaluation order is frozen and is honoured by the current code:
+> authenticate → resolve tenant → resolve capability → resolve role → evaluate permission →
+> evaluate resource scope → execute. AI and API automation must traverse the same path.
+> The allowlists are to be **replaced** by the model below, not extended.
+
 ## Permission format
 
 `resource.action`

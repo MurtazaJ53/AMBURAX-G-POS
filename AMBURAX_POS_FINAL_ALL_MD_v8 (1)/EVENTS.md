@@ -1,5 +1,34 @@
 # AMBURAX POS — Event Catalog
 
+> **Status marking added 2026-09-13 (P1-7 freeze).** This catalogue names the events the
+> product intends to emit. Until now nothing distinguished the six that exist in code from
+> the forty that do not, which is exactly the kind of claim P1-3 removed from the product
+> surface. The implemented set is listed first; everything after it is PLANNED — a name
+> reserved for a producer that does not exist yet.
+
+## Implemented events
+
+| Event | Status | Producer | Idempotency key | Sensitivity |
+|---|---|---|---|---|
+| `SaleCompleted` | **IMPLEMENTED** | `saleService.createSale`, inside the sale transaction | `tenant:SaleCompleted:saleId:-` | Totals and payment method only — no card/UPI reference |
+| `PosDeviceCreated` | **IMPLEMENTED** | `posDeviceSetup`, inside the device transaction | `tenant:PosDeviceCreated:deviceId:-` | Ids and configuration only — never the pairing code |
+| `PosDeviceActivated` | **DECLARED, NO PRODUCER** | — | — | — |
+| `PosDeviceDisabled` | **DECLARED, NO PRODUCER** | — | — | — |
+| `InvitationAccepted` | **DECLARED, NO PRODUCER** | — | — | — |
+| `OnboardingCompleted` | **DECLARED, NO PRODUCER** | — | — | — |
+
+"Declared" means the type exists in `OUTBOX_EVENT_TYPES` and would be accepted by the
+producer API; no code emits it. Consumers: **none exist**, for any event.
+
+**Transport:** no message broker exists. Events are committed transactionally to
+`outbox_events` and drained by a dispatcher runner (`npm run outbox:work`). With no
+transport configured the runner refuses to start and events remain PENDING — they are never
+marked published without a transport having accepted them.
+
+## Planned events
+
+Everything below is a reserved name with no producer, no consumer and no payload contract.
+
 ## Transaction events
 - SaleCompleted
 - PaymentReceived
