@@ -2,7 +2,7 @@ import { Prisma } from "@prisma/client";
 import { db } from "@/server/db";
 import { logError, sanitizeText } from "@/lib/safeLog";
 import {
-  outboxPublisher,
+  resolveOutboxPublisher,
   type OutboxPublisher,
   type PublishableEvent,
 } from "@/server/events/publisher";
@@ -151,7 +151,9 @@ export async function dispatchOutboxOnce(params?: {
   publisher?: OutboxPublisher;
   now?: Date;
 }): Promise<DispatchResult> {
-  const publisher = params?.publisher ?? outboxPublisher;
+  // Resolved per call, not captured at module load: the transport is a deployment
+  // decision, and an unconfigured one must throw rather than quietly succeed.
+  const publisher = params?.publisher ?? resolveOutboxPublisher();
   const rows = await claimDueEvents({
     batchSize: params?.batchSize,
     tenantId: params?.tenantId,

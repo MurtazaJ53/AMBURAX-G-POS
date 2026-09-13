@@ -2,6 +2,11 @@ import { describe, expect, it, beforeEach, afterAll } from "vitest";
 import { db, resetDatabase, seedTwoTenants, IDS } from "./db";
 import { enqueueOutboxEvent, outboxIdempotencyKey } from "@/server/events/outbox";
 import { dispatchOutboxOnce, MAX_ATTEMPTS } from "@/server/events/outboxDispatcher";
+import { runOutboxWorker } from "@/server/events/outboxRunner";
+import {
+  NoEventTransportConfiguredError,
+  UnconfiguredOutboxPublisher,
+} from "@/server/events/publisher";
 
 /**
  * The durability proof for ADR-010's outbox, against REAL PostgreSQL.
@@ -440,5 +445,182 @@ describe("the wired producer (createFirstPosDevice)", () => {
     expect(serialized).not.toContain("a".repeat(64));
     expect(serialized.toLowerCase()).not.toContain("pairing");
     expect(serialized.toLowerCase()).not.toContain("secret");
+  });
+});
+
+describe("the runner, against real PostgreSQL — audit finding F-01", () => {
+  /** One enqueued, immediately-due event for tenant A. */
+  async function enqueueDueEvent(discriminator: string): Promise<string> {
+    const event = await db.$transaction((tx) =>
+      enqueueOutboxEvent(tx, {
+        tenantId: IDS.tenantA,
+        storeId: IDS.storeA,
+        eventType: "PosDeviceCreated",
+        correlationId: `corr-${discriminator}`,
+        entityId: `device-${discriminator}`,
+        discriminator,
+        payload: { code: `POS-${discriminator}`, status: "PENDING_ACTIVATION" },
+      }),
+    );
+    return event.id;
+  }
+
+  it("the runner actually drains the table — the loop, not just the dispatcher", async () => {
+    // The gap F-01 named: every guarantee below was already true of dispatchOutboxOnce, and
+    // nothing in the system ever called it.
+    await enqueueDueEvent("r1");
+    await enqueueDueEvent("r2");
+
+    const summary = await runOutboxWorker({
+      publisher: { publish: async () => {} },
+      maxCycles: 1,
+      sleep: async () => {},
+    });
+
+    expect(summary.published).toBe(2);
+    expect(await db.outboxEvent.count({ where: { publishedAt: null } })).toBe(0);
+  });
+
+  it("two concurrent runners never publish the same event twice", async () => {
+    for (let i = 0; i < 8; i += 1) await enqueueDueEvent(`c${i}`);
+
+    const seen: string[] = [];
+    const publisher = {
+      publish: async (event: { eventId: string }) => {
+        seen.push(event.eventId);
+      },
+    };
+
+    const [a, b] = await Promise.all([
+      runOutboxWorker({ publisher, maxCycles: 1, batchSize: 8, sleep: async () => {} }),
+      runOutboxWorker({ publisher, maxCycles: 1, batchSize: 8, sleep: async () => {} }),
+    ]);
+
+    expect(a.published + b.published).toBe(8);
+    expect(new Set(seen).size).toBe(seen.length);
+    expect(await db.outboxEvent.count({ where: { publishedAt: null } })).toBe(0);
+  });
+
+  it("refuses to run with no transport configured, leaving every event PENDING", async () => {
+    // The honesty requirement, proved against the database rather than a mock: an
+    // unconfigured system must not claim, must not burn attempts, and must not publish.
+    const id = await enqueueDueEvent("unconfigured");
+
+    await expect(
+      runOutboxWorker({ environment: {} as NodeJS.ProcessEnv, maxCycles: 1, sleep: async () => {} }),
+    ).rejects.toBeInstanceOf(NoEventTransportConfiguredError);
+
+    const event = await db.outboxEvent.findUniqueOrThrow({ where: { id } });
+    expect(event.publishedAt).toBeNull();
+    expect(event.deadLetteredAt).toBeNull();
+    expect(event.attempts).toBe(0);
+    expect(event.lastError).toBeNull();
+  });
+
+  it("an unconfigured publisher that reaches the dispatcher records a failure, never a publish", async () => {
+    const id = await enqueueDueEvent("bypass");
+
+    const summary = await runOutboxWorker({
+      publisher: new UnconfiguredOutboxPublisher(),
+      maxCycles: 1,
+      sleep: async () => {},
+    });
+
+    expect(summary.published).toBe(0);
+    const event = await db.outboxEvent.findUniqueOrThrow({ where: { id } });
+    expect(event.publishedAt).toBeNull();
+    expect(event.attempts).toBe(1);
+    expect(event.lastError).toContain("No outbox event transport is configured");
+    // Still retryable: a configuration fix plus a restart delivers it.
+    expect(event.deadLetteredAt).toBeNull();
+  });
+
+  it("stays inside its tenant when told to", async () => {
+    await enqueueDueEvent("tenant-scoped");
+    const foreign = await db.$transaction((tx) =>
+      enqueueOutboxEvent(tx, {
+        tenantId: IDS.tenantB,
+        storeId: IDS.storeB,
+        eventType: "PosDeviceCreated",
+        correlationId: "corr-b",
+        entityId: "device-b",
+        payload: { code: "POS-B", status: "PENDING_ACTIVATION" },
+      }),
+    );
+
+    const summary = await runOutboxWorker({
+      publisher: { publish: async () => {} },
+      tenantId: IDS.tenantA,
+      maxCycles: 1,
+      sleep: async () => {},
+    });
+
+    expect(summary.published).toBe(1);
+    const untouched = await db.outboxEvent.findUniqueOrThrow({ where: { id: foreign.id } });
+    expect(untouched.publishedAt).toBeNull();
+    expect(untouched.attempts).toBe(0);
+  });
+
+  it("a failed publish leaves the event due again later, and a later run delivers it", async () => {
+    const id = await enqueueDueEvent("retry");
+
+    await runOutboxWorker({
+      publisher: {
+        publish: async () => {
+          throw new Error("transport down");
+        },
+      },
+      maxCycles: 1,
+      sleep: async () => {},
+    });
+
+    const afterFailure = await db.outboxEvent.findUniqueOrThrow({ where: { id } });
+    expect(afterFailure.publishedAt).toBeNull();
+    expect(afterFailure.attempts).toBe(1);
+    expect(afterFailure.nextAttemptAt.getTime()).toBeGreaterThan(Date.now());
+
+    // Due again once the backoff has elapsed — the row was never lost.
+    await db.outboxEvent.update({ where: { id }, data: { nextAttemptAt: new Date() } });
+    const recovered = await runOutboxWorker({
+      publisher: { publish: async () => {} },
+      maxCycles: 1,
+      sleep: async () => {},
+    });
+    expect(recovered.published).toBe(1);
+  });
+
+  it("dead-letters after the attempt ceiling instead of retrying forever", async () => {
+    const id = await enqueueDueEvent("dead");
+    await db.outboxEvent.update({ where: { id }, data: { attempts: MAX_ATTEMPTS } });
+
+    const summary = await runOutboxWorker({
+      publisher: {
+        publish: async () => {
+          throw new Error("still down");
+        },
+      },
+      maxCycles: 1,
+      sleep: async () => {},
+    });
+
+    expect(summary.deadLettered).toBe(1);
+    const event = await db.outboxEvent.findUniqueOrThrow({ where: { id } });
+    expect(event.deadLetteredAt).not.toBeNull();
+    expect(event.publishedAt).toBeNull();
+  });
+
+  it("stops promptly when the shutdown signal fires mid-run", async () => {
+    await enqueueDueEvent("shutdown");
+    const controller = new AbortController();
+
+    const summary = await runOutboxWorker({
+      publisher: { publish: async () => {} },
+      signal: controller.signal,
+      sleep: async () => {},
+      onCycle: () => controller.abort(),
+    });
+
+    expect(summary.stoppedBy).toBe("signal");
+    expect(summary.cycles).toBe(1);
   });
 });
