@@ -106,6 +106,15 @@ model Tenant {
   uomConversions     UomConversion[]
   addresses          Address[]
   customerAddresses  CustomerAddress[]
+  priceLists         PriceList[]
+  priceListItems     PriceListItem[]
+
+  // The tenant's fallback price list, tried after the customer's and the store's. A pointer
+  // rather than an `isDefault` flag on PriceList for the same reason customer addresses use
+  // pointers: a column holds one value, so "two tenant defaults" is not a state the database
+  // can represent, and no partial unique index (which Prisma cannot model) is needed.
+  defaultPriceListId String?
+  defaultPriceList   PriceList? @relation("TenantDefaultPriceList", fields: [defaultPriceListId, id], references: [id, tenantId])
 
   @@map("tenants")
 }
@@ -169,6 +178,11 @@ model Store {
 
   createdAt DateTime @default(now())
 
+  // The price list this store sells at, tried after the customer's own. Nullable: a store
+  // without one falls through to the tenant default and then to the variant's base price,
+  // which is exactly how every store behaves today.
+  priceListId String?
+
   tenant      Tenant            @relation(fields: [tenantId], references: [id])
   memberships StoreMembership[]
   invitations Invitation[]
@@ -176,6 +190,7 @@ model Store {
   sales          Sale[]
   stockLevels    StockLevel[]
   stockMovements StockMovement[]
+  priceList      PriceList?     @relation("StorePriceList", fields: [priceListId, tenantId], references: [id, tenantId])
 
   @@unique([tenantId, code])
   // Same purpose as User's: the referencable half of StoreMembership's composite foreign
@@ -618,6 +633,7 @@ model Uom {
   products        Product[]
   conversionsFrom UomConversion[] @relation("ConversionFrom")
   conversionsTo   UomConversion[] @relation("ConversionTo")
+  priceListItems  PriceListItem[]
 
   @@unique([tenantId, code])
   // Referencable half of the composite foreign keys on Product and UomConversion.
@@ -690,6 +706,7 @@ model ProductVariant {
   saleItems      SaleItem[]
   stockLevels    StockLevel[]
   stockMovements StockMovement[]
+  priceListItems PriceListItem[]
 
   // SKU and barcode are unique per tenant, not globally: two businesses may legitimately
   // use the same SKU string, and a global constraint would leak one tenant's namespace
@@ -730,9 +747,14 @@ model Customer {
   defaultBillingAddressId  String?
   defaultShippingAddressId String?
 
+  /// The price list agreed with this buyer. Highest priority in resolution, and nullable:
+  /// a walk-in retail customer has no negotiated pricing and never will.
+  priceListId String?
+
   tenant          Tenant            @relation(fields: [tenantId], references: [id])
   sales           Sale[]
   addressLinks    CustomerAddress[]
+  priceList       PriceList?        @relation("CustomerPriceList", fields: [priceListId, tenantId], references: [id, tenantId])
   defaultBilling  Address?          @relation("CustomerDefaultBilling", fields: [defaultBillingAddressId, tenantId], references: [id, tenantId])
   defaultShipping Address?          @relation("CustomerDefaultShipping", fields: [defaultShippingAddressId, tenantId], references: [id, tenantId])
 
@@ -743,6 +765,95 @@ model Customer {
   // Referencable half of CustomerAddress's composite foreign key (invariant I-4).
   @@unique([id, tenantId])
   @@map("customers")
+}
+
+// A named set of prices a tenant sells at.
+//
+// The whole of P1-8E is this table, its items, and three nullable pointers at it. There is no
+// promotion, coupon, scheme, free-quantity, loyalty or discount engine here, and a price list is
+// not a campaign: it has no schedule, no audience and no stacking rules. It answers one question
+// — "what does this variant cost, in this unit, at this quantity, today" — and the answer is a
+// number somebody typed.
+//
+// `currency` is required and is never converted. A list priced in one currency simply does not
+// apply to a store selling in another; resolution refuses rather than guessing a rate, because
+// inventing an exchange rate inside a POS is how money goes missing. There is no FX engine and
+// this field does not imply one — it exists so that the day a second currency appears, the rows
+// already say which one they meant.
+model PriceList {
+  id       String @id @default(cuid())
+  tenantId String
+
+  name String
+  /// ISO-4217, uppercased on write. Never converted — see the model comment.
+  currency String
+
+  isActive Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  tenant          Tenant          @relation(fields: [tenantId], references: [id])
+  items           PriceListItem[]
+  customers       Customer[]      @relation("CustomerPriceList")
+  stores          Store[]         @relation("StorePriceList")
+  tenantDefaultOf Tenant[]        @relation("TenantDefaultPriceList")
+
+  @@unique([tenantId, name])
+  // Referencable half of every composite foreign key that points here.
+  @@unique([id, tenantId])
+  @@index([tenantId])
+  @@map("price_lists")
+}
+
+// One price: "in this list, this variant, sold in this unit, at this quantity or more, costs this
+// much".
+//
+// `uomId` is required, not nullable, for a reason that is half domain and half PostgreSQL. The
+// domain half: a price without a unit is meaningless once units exist — 950 rupees for a piece
+// and 950 for a carton are different businesses. The PostgreSQL half: NULLs are distinct in a
+// unique index, so a nullable unit column would silently allow unlimited duplicate rows for the
+// same variant and quantity, defeating the one constraint this table most needs.
+//
+// Quantity breaks are rows, not a separate table: 1, 10 and 50 are three items, and resolution
+// picks the highest `minQuantity` that does not exceed what was asked for.
+model PriceListItem {
+  id       String @id @default(cuid())
+  tenantId String
+
+  priceListId String
+  variantId   String
+  uomId       String
+
+  /// The smallest quantity this price applies from. At least 1.
+  minQuantity Int @default(1)
+
+  /// Integer minor units, matching every other money column in this schema. Zero is allowed and
+  /// means exactly what it says — a deliberately free line — not a promotion mechanism.
+  unitPriceMinor Int
+
+  // Null at either end means "open". Both null is the ordinary case: a price that simply applies.
+  // This is a validity window, not a schedule: nothing activates a price at a future date as a
+  // campaign, and no job flips these over.
+  validFrom DateTime?
+  validTo   DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  tenant    Tenant         @relation(fields: [tenantId], references: [id])
+  // Composite throughout (invariant I-4): the list, the variant and the unit must all belong to
+  // the tenant that owns the price, and PostgreSQL enforces it rather than the calling code.
+  priceList PriceList      @relation(fields: [priceListId, tenantId], references: [id, tenantId])
+  variant   ProductVariant @relation(fields: [variantId, tenantId], references: [id, tenantId])
+  uom       Uom            @relation(fields: [uomId, tenantId], references: [id, tenantId])
+
+  // The required duplicate protection: one price per list, variant, unit and quantity break.
+  // Overlapping validity windows within that key are prevented in the service — see
+  // docs/architecture/PRICING.md for why that one cannot be a database constraint here.
+  @@unique([priceListId, variantId, uomId, minQuantity])
+  @@index([tenantId, variantId])
+  @@map("price_list_items")
 }
 
 // What an address is for. Three values, not more: a wholesale buyer's invoice goes to their
