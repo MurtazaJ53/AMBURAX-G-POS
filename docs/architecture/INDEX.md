@@ -25,6 +25,7 @@ architectural rule is that there is only ever one.
 | [TENANT_MIGRATION.md](TENANT_MIGRATION.md) | Moving a tenant between cells or ERP placements | No migration document existed |
 | [INVENTORY.md](INVENTORY.md) | Inventory ledger authority, projection invariant, concurrency, opening-balance backfill (P1-8B) | Added when the ledger was built |
 | [UOM.md](UOM.md) | Unit catalogue, exact integer conversion contract, product base unit, why decimals are deferred (P1-8C) | Added when units arrived |
+| [ADDRESS.md](ADDRESS.md) | Address model, join-table ownership, default-address contract, GSTIN, and the order snapshot rule (P1-8D) | Added when addresses arrived |
 
 ## Documents updated in the existing corpus
 

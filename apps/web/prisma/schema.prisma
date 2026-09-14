@@ -104,6 +104,8 @@ model Tenant {
   stockMovements     StockMovement[]
   uoms               Uom[]
   uomConversions     UomConversion[]
+  addresses          Address[]
+  customerAddresses  CustomerAddress[]
 
   @@map("tenants")
 }
@@ -714,14 +716,118 @@ model Customer {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  tenant Tenant @relation(fields: [tenantId], references: [id])
-  sales  Sale[]
+  /// GSTIN, for a customer who buys as a business. Nullable because most retail customers are
+  /// not registered, and deliberately NOT unique: two tenants keep independent customer books
+  /// and may both sell to the same firm. Stored uppercase and trimmed; no GST verification
+  /// service exists, and the format check is a shape check, not proof the number is real.
+  gstin String?
+
+  // Which of this customer's addresses to use by default. Pointers rather than a flag on the
+  // address, because a column holds exactly one value: "two conflicting default billing
+  // addresses" is not a state the database can represent, so no constraint, trigger or
+  // application check is needed to prevent it. A partial unique index over an isDefault flag
+  // would have been the alternative, and Prisma cannot express one without permanent drift.
+  defaultBillingAddressId  String?
+  defaultShippingAddressId String?
+
+  tenant          Tenant            @relation(fields: [tenantId], references: [id])
+  sales           Sale[]
+  addressLinks    CustomerAddress[]
+  defaultBilling  Address?          @relation("CustomerDefaultBilling", fields: [defaultBillingAddressId, tenantId], references: [id, tenantId])
+  defaultShipping Address?          @relation("CustomerDefaultShipping", fields: [defaultShippingAddressId, tenantId], references: [id, tenantId])
 
   // Phone is the retail identity key in this market. Unique per tenant so selecting an
   // existing customer can never silently create a duplicate.
   @@unique([tenantId, phone])
   @@index([tenantId, name])
+  // Referencable half of CustomerAddress's composite foreign key (invariant I-4).
+  @@unique([id, tenantId])
   @@map("customers")
+}
+
+// What an address is for. Three values, not more: a wholesale buyer's invoice goes to their
+// registered office and the goods go to a warehouse, and very often both are the same place.
+// Finer categories (registered office, branch, godown) are labels a business can keep in
+// `contactName` until something in the system actually branches on them.
+enum AddressType {
+  BILLING
+  SHIPPING
+  BOTH
+}
+
+// A postal address, owned by a tenant.
+//
+// Deliberately NOT polymorphic. There is no ownerType/ownerId pair: a string discriminator
+// cannot be a foreign key, so the database could not tell a customer address from a supplier
+// one, and nothing would stop a row pointing at an id that does not exist. Ownership is
+// expressed by real relations — `CustomerAddress` today, and a `SupplierAddress` of the same
+// shape whenever suppliers arrive.
+//
+// Kept international. `state` is free text because "state" is a province in Canada and a county
+// in Ireland, and `country` is an ISO-3166 two-letter code. No GST state code: that belongs to
+// the tax engine, which does not exist, and adding it later is one nullable column.
+model Address {
+  id       String @id @default(cuid())
+  tenantId String
+
+  line1      String
+  line2      String?
+  city       String
+  /// State, province, county — whatever the country calls its first-level subdivision.
+  state      String
+  postalCode String
+  /// ISO-3166 alpha-2, uppercased on write.
+  country    String
+
+  /// Who to ask for at this address. Not the customer's own name, which lives on Customer.
+  contactName  String?
+  contactPhone String?
+
+  type AddressType
+
+  // Addresses are deactivated, never deleted. Once orders exist they will snapshot the address
+  // they shipped to (see docs/architecture/ADDRESS.md); until then, deleting one would still be
+  // deleting a piece of a customer's history.
+  isActive Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  tenant            Tenant            @relation(fields: [tenantId], references: [id])
+  customerLinks     CustomerAddress[]
+  defaultBillingOf  Customer[]        @relation("CustomerDefaultBilling")
+  defaultShippingOf Customer[]        @relation("CustomerDefaultShipping")
+
+  @@index([tenantId])
+  // Referencable half of the composite foreign keys on CustomerAddress and Customer.
+  @@unique([id, tenantId])
+  @@map("addresses")
+}
+
+// Which addresses belong to which customer.
+//
+// A join table rather than `Address.customerId`, because the same physical address can
+// legitimately serve more than one relationship — a buyer's group warehouse, a shared godown —
+// and because the next owner kind (supplier) gets its own table instead of a nullable column on
+// Address that would be null most of the time.
+model CustomerAddress {
+  id       String @id @default(cuid())
+  tenantId String
+
+  customerId String
+  addressId  String
+
+  createdAt DateTime @default(now())
+
+  tenant   Tenant   @relation(fields: [tenantId], references: [id])
+  // Composite on both sides, the StoreMembership pattern: PostgreSQL rejects a link between a
+  // tenant-A customer and a tenant-B address because neither pair would resolve.
+  customer Customer @relation(fields: [customerId, tenantId], references: [id, tenantId])
+  address  Address  @relation(fields: [addressId, tenantId], references: [id, tenantId])
+
+  @@unique([customerId, addressId])
+  @@index([tenantId, customerId])
+  @@map("customer_addresses")
 }
 
 // COMPLETED means AMBURAX holds the sale. It does NOT mean ERPNext posted an invoice -
