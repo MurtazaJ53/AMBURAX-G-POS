@@ -118,6 +118,22 @@ export async function POST(req: NextRequest) {
       case "forbidden":
         return forbidden(correlationId, "You do not have permission to complete sales in this store.");
 
+      // 404, not 403, and deliberately so. docs/architecture/CAPABILITIES.md froze this at P1-7:
+      // "A disabled capability produces the same response as an unknown route, not a permission
+      // error: whether a tenant has bought a module is not information their API surface should
+      // volunteer." A 403 naming the capability would turn every endpoint into an oracle for
+      // which modules a tenant has, readable by anyone who can reach it.
+      //
+      // The service result still says `capability_disabled` — the distinction is preserved
+      // inside the process, for logs and for in-process callers, and flattened at the boundary.
+      case "capability_disabled":
+        return apiError({
+          code: "not_found",
+          message: "Not found.",
+          status: 404,
+          correlationId,
+        });
+
       case "empty_cart":
         return apiError({
           code: "empty_cart",

@@ -18,7 +18,7 @@ architectural rule is that there is only ever one.
 | [P1_7_FREEZE.md](P1_7_FREEZE.md) | The freeze record: what is frozen, what is explicitly not, contradiction audit | The freeze itself |
 | [ARCHITECTURE_INVARIANTS.md](ARCHITECTURE_INVARIANTS.md) | The rules future code must obey, and which are machine-enforced today | Rules existed as prose scattered across docs; never as a checkable list |
 | [CONTROL_PLANE.md](CONTROL_PLANE.md) | Control/data/intelligence plane split, tenant router, placement metadata | No document described the three planes |
-| [CAPABILITIES.md](CAPABILITIES.md) | Capability model, dependencies, activation, gating | Capabilities were named in the plan but never specified |
+| [CAPABILITIES.md](CAPABILITIES.md) | Capability model, dependencies, activation, gating — plus the P1-8F implementation record: storage, the RETAIL default every tenant received, the OWNER-only admin rule, the `createSale` gate, and the frozen rules not yet enforced | Capabilities were named in the plan but never specified |
 | [CELL_ARCHITECTURE.md](CELL_ARCHITECTURE.md) | Region/cell model, placement, failure isolation, multi-region posture | No cell document existed |
 | [ERP_ADAPTER.md](ERP_ADAPTER.md) | The adapter contract: interface, errors, retries, idempotency, mapping | `ERPNEXT_ARCHITECTURE.md` settles placement, not the boundary contract |
 | [PROVISIONING.md](PROVISIONING.md) | Tenant provisioning state machine and compensation | Onboarding was documented; provisioning was not |

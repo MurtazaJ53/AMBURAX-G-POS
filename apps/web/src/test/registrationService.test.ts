@@ -18,6 +18,9 @@ function uniqueViolation(field: string) {
 const mockTx = {
   tenant: { create: vi.fn() },
   onboardingSession: { create: vi.fn() },
+  // Registration seeds the new tenant's default capabilities inside the same transaction, so
+  // the mocked client has to offer the delegate the real one does.
+  tenantCapability: { createMany: vi.fn() },
 };
 
 const mockDb = {
@@ -66,6 +69,7 @@ beforeEach(() => {
   mockDb.tenant.findUnique.mockResolvedValue(null);
   mockTx.tenant.create.mockResolvedValue({ id: "tenant-1", name: "Sharma Traders" });
   mockTx.onboardingSession.create.mockResolvedValue({});
+  mockTx.tenantCapability.createMany.mockResolvedValue({ count: 1 });
 });
 
 describe("registerBusiness", () => {
@@ -91,6 +95,33 @@ describe("registerBusiness", () => {
     expect(result.status).toBe("ok");
     expect(mockTx.tenant.create).toHaveBeenCalledTimes(1);
     expect(mockTx.onboardingSession.create).toHaveBeenCalledTimes(1);
+  });
+
+  /**
+   * A new tenant must be able to sell the moment onboarding finishes, so RETAIL is granted with
+   * the tenant row itself — in the same transaction, which is what stops a crash between two
+   * statements from producing a tenant whose POS is switched off.
+   */
+  it("grants the new tenant its default capabilities inside the same transaction", async () => {
+    const result = await registerBusiness(baseInput());
+    expect(result.status).toBe("ok");
+    expect(mockTx.tenantCapability.createMany).toHaveBeenCalledTimes(1);
+    expect(mockTx.tenantCapability.createMany).toHaveBeenCalledWith({
+      data: [{ tenantId: "tenant-1", capability: "RETAIL", enabled: true }],
+      skipDuplicates: true,
+    });
+  });
+
+  /**
+   * Not derived from businessType. A wholesaler who also runs a counter still gets RETAIL,
+   * because RETAIL describes what actually works today, not what was ticked at signup.
+   */
+  it("grants RETAIL even to a tenant that registered as a wholesaler", async () => {
+    await registerBusiness(baseInput({ businessType: "WHOLESALE" }));
+    expect(mockTx.tenantCapability.createMany).toHaveBeenCalledWith({
+      data: [{ tenantId: "tenant-1", capability: "RETAIL", enabled: true }],
+      skipDuplicates: true,
+    });
   });
 
   it("retries with a fresh slug on a slug collision instead of failing the whole request", async () => {

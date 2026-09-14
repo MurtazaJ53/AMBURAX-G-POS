@@ -6,6 +6,7 @@ import { createOnboardingSession } from "@/server/tenant/onboardingSession";
 import { generateOpaqueToken, hashOpaqueToken } from "@/server/identity/token";
 import { isIpRateLimited, recordAttempt } from "@/server/identity/loginGuard";
 import { writeAuditLog } from "@/server/identity/audit";
+import { seedDefaultCapabilities } from "@/server/capability/capabilityService";
 
 export type BusinessType = "RETAIL" | "WHOLESALE" | "MANUFACTURING" | "SERVICES" | "DISTRIBUTION" | "OTHER";
 
@@ -102,6 +103,11 @@ export async function registerBusiness(input: RegisterBusinessInput): Promise<Re
             termsAcceptedAt: new Date(),
           },
         });
+
+        // Same transaction as the tenant row on purpose: a tenant that committed without its
+        // default capabilities would be a tenant whose POS is switched off, and no crash
+        // between two statements should be able to produce that.
+        await seedDefaultCapabilities(tx, tenant.id);
 
         const token = generateOpaqueToken();
         const expiresAt = new Date(Date.now() + env.ONBOARDING_SESSION_TTL_HOURS * 60 * 60 * 1000);

@@ -1,4 +1,5 @@
 import { PrismaClient } from "@prisma/client";
+import { seedDefaultCapabilities } from "@/server/capability/capabilityService";
 
 /**
  * A real PrismaClient for integration tests.
@@ -169,6 +170,13 @@ export async function seedTwoTenants(): Promise<void> {
   // Note what is deliberately absent: staffA has no StoreMembership at all. That is what
   // makes the "unauthorized cashier is blocked" test test something — the user is real,
   // belongs to tenant A, and still may not sell.
+
+  // Both tenants get the same default capabilities a real tenant gets, through the same
+  // function registration calls. Hand-writing the rows here would let fixture and production
+  // drift apart, and the first symptom would be a POS test passing against a grant no real
+  // tenant receives.
+  await seedDefaultCapabilities(db, IDS.tenantA);
+  await seedDefaultCapabilities(db, IDS.tenantB);
 }
 
 /**

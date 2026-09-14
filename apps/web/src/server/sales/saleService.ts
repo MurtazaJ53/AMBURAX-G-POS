@@ -3,6 +3,8 @@ import { db } from "@/server/db";
 import { writeAuditLog } from "@/server/identity/audit";
 import { enqueueOutboxEvent } from "@/server/events/outbox";
 import { applyStockMovement, movementKey } from "@/server/inventory/stockLedger";
+import { Capability } from "@/server/capability/capabilities";
+import { requireCapability } from "@/server/capability/capabilityService";
 import {
   computeSaleTotals,
   validateQuantity,
@@ -64,6 +66,8 @@ export type CreateSaleResult =
   | { status: "unknown_variant"; variantId: string }
   | { status: "inactive_variant"; variantId: string }
   | { status: "unknown_customer" }
+  /** The tenant does not have the RETAIL business module switched on. Not a permission failure. */
+  | { status: "capability_disabled"; capability: Capability }
   | { status: "ok"; sale: SaleSummary; duplicate: boolean };
 
 export interface SaleSummary {
@@ -146,6 +150,26 @@ export async function createSale(input: CreateSaleInput): Promise<CreateSaleResu
     select: SALE_SELECT,
   });
   if (existing) return { status: "ok", sale: toSummary(existing), duplicate: true };
+
+  // --- Capability ------------------------------------------------------------------
+  // Selling over a counter is the RETAIL module. A tenant that has switched RETAIL off is
+  // refused here, at the domain boundary, so a direct HTTP call fails exactly as a click in
+  // the UI would — hiding a button is not authorization.
+  //
+  // Placed after the idempotency replay and before authorization, for two different reasons.
+  // After the replay, because a sale that already committed is a fact: returning the receipt
+  // for it is a read, and switching the module off afterwards does not un-sell it. Before
+  // authorization, because "this tenant does not have this module" is the more fundamental
+  // refusal — asking which cashier may ring up a sale is meaningless when the business does
+  // no retail. `input.tenantId` reaches this function from the resolved session, never from
+  // the request, so no caller can aim this check at another tenant.
+  //
+  // Every existing tenant was granted RETAIL by the P1-8F backfill and every new tenant gets
+  // it at registration, so this gate changes nothing for anyone until an owner turns it off.
+  const gate = await requireCapability(input.tenantId, Capability.RETAIL);
+  if (gate.status !== "ok") {
+    return { status: "capability_disabled", capability: gate.capability };
+  }
 
   // --- Authorization ---------------------------------------------------------------
   // The store is looked up by id AND tenant, so a store belonging to another tenant is

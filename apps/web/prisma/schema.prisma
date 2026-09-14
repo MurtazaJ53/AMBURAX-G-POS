@@ -108,6 +108,7 @@ model Tenant {
   customerAddresses  CustomerAddress[]
   priceLists         PriceList[]
   priceListItems     PriceListItem[]
+  capabilities       TenantCapability[]
 
   // The tenant's fallback price list, tried after the customer's and the store's. A pointer
   // rather than an `isDefault` flag on PriceList for the same reason customer addresses use
@@ -183,14 +184,14 @@ model Store {
   // which is exactly how every store behaves today.
   priceListId String?
 
-  tenant      Tenant            @relation(fields: [tenantId], references: [id])
-  memberships StoreMembership[]
-  invitations Invitation[]
-  posDevices  PosDevice[]
+  tenant         Tenant            @relation(fields: [tenantId], references: [id])
+  memberships    StoreMembership[]
+  invitations    Invitation[]
+  posDevices     PosDevice[]
   sales          Sale[]
   stockLevels    StockLevel[]
   stockMovements StockMovement[]
-  priceList      PriceList?     @relation("StorePriceList", fields: [priceListId, tenantId], references: [id, tenantId])
+  priceList      PriceList?        @relation("StorePriceList", fields: [priceListId, tenantId], references: [id, tenantId])
 
   @@unique([tenantId, code])
   // Same purpose as User's: the referencable half of StoreMembership's composite foreign
@@ -303,12 +304,12 @@ model User {
   posDevicesCreated   PosDevice[]          @relation("PosDevicesCreated")
   salesRung           Sale[]               @relation("SalesRung")
 
-  @@index([tenantId])
   // Target for StoreMembership's composite foreign key. `id` alone is already the primary
   // key, so this adds no new integrity rule about users — it exists solely so PostgreSQL
   // can reference (id, tenantId) as a unit and prove a membership's user really belongs to
   // the tenant that membership claims.
   @@unique([id, tenantId])
+  @@index([tenantId])
   @@map("users")
 }
 
@@ -593,10 +594,10 @@ model Product {
   baseUom  Uom?             @relation(fields: [baseUomId, tenantId], references: [id, tenantId])
   variants ProductVariant[]
 
-  @@index([tenantId, name])
   // Referencable half for composite keys, the same shape User, Store and ProductVariant
   // already carry (invariant I-4).
   @@unique([id, tenantId])
+  @@index([tenantId, name])
   @@map("products")
 }
 
@@ -713,12 +714,12 @@ model ProductVariant {
   // into another's.
   @@unique([tenantId, sku])
   @@unique([tenantId, barcode])
-  @@index([tenantId, productId])
   // Target for StockMovement's composite foreign key, the same shape User and Store already
   // carry for StoreMembership (invariant I-4). `id` is already the primary key, so this adds
   // no new rule about variants — it exists so PostgreSQL can prove a movement's variant
   // really belongs to the tenant that movement claims.
   @@unique([id, tenantId])
+  @@index([tenantId, productId])
   @@map("product_variants")
 }
 
@@ -761,9 +762,9 @@ model Customer {
   // Phone is the retail identity key in this market. Unique per tenant so selecting an
   // existing customer can never silently create a duplicate.
   @@unique([tenantId, phone])
-  @@index([tenantId, name])
   // Referencable half of CustomerAddress's composite foreign key (invariant I-4).
   @@unique([id, tenantId])
+  @@index([tenantId, name])
   @@map("customers")
 }
 
@@ -784,7 +785,7 @@ model PriceList {
   id       String @id @default(cuid())
   tenantId String
 
-  name String
+  name     String
   /// ISO-4217, uppercased on write. Never converted — see the model comment.
   currency String
 
@@ -909,9 +910,9 @@ model Address {
   defaultBillingOf  Customer[]        @relation("CustomerDefaultBilling")
   defaultShippingOf Customer[]        @relation("CustomerDefaultShipping")
 
-  @@index([tenantId])
   // Referencable half of the composite foreign keys on CustomerAddress and Customer.
   @@unique([id, tenantId])
+  @@index([tenantId])
   @@map("addresses")
 }
 
@@ -1184,6 +1185,66 @@ model StockMovement {
   // Answering "what did this sale do to stock".
   @@index([referenceType, referenceId])
   @@map("stock_movements")
+}
+
+// The business modules a tenant may switch on. One tenant, any combination — a shop that also
+// sells wholesale is one tenant with two capabilities, not two systems. Nothing here implies a
+// separate product, customer or inventory world per capability; the data plane stays shared.
+//
+// A database enum rather than free text because these identifiers are authorization keys. A
+// typo'd string in a capability column would silently mean "no such capability", and the safest
+// failure mode for an authorization key is "the database refuses to store it at all". The cost
+// is that adding a capability needs a migration, which is the correct amount of friction for a
+// list that changes once a year.
+//
+// Stable identifiers, never display labels. These strings are persisted, compared in backend
+// checks, returned in API responses, and written into audit metadata; renaming one is a data
+// migration, so they are chosen to be renaming-proof rather than pretty.
+//
+// Deliberately not versioned, not scoped to a store, and not a feature-flag platform. There are
+// no percentages, cohorts, kill switches or expiry dates here.
+enum Capability {
+  RETAIL
+  WHOLESALE
+  MANUFACTURING
+  JOB_WORK
+  PROCUREMENT
+  COMMERCE
+  DISTRIBUTION
+}
+
+// One row per capability a tenant has been configured with.
+//
+// `enabled` is the single authority. A missing row means the capability was never configured and
+// is therefore off; `enabled = false` means it was configured and then switched off. Both read as
+// "off" to every caller — `hasCapability` collapses them — but they are kept distinct because
+// deleting the row on disable would destroy the record of it ever having been on, and re-enabling
+// would look like a first-time grant. Disable is an update, never a delete.
+//
+// No composite `(id, tenantId)` foreign key as elsewhere in this schema, because there is nothing
+// to protect: `tenantId` here is the parent itself, not a sibling that could belong to some other
+// tenant. A cross-tenant capability row is not a thing the shape can express.
+//
+// `@@unique([tenantId, capability])` is the whole integrity story. Two rows for the same tenant
+// and capability could disagree about whether the module is on, and a check reading "one of them"
+// would be non-deterministic — so the database refuses the second row outright.
+//
+// A capability is NOT a permission. This table answers "does this tenant have this business
+// module"; StoreMembership, TenantRole and the canSell/canManageInventory helpers answer "is this
+// user allowed to do this". Both must pass. See docs/architecture/CAPABILITIES.md.
+model TenantCapability {
+  id         String     @id @default(cuid())
+  tenantId   String
+  capability Capability
+  enabled    Boolean    @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, capability])
+  @@map("tenant_capabilities")
 }
 
 model AuditLog {
