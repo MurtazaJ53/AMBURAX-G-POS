@@ -109,6 +109,7 @@ model Tenant {
   priceLists         PriceList[]
   priceListItems     PriceListItem[]
   capabilities       TenantCapability[]
+  orders             Order[]
 
   // The tenant's fallback price list, tried after the customer's and the store's. A pointer
   // rather than an `isDefault` flag on PriceList for the same reason customer addresses use
@@ -177,6 +178,12 @@ model Store {
   // numbering stays ERPNext-authoritative (ADR-063). See ADR-079.
   nextBillSeq Int @default(1)
 
+  // The same counter, for orders. Deliberately separate from `nextBillSeq`: an order and a
+  // sale are different documents, and sharing one sequence would make order SO-000042 and
+  // bill SA-000042 unrelated strangers that look like a matched pair. Per store rather than
+  // per tenant, so two busy stores never contend on one row.
+  nextOrderSeq Int @default(1)
+
   createdAt DateTime @default(now())
 
   // The price list this store sells at, tried after the customer's own. Nullable: a store
@@ -192,6 +199,7 @@ model Store {
   stockLevels    StockLevel[]
   stockMovements StockMovement[]
   priceList      PriceList?        @relation("StorePriceList", fields: [priceListId, tenantId], references: [id, tenantId])
+  orders         Order[]
 
   @@unique([tenantId, code])
   // Same purpose as User's: the referencable half of StoreMembership's composite foreign
@@ -303,6 +311,7 @@ model User {
   invitationsAccepted Invitation[]         @relation("InvitationsAccepted")
   posDevicesCreated   PosDevice[]          @relation("PosDevicesCreated")
   salesRung           Sale[]               @relation("SalesRung")
+  ordersCreated       Order[]              @relation("OrdersCreated")
 
   // Target for StoreMembership's composite foreign key. `id` alone is already the primary
   // key, so this adds no new integrity rule about users — it exists solely so PostgreSQL
@@ -635,6 +644,7 @@ model Uom {
   conversionsFrom UomConversion[] @relation("ConversionFrom")
   conversionsTo   UomConversion[] @relation("ConversionTo")
   priceListItems  PriceListItem[]
+  orderItems      OrderItem[]
 
   @@unique([tenantId, code])
   // Referencable half of the composite foreign keys on Product and UomConversion.
@@ -705,6 +715,7 @@ model ProductVariant {
 
   product        Product         @relation(fields: [productId], references: [id])
   saleItems      SaleItem[]
+  orderItems     OrderItem[]
   stockLevels    StockLevel[]
   stockMovements StockMovement[]
   priceListItems PriceListItem[]
@@ -754,6 +765,7 @@ model Customer {
 
   tenant          Tenant            @relation(fields: [tenantId], references: [id])
   sales           Sale[]
+  orders          Order[]
   addressLinks    CustomerAddress[]
   priceList       PriceList?        @relation("CustomerPriceList", fields: [priceListId, tenantId], references: [id, tenantId])
   defaultBilling  Address?          @relation("CustomerDefaultBilling", fields: [defaultBillingAddressId, tenantId], references: [id, tenantId])
@@ -907,6 +919,7 @@ model Address {
 
   tenant            Tenant            @relation(fields: [tenantId], references: [id])
   customerLinks     CustomerAddress[]
+  orderSnapshots    OrderAddress[]
   defaultBillingOf  Customer[]        @relation("CustomerDefaultBilling")
   defaultShippingOf Customer[]        @relation("CustomerDefaultShipping")
 
@@ -1185,6 +1198,226 @@ model StockMovement {
   // Answering "what did this sale do to stock".
   @@index([referenceType, referenceId])
   @@map("stock_movements")
+}
+
+// An order's position in its life, and nothing else. Payment state and fulfilment detail are
+// separate axes by design: a single enum combining paid/unpaid, shipped/unshipped, invoiced and
+// approved would have to enumerate their product, and every new axis would double it.
+//
+// RESERVED is present because the approved lifecycle names it, and is **deliberately
+// unreachable** in this phase. No transition leads to it, and `transitionOrder` refuses it
+// explicitly. There is no reservation accounting anywhere in this system — `StockMovementType`
+// has no RESERVATION member, `StockLevel` is a plain projection of the ledger sum, and no column
+// anywhere records committed-but-unshipped quantity. Allowing an order to say RESERVED would be
+// a claim about stock that nothing backs. See docs/architecture/ORDERS.md.
+//
+// CANCELLED is a terminal state off to one side rather than a step in the sequence, because an
+// order can die at several points and none of them is "after FULFILLED".
+enum OrderStatus {
+  DRAFT
+  CONFIRMED
+  RESERVED
+  PARTIALLY_FULFILLED
+  FULFILLED
+  CLOSED
+  CANCELLED
+}
+
+// Which address on an order a snapshot is. Narrower than `AddressType`, which also has BOTH: an
+// order needs to know where to send goods and where to send the bill as two separate answers,
+// even when the customer gave one address for both.
+enum OrderAddressType {
+  BILLING
+  SHIPPING
+}
+
+// Demand, before anything has been fulfilled.
+//
+// **This is not a Sale and does not replace one.** A Sale is a completed retail transaction: it
+// has moved stock, taken money and produced a bill, all in one instant at a till. An Order is a
+// commitment that something will happen — it can be drafted, revised, confirmed, partially met,
+// cancelled — and it can exist for days before any of that. Both remain, and the POS still
+// creates a Sale directly without going anywhere near this table.
+//
+// The shape is deliberately capability-neutral. A wholesale order, a channel order and a
+// counter order are the same document with different origins, so nothing here is named for a
+// module and nothing here is gated behind a capability. Capability-specific workflows will be
+// built on top of this, not beside it.
+model Order {
+  id       String @id @default(cuid())
+  tenantId String
+
+  // Required. Pricing resolves against a store (P1-8E reads its currency and price list), the
+  // order number is allocated from that store's counter, and an order that belongs to no
+  // location cannot answer "at what price, in what currency". A tenant always has at least one
+  // store by the time it can trade.
+  storeId String
+
+  // Human-facing reference, `STORECODE-SO-000001`, allocated from `Store.nextOrderSeq` inside
+  // the creating transaction — the same discipline and the same row lock `billNumber` uses. Not
+  // a UUID, because people read these out over the phone. Unique per store, not per tenant:
+  // the store code is already in the string.
+  orderNumber String
+
+  // Nullable, because a walk-in who orders something to collect later is a real order and has
+  // no customer record. Present or absent, never another tenant's — the relation is composite.
+  customerId String?
+
+  status OrderStatus @default(DRAFT)
+
+  // The store's currency, copied at creation. An order priced in one currency must not start
+  // reading differently because the store was later reconfigured. No conversion happens
+  // anywhere; this is a label on money that is already in one currency.
+  currency String
+
+  // Sum of the line totals, server-computed, integer minor units.
+  //
+  // There is no `totalMinor`, and that is not an omission. Tax and discount are deliberately
+  // out of scope for this phase — no second tax engine, no second discount engine — so a total
+  // would be identical to the subtotal, and a field that means nothing yet is a field code will
+  // start trusting. When tax and discount arrive, they arrive with a total.
+  subtotalMinor Int @default(0)
+
+  // Optimistic concurrency. Every transition reads this and writes `version + 1` conditionally,
+  // so two clients confirming the same order at once cannot both succeed: the loser's update
+  // matches zero rows and is reported as a conflict rather than silently overwriting.
+  version Int @default(1)
+
+  // Same contract as Sale's: a client-generated key, unique per tenant, so a double-click or a
+  // network retry returns the original order instead of creating a second one.
+  idempotencyKey String
+
+  createdByUserId String
+
+  // Lifecycle timestamps, nullable because they record events that may not have happened. The
+  // status is the authority; these say when it changed. `cancellationReason` is required at
+  // cancellation time by the service — an unexplained cancellation is indistinguishable from a
+  // mistake, the same reasoning `StockMovement.reason` uses.
+  confirmedAt        DateTime?
+  cancelledAt        DateTime?
+  cancellationReason String?
+  closedAt           DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  tenant    Tenant         @relation(fields: [tenantId], references: [id])
+  store     Store          @relation(fields: [storeId, tenantId], references: [id, tenantId])
+  customer  Customer?      @relation(fields: [customerId, tenantId], references: [id, tenantId])
+  createdBy User           @relation("OrdersCreated", fields: [createdByUserId], references: [id])
+  items     OrderItem[]
+  addresses OrderAddress[]
+
+  @@unique([tenantId, idempotencyKey])
+  @@unique([storeId, orderNumber])
+  // Referencable half for the children's composite foreign keys (invariant I-4).
+  @@unique([id, tenantId])
+  @@index([tenantId, createdAt])
+  @@index([tenantId, status])
+  @@map("orders")
+}
+
+// One line of demand: this many of this variant, in this unit, at this price.
+//
+// Every commercially meaningful value is snapshotted. An order is a record of what was agreed,
+// and what was agreed cannot be reconstructed from today's catalogue: prices change, price lists
+// are edited, products get renamed, units get retired. `SaleItem` already established this
+// discipline with `skuSnapshot`/`nameSnapshot`; this carries it further, because an order lives
+// far longer between agreement and completion than a sale does.
+model OrderItem {
+  id       String @id @default(cuid())
+  tenantId String
+  orderId  String
+
+  variantId String
+  // Required, not nullable, for the same reason P1-8E requires it on a price: a quantity
+  // without a unit is meaningless once units exist. Ten of something is not an amount.
+  uomId     String
+
+  // Integer, in the unit named above. The system-wide contract from P1-8C: no decimals, no
+  // fractional metres, no fractional kilograms.
+  quantity Int
+
+  // How much of this line has actually been met. Fulfilment in this phase is **quantity
+  // accounting only** — it moves no stock, produces no shipment and knows nothing about
+  // picking or couriers. It exists so that PARTIALLY_FULFILLED and FULFILLED are derived from
+  // recorded fact rather than set by a client sending a status string.
+  fulfilledQuantity Int @default(0)
+
+  // Resolved by the P1-8E pricing service, never accepted from the caller. Provisional while
+  // the order is DRAFT; re-resolved and locked at confirmation. See docs/architecture/ORDERS.md.
+  unitPriceMinor Int
+  lineTotalMinor Int
+
+  // Where that price came from, kept for explicability rather than for recomputation: a
+  // merchant asking "why did this line cost that" gets an answer that does not depend on the
+  // price list still existing in its old form. Free text rather than a relation for exactly
+  // that reason — the list it names may since have been edited or deleted.
+  priceSourceSnapshot String?
+  priceListIdSnapshot String?
+
+  // The catalogue as it read when the line was agreed. Renaming a product later must not
+  // rewrite what a customer ordered.
+  skuSnapshot     String
+  nameSnapshot    String
+  uomCodeSnapshot String
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  order   Order          @relation(fields: [orderId, tenantId], references: [id, tenantId], onDelete: Cascade)
+  variant ProductVariant @relation(fields: [variantId, tenantId], references: [id, tenantId])
+  uom     Uom            @relation(fields: [uomId, tenantId], references: [id, tenantId])
+
+  // One line per variant and unit. Two lines for the same thing in the same unit are an
+  // accident of a retried request, not a business fact, and the database refuses them rather
+  // than leaving a reader to decide which is real. The same variant in a different unit is a
+  // different line, which is legitimate.
+  @@unique([orderId, variantId, uomId])
+  @@index([tenantId, orderId])
+  @@index([variantId])
+  @@map("order_items")
+}
+
+// Where the goods go, and where the bill goes, frozen at confirmation.
+//
+// A full copy, not a reference. `docs/architecture/ADDRESS.md` wrote this rule down before there
+// was an order to apply it to: "editing a customer's address afterwards must never rewrite where
+// something was already shipped". An order records where goods actually went; the customer's
+// address record says where they live today. Conflating them turns a delivery dispute into an
+// unanswerable question.
+//
+// `sourceAddressId` is provenance only — it says which address was copied, and nothing reads
+// through it to render the order. The snapshot stands alone even if the source is deactivated.
+model OrderAddress {
+  id       String @id @default(cuid())
+  tenantId String
+  orderId  String
+
+  type OrderAddressType
+
+  line1      String
+  line2      String?
+  city       String
+  state      String
+  postalCode String
+  country    String
+
+  contactName  String?
+  contactPhone String?
+
+  sourceAddressId String?
+
+  createdAt DateTime @default(now())
+
+  order  Order    @relation(fields: [orderId, tenantId], references: [id, tenantId], onDelete: Cascade)
+  source Address? @relation(fields: [sourceAddressId, tenantId], references: [id, tenantId])
+
+  // One billing and one shipping address per order. A second of either could disagree with the
+  // first, and no reader could tell which one the goods went to.
+  @@unique([orderId, type])
+  @@index([tenantId, orderId])
+  @@map("order_addresses")
 }
 
 // The business modules a tenant may switch on. One tenant, any combination — a shop that also
