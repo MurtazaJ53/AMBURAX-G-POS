@@ -89,3 +89,60 @@ export async function searchCatalog(params: {
     stockQuantity: v.stockLevels[0]?.quantity ?? null,
   }));
 }
+
+
+/**
+ * A scan: one barcode, one indexed read, one answer.
+ *
+ * Distinct from `searchCatalog` on purpose. That function serves a person typing, so it runs a
+ * `contains` match across SKU and product name and only then prefers an exact barcode hit — which
+ * is right for a search box and wrong for a scanner, where the query is known to be exact and the
+ * till is waiting. This goes straight to the `(tenantId, barcode)` unique index.
+ *
+ * It also differs in what it hides. `searchCatalog` filters to active variants, which is correct
+ * for browsing; but a cashier who scans a withdrawn item deserves "this item is not for sale"
+ * rather than "unknown barcode", so an inactive variant is returned **with its flag** and the
+ * refusal is left to `saleService`, which already enforces it.
+ *
+ * Returns null for an unknown barcode, and for another tenant's barcode — indistinguishable, as
+ * everywhere else.
+ */
+export async function scanBarcode(params: {
+  tenantId: string;
+  storeId: string;
+  barcode: string;
+}): Promise<(CatalogHit & { isActive: boolean }) | null> {
+  const barcode = params.barcode.trim();
+  if (barcode.length === 0) return null;
+
+  const variant = await db.productVariant.findFirst({
+    where: { tenantId: params.tenantId, barcode },
+    select: {
+      id: true,
+      sku: true,
+      barcode: true,
+      size: true,
+      colour: true,
+      priceMinor: true,
+      taxRateBp: true,
+      isActive: true,
+      product: { select: { name: true, isActive: true } },
+      stockLevels: { where: { storeId: params.storeId }, select: { quantity: true } },
+    },
+  });
+  if (!variant) return null;
+
+  return {
+    variantId: variant.id,
+    productName: variant.product.name,
+    sku: variant.sku,
+    barcode: variant.barcode,
+    size: variant.size,
+    colour: variant.colour,
+    priceMinor: variant.priceMinor,
+    taxRateBp: variant.taxRateBp,
+    stockQuantity: variant.stockLevels[0]?.quantity ?? null,
+    // A withdrawn product makes its variants unsellable too, so both flags fold into one answer.
+    isActive: variant.isActive && variant.product.isActive,
+  };
+}

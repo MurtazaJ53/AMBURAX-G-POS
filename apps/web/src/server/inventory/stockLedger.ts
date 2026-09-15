@@ -101,6 +101,14 @@ export class InvalidMovementQuantityError extends Error {
  * slip into. Under concurrency Prisma's upsert can surface a unique violation instead; this
  * cannot.
  *
+ * The id is generated rather than derived from the store and variant, and that is load-bearing.
+ * A deterministic `sl_<storeId>_<variantId>` made two concurrent first-ever movements produce the
+ * same primary key, and `ON CONFLICT ("storeId","variantId")` names only that one arbiter — so
+ * the loser collided on `stock_levels_pkey`, which PostgreSQL raises as a hard 23505 instead of
+ * routing to DO UPDATE. Generating the id leaves the declared arbiter as the only conflict that
+ * can occur, which is what makes the sentence above actually true. Nothing reads the id; the
+ * row's identity is `(storeId, variantId)`.
+ *
  * Negative balances are permitted, deliberately. `StockLevel.quantity` is signed precisely so
  * drift stays visible, and clamping at zero would hide the exact condition a reconciliation
  * sweep exists to find. Refusing to oversell is a policy decision for the caller, not
@@ -119,7 +127,7 @@ export async function applyStockMovement(
   const rows = await tx.$queryRaw<{ quantity: number }[]>`
     INSERT INTO "stock_levels" ("id", "tenantId", "storeId", "variantId", "quantity", "updatedAt")
     VALUES (
-      ${`sl_${input.storeId}_${input.variantId}`},
+      gen_random_uuid()::text,
       ${input.tenantId},
       ${input.storeId},
       ${input.variantId},

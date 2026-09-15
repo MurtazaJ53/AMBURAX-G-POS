@@ -64,6 +64,9 @@ const createSaleSchema = z.object({
     .min(1, "Add at least one item.")
     .max(MAX_LINES_PER_SALE),
   customerId: z.string().trim().min(1).nullish(),
+  // The shift this sale is rung up in. Optional, and verified server-side — naming a shift
+  // here does not make it yours, open, or this store's.
+  posSessionId: z.string().trim().min(1).nullish(),
   discountMinor: z.number().int().min(0).optional(),
   payment: z.object({
     method: z.enum(["CASH", "UPI", "CARD"]),
@@ -109,6 +112,7 @@ export async function POST(req: NextRequest) {
       idempotencyKey: parsed.data.idempotencyKey,
       lines: parsed.data.lines,
       customerId: parsed.data.customerId ?? null,
+      posSessionId: parsed.data.posSessionId ?? null,
       discountMinor: parsed.data.discountMinor ?? 0,
       payment: parsed.data.payment,
       correlationId,
@@ -173,6 +177,16 @@ export async function POST(req: NextRequest) {
         return apiError({
           code: "inactive_variant",
           message: "One of the items is no longer for sale. Remove it and try again.",
+          status: 409,
+          correlationId,
+        });
+
+      // The shift is closed, another cashier's, or another store's. A conflict rather than a
+      // permission failure: the caller may well be allowed to sell, just not into that shift.
+      case "invalid_session":
+        return apiError({
+          code: "invalid_session",
+          message: result.reason,
           status: 409,
           correlationId,
         });

@@ -95,6 +95,7 @@ model Tenant {
   users              User[]
   stores             Store[]
   posDevices         PosDevice[]
+  posSessions        PosSession[]
   outboxEvents       OutboxEvent[]
   products           Product[]
   customers          Customer[]
@@ -196,6 +197,7 @@ model Store {
   memberships    StoreMembership[]
   invitations    Invitation[]
   posDevices     PosDevice[]
+  posSessions    PosSession[]
   sales          Sale[]
   stockLevels    StockLevel[]
   stockMovements StockMovement[]
@@ -280,11 +282,27 @@ model PosDevice {
   scanSoundEnabled  Boolean @default(true)
   cashDrawerEnabled Boolean @default(false)
 
-  tenant    Tenant @relation(fields: [tenantId], references: [id])
-  store     Store  @relation(fields: [storeId, tenantId], references: [id, tenantId])
-  createdBy User   @relation("PosDevicesCreated", fields: [createdByUserId, tenantId], references: [id, tenantId])
+  // The shift currently open on this till, if any.
+  //
+  // A pointer rather than a status flag on PosSession, for the reason this schema reaches for
+  // repeatedly: a column holds exactly one value, so "two shifts open on one till" is not a
+  // state the database can represent. The alternative — a partial unique index over an
+  // `isOpen` flag — is something Prisma cannot express without permanent drift, the same wall
+  // P1-8E hit with price windows.
+  //
+  // Cleared on close. The session row survives; only the pointer moves.
+  activeSessionId String? @unique
+
+  tenant        Tenant       @relation(fields: [tenantId], references: [id])
+  store         Store        @relation(fields: [storeId, tenantId], references: [id, tenantId])
+  createdBy     User         @relation("PosDevicesCreated", fields: [createdByUserId, tenantId], references: [id, tenantId])
+  activeSession PosSession?  @relation("PosDeviceActiveSession", fields: [activeSessionId, tenantId], references: [id, tenantId])
+  sessions      PosSession[]
 
   @@unique([storeId, code])
+  // Referencable half for PosSession's composite foreign key, the same shape every other
+  // tenant-owned parent carries (invariant I-4).
+  @@unique([id, tenantId])
   @@index([tenantId])
   @@index([storeId])
   @@map("pos_devices")
@@ -314,6 +332,7 @@ model User {
   posDevicesCreated   PosDevice[]          @relation("PosDevicesCreated")
   salesRung           Sale[]               @relation("SalesRung")
   ordersCreated       Order[]              @relation("OrdersCreated")
+  posSessionsRun      PosSession[]         @relation("PosSessionsRun")
 
   // Target for StoreMembership's composite foreign key. `id` alone is already the primary
   // key, so this adds no new integrity rule about users — it exists solely so PostgreSQL
@@ -1040,6 +1059,12 @@ model Sale {
   items    SaleItem[]
   payments SalePayment[]
 
+  // Which till, in which shift, rang this up. Nullable for two honest reasons: sales predating
+  // the POS session model exist, and a sale raised from the back office has no till. Present or
+  // absent, never another tenant's — the relation is composite.
+  posSessionId String?
+  posSession   PosSession? @relation(fields: [posSessionId, tenantId], references: [id, tenantId])
+
   @@unique([tenantId, idempotencyKey])
   @@unique([storeId, billNumber])
   // The referencable half of SaleItem's composite foreign key, the same shape every other
@@ -1511,6 +1536,54 @@ model TenantCapability {
 
   @@unique([tenantId, capability])
   @@map("tenant_capabilities")
+}
+
+// A cashier's shift on one till.
+//
+// Three things a retail backend must be able to answer that `Sale` alone cannot: which till rang
+// this up, who was on it, and what belongs to the shift that is being handed over. A POS device
+// is hardware, a User is a person, a Store is a place, and a Sale is one transaction — a shift is
+// the span that ties them together, and it is its own row because it is its own fact.
+//
+// **This is not cash management.** There is no opening float, no counted drawer, no variance and
+// no reconciliation, because none of that has been designed yet and a half-modelled cash drawer
+// is worse than none: it invites people to trust a number nobody computed. Closing a session here
+// means "this shift is over", not "the till was counted and balanced". When cash management
+// arrives it attaches to this row; it does not replace it.
+model PosSession {
+  id       String @id @default(cuid())
+  tenantId String
+  storeId  String
+
+  posDeviceId   String
+  // Who is on the till. Composite-keyed to the tenant like everything else, so a cashier from
+  // another business cannot be recorded as having worked this shift.
+  cashierUserId String
+
+  openedAt DateTime  @default(now())
+  // Null while the shift is open. Derived state rather than a status column, matching the
+  // convention Invitation, PasswordResetToken and PosDevice already use — one source of truth
+  // per fact, instead of a flag that can disagree with the timestamp beside it.
+  closedAt DateTime?
+
+  // Free text from whoever closed it. Optional, and deliberately not a money figure.
+  closingNote String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  tenant    Tenant      @relation(fields: [tenantId], references: [id])
+  store     Store       @relation(fields: [storeId, tenantId], references: [id, tenantId])
+  posDevice PosDevice   @relation(fields: [posDeviceId, tenantId], references: [id, tenantId])
+  cashier   User        @relation("PosSessionsRun", fields: [cashierUserId, tenantId], references: [id, tenantId])
+  sales     Sale[]
+  activeOn  PosDevice[] @relation("PosDeviceActiveSession")
+
+  // Referencable half for Sale's and PosDevice's composite foreign keys (invariant I-4).
+  @@unique([id, tenantId])
+  @@index([tenantId, storeId, openedAt])
+  @@index([posDeviceId, openedAt])
+  @@map("pos_sessions")
 }
 
 model AuditLog {

@@ -3,6 +3,8 @@ import { db } from "@/server/db";
 import { writeAuditLog } from "@/server/identity/audit";
 import { enqueueOutboxEvent } from "@/server/events/outbox";
 import { applyStockMovement, movementKey } from "@/server/inventory/stockLedger";
+import { resolveSessionForSale } from "@/server/pos/posSessionService";
+import { canSell } from "@/server/sales/sellingRoles";
 import { Capability } from "@/server/capability/capabilities";
 import { requireCapability } from "@/server/capability/capabilityService";
 import {
@@ -53,6 +55,12 @@ export interface CreateSaleInput {
   idempotencyKey: string;
   lines: SaleLineInput[];
   customerId?: string | null;
+  /**
+   * The shift this sale was rung up in. Optional: a back-office sale has no till, and sales
+   * predating the POS session model have none either. When supplied it is verified server-side —
+   * the client is not trusted to have checked that the shift is open, theirs, or this store's.
+   */
+  posSessionId?: string | null;
   discountMinor?: number;
   payment: SalePaymentInput;
   correlationId: string;
@@ -66,6 +74,8 @@ export type CreateSaleResult =
   | { status: "unknown_variant"; variantId: string }
   | { status: "inactive_variant"; variantId: string }
   | { status: "unknown_customer" }
+  /** The named shift is closed, another cashier's, or another store's. */
+  | { status: "invalid_session"; reason: string }
   /** The tenant does not have the RETAIL business module switched on. Not a permission failure. */
   | { status: "capability_disabled"; capability: Capability }
   | { status: "ok"; sale: SaleSummary; duplicate: boolean };
@@ -83,21 +93,10 @@ export interface SaleSummary {
   completedAt: Date;
 }
 
-/** Roles permitted to ring up a sale. A sale moves money; not every membership should. */
-export const SELLING_STORE_ROLES = ["OWNER", "STORE_MANAGER", "SALES_ASSOCIATE", "CASHIER"] as const;
-
-export function canSell(params: {
-  tenantRole: "OWNER" | "STAFF";
-  membershipRole: string | null;
-}): boolean {
-  // A tenant OWNER can sell in any of their own stores; the store lookup has already
-  // confirmed the store belongs to their tenant before this is called.
-  if (params.tenantRole === "OWNER") return true;
-  return (
-    params.membershipRole !== null &&
-    (SELLING_STORE_ROLES as readonly string[]).includes(params.membershipRole)
-  );
-}
+// Selling authority now lives in `sellingRoles.ts` so the POS session service can use it without
+// importing this module — see that file for why. Re-exported here so every existing caller and
+// test keeps its import path.
+export { SELLING_STORE_ROLES, canSell } from "@/server/sales/sellingRoles";
 
 const SALE_SELECT = {
   id: true,
@@ -195,6 +194,27 @@ export async function createSale(input: CreateSaleInput): Promise<CreateSaleResu
     return { status: "forbidden" };
   }
 
+  // --- POS shift -------------------------------------------------------------------
+  // Verified here rather than trusted from the request. A client could name any session id;
+  // only the server can say whether that shift is this tenant's, still open, run by this
+  // cashier, and at this store.
+  let posSessionId: string | null = null;
+  if (input.posSessionId) {
+    const resolved = await resolveSessionForSale({
+      tenantId: input.tenantId,
+      sessionId: input.posSessionId,
+      storeId: store.id,
+      cashierUserId: input.cashierUserId,
+    });
+    if (resolved.status === "not_found") {
+      return { status: "invalid_session", reason: "That shift could not be found." };
+    }
+    if (resolved.status !== "ok") {
+      return { status: "invalid_session", reason: resolved.reason };
+    }
+    posSessionId = resolved.session.id;
+  }
+
   // --- Cart validation -------------------------------------------------------------
   if (input.lines.length === 0) return { status: "empty_cart" };
   if (input.lines.length > MAX_LINES_PER_SALE) return { status: "too_many_lines" };
@@ -276,6 +296,7 @@ export async function createSale(input: CreateSaleInput): Promise<CreateSaleResu
           totalMinor: totals.totalMinor,
           paidMinor,
           idempotencyKey: input.idempotencyKey,
+          posSessionId,
           payments: {
             create: {
               method: input.payment.method,
