@@ -1,0 +1,99 @@
+/**
+ * The AMBURAX platform design tokens.
+ *
+ * One vocabulary for every capability surface — Retail today, Wholesale, Manufacturing, Job
+ * Work, Distribution and Commerce later — so a new module inherits the product's language
+ * instead of inventing a fourth blue. Screens name roles (`surface-raised`, `ink-muted`,
+ * `critical`), never hex values, which is what makes a future retheme a change to this file
+ * rather than a search across the app.
+ *
+ * Scoped to `[data-amburax]` rather than `:root` deliberately. The existing workspace screens
+ * have their own established styling and are not part of this phase; scoping means this file
+ * can be imported without restyling anything that did not ask to be restyled.
+ *
+ * Density is a token too. A till is a dense screen read at arm's length by someone who is not
+ * looking at it, so the row height and the minimum touch target are stated once here and every
+ * control is built to them.
+ */
+
+[data-amburax] {
+  /* --- surfaces --------------------------------------------------------- */
+  --amb-surface-base: #f4f6f9;
+  --amb-surface-raised: #ffffff;
+  --amb-surface-sunken: #e9ecf1;
+  /* The bill panel. Inverted so the thing being read most sits highest in contrast. */
+  --amb-surface-inverse: #0f1319;
+  --amb-surface-inverse-raised: #191f2a;
+
+  /* --- ink -------------------------------------------------------------- */
+  --amb-ink-primary: #0d1117;
+  --amb-ink-secondary: #47505f;
+  --amb-ink-muted: #6f7988;
+  --amb-ink-inverse: #f4f6fa;
+  --amb-ink-inverse-muted: #98a2b3;
+
+  /* --- lines ------------------------------------------------------------ */
+  --amb-line: #dde2ea;
+  --amb-line-strong: #c2c9d5;
+  --amb-line-inverse: #262e3c;
+
+  /* --- action ----------------------------------------------------------- */
+  --amb-accent: #2f56e8;
+  --amb-accent-hover: #2243c2;
+  --amb-accent-ink: #ffffff;
+  --amb-accent-soft: #e8ecff;
+
+  /* --- semantics -------------------------------------------------------- */
+  --amb-positive: #0c7d4b;
+  --amb-positive-soft: #e1f5ea;
+  --amb-caution: #9a6100;
+  --amb-caution-soft: #fcefd8;
+  --amb-critical: #bd2437;
+  --amb-critical-soft: #fce9eb;
+  --amb-info: #1b678f;
+  --amb-info-soft: #e3f0f7;
+
+  /* --- shape ------------------------------------------------------------ */
+  --amb-radius-sm: 0.375rem;
+  --amb-radius-md: 0.625rem;
+  --amb-radius-lg: 0.875rem;
+  --amb-shadow-sm: 0 1px 2px rgb(13 17 23 / 0.06);
+  --amb-shadow-md: 0 4px 12px rgb(13 17 23 / 0.08);
+  --amb-shadow-lg: 0 12px 32px rgb(13 17 23 / 0.16);
+
+  /* --- density ---------------------------------------------------------- */
+  /* 44px: the smallest target a thumb reliably hits on a counter tablet. */
+  --amb-touch: 2.75rem;
+  --amb-row: 3.5rem;
+  --amb-focus: #2f56e8;
+}
+
+/**
+ * Focus is never removed, only restyled. A till is operated from the keyboard, so the focus
+ * ring is load-bearing UI rather than an accessibility afterthought — if it is invisible the
+ * screen is unusable for its primary operator, not merely inaccessible.
+ */
+[data-amburax] :focus-visible {
+  outline: 2px solid var(--amb-focus);
+  outline-offset: 2px;
+  border-radius: var(--amb-radius-sm);
+}
+
+[data-amburax] ::selection {
+  background: var(--amb-accent-soft);
+  color: var(--amb-ink-primary);
+}
+
+/* Numbers that sit in columns must line up; money that jumps as it changes is unreadable. */
+[data-amburax] .amb-tnum {
+  font-variant-numeric: tabular-nums;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-amburax] *,
+  [data-amburax] *::before,
+  [data-amburax] *::after {
+    animation-duration: 0.001ms !important;
+    transition-duration: 0.001ms !important;
+  }
+}
