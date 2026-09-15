@@ -51,26 +51,52 @@ A `StoreMembership` may only exist when its user and its store belong to the sam
   and by four integration tests.
 - This is the reference implementation for I-4.
 
-## I-4 — Tenant-paired references should be database-enforced, in priority order
+## I-4 — Tenant-paired references are database-enforced
 
-Several tables carry `tenantId` alongside foreign keys to tenant-owned parents, with no
-constraint tying the two together. Application code resolves every parent through the
-session's tenant, so none is currently exploitable — but that is I-1's guarantee doing the
-work, not the database's.
+Every table carrying a `tenantId` alongside a foreign key to a tenant-owned parent pairs the
+two in a composite foreign key, so PostgreSQL refuses a child of one tenant that references a
+parent of another — whatever the calling code believes.
 
-Priority queue, highest value first (evidence: foreign-key listing of every migration):
+- **Enforcement: DATABASE.** Composite foreign keys of the form
+  `(child.parentId, child.tenantId) -> parent(id, tenantId)`, completed by migration
+  `20260915140000_enforce_tenant_invariants` (P1-8H). Proven by
+  `src/test-integration/tenantInvariants.test.ts`, which writes through raw Prisma and
+  bypasses every service.
 
-| # | Table | Unpaired references | Consequence if application guard fails | Status |
-|---|---|---|---|---|
-| 1 | `sales` | `storeId`, `cashierUserId`, `customerId` vs `tenantId` | A financial record attributed to the wrong tenant | **Open, P2** |
-| 2 | `stock_levels` | `storeId`, `variantId`; `tenantId` has no FK at all | Stock projection attributed to the wrong tenant | **Open, P2** |
-| 3 | `sale_items` | `variantId` vs the parent sale's tenant | A line item citing another tenant's product | **Open, P2** |
-| 4 | `pos_devices` | `storeId` vs `tenantId` | A till bound to another tenant's store | **Open, P2** |
-| 5 | `invitations` | `storeId` vs `tenantId` | An invitation into another tenant's store | **Open, P2** |
-| 6 | `product_variants` | `tenantId` has no FK | Orphanable tenant attribution | **Open, P3** |
+This was an open priority queue until P1-8H. All of it is now closed:
 
-`store_memberships` was #0 on this list and is closed (I-3). It was first because it is the
-only one of the set that grants **authorization** rather than mis-filing data.
+| # | Table | Was unpaired | Status |
+|---|---|---|---|
+| 0 | `store_memberships` | `userId`, `storeId` | **Closed, P1-8B** (I-3) |
+| 1 | `sales` | `storeId`, `cashierUserId`, `customerId` | **Closed, P1-8H** |
+| 2 | `stock_levels` | `storeId`, `variantId`; `tenantId` had no FK at all | **Closed, P1-8H** |
+| 3 | `sale_items` | `variantId`; the table had no `tenantId` at all | **Closed, P1-8H** |
+| 4 | `pos_devices` | `storeId`, `createdByUserId` | **Closed, P1-8H** |
+| 5 | `invitations` | `storeId`, `inviterUserId`, `acceptedByUserId` | **Closed, P1-8H** |
+| 6 | `product_variants` | `productId` | **Closed, P1-8H** |
+| 7 | `sessions`, `mfa_challenges`, `password_reset_tokens` | `userId` | **Closed, P1-8H** |
+| 8 | `orders` | `createdByUserId` | **Closed, P1-8H** |
+| 9 | `outbox_events` | `storeId` | **Closed, P1-8H** |
+
+A standing test asserts the queue stays empty: it queries `pg_constraint` for any
+single-column foreign key from a table with a `tenantId` to a parent with a `tenantId`, and
+requires the result to be empty. A new table that forgets the composite form fails there
+rather than becoming the next entry in a list.
+
+**Deliberately not tenant-paired**, because no cross-tenant relationship is expressible:
+
+- `sale_payments` references only its own parent sale. One foreign key cannot disagree with
+  itself, so a `tenantId` would add a column and prove nothing.
+- `audit_logs.tenantId` is nullable and has no foreign key. The trail must never be the reason
+  a business operation fails, and `writeAuditLog` deliberately runs outside the mutation's
+  transaction. It holds no other tenant-owned reference, so there is nothing for a tenant
+  pairing to protect.
+
+**Nullable tenant-paired references** rely on PostgreSQL's MATCH SIMPLE rule: while the
+reference is NULL the constraint is unchecked, and it is enforced the instant a value is
+supplied. That is the intended behaviour for `sales.customerId` (a walk-in sale),
+`invitations.acceptedByUserId` (an unaccepted invitation) and `outbox_events.storeId` (an
+event that is not store-scoped). Each is tested in both states.
 
 **Rule for new tables:** any table with both a `tenantId` and a foreign key to a
 tenant-owned parent must use the composite form from the start. Retrofitting is a migration;

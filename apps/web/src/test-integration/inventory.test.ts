@@ -390,6 +390,11 @@ describe("tenant isolation", () => {
   it("PostgreSQL rejects a movement whose store belongs to another tenant", async () => {
     // The composite foreign keys, not the application guard. Every id here is individually
     // valid; only the combination is wrong.
+    //
+    // The refusal now comes from the `stock_levels` projection, which P1-8H gave foreign keys of
+    // its own — it is written first, by raw SQL, so Prisma reports the violation as P2010
+    // wrapping PostgreSQL's 23503 rather than as its own P2003. The constraint name is asserted
+    // so this stays a test about a specific foreign key rather than about any failure at all.
     await expect(
       db.$transaction((tx) =>
         applyStockMovement(tx, {
@@ -401,7 +406,15 @@ describe("tenant isolation", () => {
           idempotencyKey: "cross-tenant-store",
         }),
       ),
-    ).rejects.toMatchObject({ code: "P2003" });
+    ).rejects.toThrow(/23503|foreign key constraint/);
+
+    // And the refusal is total: no movement, no projection row.
+    expect(
+      await db.stockMovement.count({ where: { idempotencyKey: "cross-tenant-store" } }),
+    ).toBe(0);
+    expect(
+      await db.stockLevel.count({ where: { storeId: IDS.storeB, variantId: COMMERCE_IDS.variantA1 } }),
+    ).toBe(0);
   });
 
   it("PostgreSQL rejects a movement whose variant belongs to another tenant", async () => {
@@ -416,7 +429,14 @@ describe("tenant isolation", () => {
           idempotencyKey: "cross-tenant-variant",
         }),
       ),
-    ).rejects.toMatchObject({ code: "P2003" });
+    ).rejects.toThrow(/23503|foreign key constraint/);
+
+    expect(
+      await db.stockMovement.count({ where: { idempotencyKey: "cross-tenant-variant" } }),
+    ).toBe(0);
+    expect(
+      await db.stockLevel.count({ where: { storeId: IDS.storeA, variantId: COMMERCE_IDS.variantB1 } }),
+    ).toBe(0);
   });
 
   it("an idempotency key is scoped per tenant, so two tenants may reuse the same one", async () => {

@@ -276,23 +276,6 @@ export async function createSale(input: CreateSaleInput): Promise<CreateSaleResu
           totalMinor: totals.totalMinor,
           paidMinor,
           idempotencyKey: input.idempotencyKey,
-          items: {
-            create: totals.lines.map((line) => {
-              const variant = byId.get(line.variantId)!;
-              return {
-                variantId: line.variantId,
-                // Snapshots: a later price or name change must never rewrite history.
-                skuSnapshot: variant.sku,
-                nameSnapshot: variant.product.name,
-                quantity: line.quantity,
-                unitPriceMinor: line.unitPriceMinor,
-                lineDiscountMinor: line.lineDiscountMinor,
-                taxRateBp: line.taxRateBp,
-                taxMinor: line.taxMinor,
-                lineTotalMinor: line.lineTotalMinor,
-              };
-            }),
-          },
           payments: {
             create: {
               method: input.payment.method,
@@ -304,6 +287,30 @@ export async function createSale(input: CreateSaleInput): Promise<CreateSaleResu
           },
         },
         select: SALE_SELECT,
+      });
+
+      // Lines are written as their own statement rather than nested under the sale. P1-8H made
+      // `sale_items.tenantId` part of a composite foreign key, and Prisma treats a column owned
+      // by a relation as not settable in a nested create — the same trade the order lines make.
+      // Same transaction, so a sale still cannot exist without its lines.
+      await tx.saleItem.createMany({
+        data: totals.lines.map((line) => {
+          const variant = byId.get(line.variantId)!;
+          return {
+            tenantId: input.tenantId,
+            saleId: created.id,
+            variantId: line.variantId,
+            // Snapshots: a later price or name change must never rewrite history.
+            skuSnapshot: variant.sku,
+            nameSnapshot: variant.product.name,
+            quantity: line.quantity,
+            unitPriceMinor: line.unitPriceMinor,
+            lineDiscountMinor: line.lineDiscountMinor,
+            taxRateBp: line.taxRateBp,
+            taxMinor: line.taxMinor,
+            lineTotalMinor: line.lineTotalMinor,
+          };
+        }),
       });
 
       // Routed through the inventory ledger (P1-8B) rather than writing `stock_levels`

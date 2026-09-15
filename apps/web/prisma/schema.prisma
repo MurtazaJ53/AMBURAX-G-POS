@@ -116,7 +116,8 @@ model Tenant {
   // pointers: a column holds one value, so "two tenant defaults" is not a state the database
   // can represent, and no partial unique index (which Prisma cannot model) is needed.
   defaultPriceListId String?
-  defaultPriceList   PriceList? @relation("TenantDefaultPriceList", fields: [defaultPriceListId, id], references: [id, tenantId])
+  defaultPriceList   PriceList?   @relation("TenantDefaultPriceList", fields: [defaultPriceListId, id], references: [id, tenantId])
+  StockLevel         StockLevel[]
 
   @@map("tenants")
 }
@@ -200,6 +201,7 @@ model Store {
   stockMovements StockMovement[]
   priceList      PriceList?        @relation("StorePriceList", fields: [priceListId, tenantId], references: [id, tenantId])
   orders         Order[]
+  OutboxEvent    OutboxEvent[]
 
   @@unique([tenantId, code])
   // Same purpose as User's: the referencable half of StoreMembership's composite foreign
@@ -279,8 +281,8 @@ model PosDevice {
   cashDrawerEnabled Boolean @default(false)
 
   tenant    Tenant @relation(fields: [tenantId], references: [id])
-  store     Store  @relation(fields: [storeId], references: [id])
-  createdBy User   @relation("PosDevicesCreated", fields: [createdByUserId], references: [id])
+  store     Store  @relation(fields: [storeId, tenantId], references: [id, tenantId])
+  createdBy User   @relation("PosDevicesCreated", fields: [createdByUserId, tenantId], references: [id, tenantId])
 
   @@unique([storeId, code])
   @@index([tenantId])
@@ -399,9 +401,11 @@ model Invitation {
   revokedAt        DateTime?
 
   tenant     Tenant @relation(fields: [tenantId], references: [id])
-  store      Store  @relation(fields: [storeId], references: [id])
-  inviter    User   @relation("InvitationsSent", fields: [inviterUserId], references: [id])
-  acceptedBy User?  @relation("InvitationsAccepted", fields: [acceptedByUserId], references: [id])
+  store      Store  @relation(fields: [storeId, tenantId], references: [id, tenantId])
+  inviter    User   @relation("InvitationsSent", fields: [inviterUserId, tenantId], references: [id, tenantId])
+  // Nullable and composite. PostgreSQL's MATCH SIMPLE leaves the constraint unchecked while
+  // acceptedByUserId is NULL — an unaccepted invitation — and enforces it the moment one is set.
+  acceptedBy User?  @relation("InvitationsAccepted", fields: [acceptedByUserId, tenantId], references: [id, tenantId], onDelete: Restrict)
 
   @@unique([tenantId, storeId, email])
   @@index([tenantId])
@@ -421,7 +425,8 @@ model Session {
   expiresAt DateTime
   revokedAt DateTime?
 
-  user User @relation(fields: [userId], references: [id])
+  // Composite: a session for a user of another tenant is not a state PostgreSQL will hold.
+  user User @relation(fields: [userId, tenantId], references: [id, tenantId])
 
   @@index([userId])
   @@map("sessions")
@@ -469,7 +474,9 @@ model MfaChallenge {
   expiresAt   DateTime
   consumedAt  DateTime?
 
-  user User @relation(fields: [userId], references: [id])
+  // Composite, for the same reason Session is: the challenge carries a tenantId, and one that
+  // disagrees with the user it names is a contradiction, not a record.
+  user User @relation(fields: [userId, tenantId], references: [id, tenantId])
 
   @@index([userId])
   @@map("mfa_challenges")
@@ -493,7 +500,9 @@ model PasswordResetToken {
   expiresAt  DateTime
   consumedAt DateTime?
 
-  user User @relation(fields: [userId], references: [id])
+  // Composite. A reset token is a credential; one whose tenant disagrees with its user is
+  // exactly the kind of record an attacker would like to create.
+  user User @relation(fields: [userId, tenantId], references: [id, tenantId])
 
   @@index([userId])
   @@map("password_reset_tokens")
@@ -555,6 +564,9 @@ model OutboxEvent {
   createdAt      DateTime  @default(now())
 
   tenant Tenant @relation(fields: [tenantId], references: [id])
+  // The envelope's store must belong to the envelope's tenant. Nullable: most events are not
+  // store-scoped, and MATCH SIMPLE leaves those unchecked.
+  store  Store? @relation(fields: [storeId, tenantId], references: [id, tenantId])
 
   // The dispatcher's hot path: unpublished, not dead-lettered, due now, oldest first.
   @@index([publishedAt, deadLetteredAt, nextAttemptAt])
@@ -713,7 +725,9 @@ model ProductVariant {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  product        Product         @relation(fields: [productId], references: [id])
+  // Composite. A variant of one tenant hanging off another tenant's product would put a
+  // foreign product's name and unit on this tenant's sale lines.
+  product        Product         @relation(fields: [productId, tenantId], references: [id, tenantId])
   saleItems      SaleItem[]
   orderItems     OrderItem[]
   stockLevels    StockLevel[]
@@ -1015,14 +1029,22 @@ model Sale {
   createdAt   DateTime @default(now())
 
   tenant   Tenant        @relation(fields: [tenantId], references: [id])
-  store    Store         @relation(fields: [storeId], references: [id])
-  cashier  User          @relation("SalesRung", fields: [cashierUserId], references: [id])
-  customer Customer?     @relation(fields: [customerId], references: [id])
+  store    Store         @relation(fields: [storeId, tenantId], references: [id, tenantId])
+  cashier  User          @relation("SalesRung", fields: [cashierUserId, tenantId], references: [id, tenantId])
+  // Nullable — a walk-in sale has no customer — and composite, so a customer that IS named must
+  // belong to this tenant. The delete action moves from SetNull to Restrict: a composite key
+  // cannot be set to NULL while tenantId is NOT NULL, and nulling it would erase who bought
+  // something rather than refuse the delete. Customers are deactivated, never deleted. Same
+  // shape Order already uses.
+  customer Customer?     @relation(fields: [customerId, tenantId], references: [id, tenantId], onDelete: Restrict)
   items    SaleItem[]
   payments SalePayment[]
 
   @@unique([tenantId, idempotencyKey])
   @@unique([storeId, billNumber])
+  // The referencable half of SaleItem's composite foreign key, the same shape every other
+  // tenant-owned parent carries.
+  @@unique([id, tenantId])
   @@index([tenantId, completedAt])
   @@index([storeId, completedAt])
   @@map("sales")
@@ -1032,8 +1054,14 @@ model Sale {
 // retroactively alter what a customer was charged, so name, sku and unit price are copied
 // here rather than joined from the variant at read time.
 model SaleItem {
-  id     String @id @default(cuid())
-  saleId String
+  id String @id @default(cuid())
+
+  // Added in P1-8H. A sale line references a ProductVariant, and without a tenantId of its own
+  // there was no way for PostgreSQL to prove that variant belonged to the sale's tenant — the
+  // line could name another tenant's product. Backfilled from the parent sale, which is the
+  // only value it could ever have had.
+  tenantId String
+  saleId   String
 
   variantId    String
   skuSnapshot  String
@@ -1046,9 +1074,10 @@ model SaleItem {
   taxMinor          Int
   lineTotalMinor    Int
 
-  sale    Sale           @relation(fields: [saleId], references: [id], onDelete: Cascade)
-  variant ProductVariant @relation(fields: [variantId], references: [id])
+  sale    Sale           @relation(fields: [saleId, tenantId], references: [id, tenantId], onDelete: Cascade)
+  variant ProductVariant @relation(fields: [variantId, tenantId], references: [id, tenantId])
 
+  @@index([tenantId, saleId])
   @@index([saleId])
   @@index([variantId])
   @@map("sale_items")
@@ -1096,8 +1125,12 @@ model StockLevel {
 
   updatedAt DateTime @updatedAt
 
-  store   Store          @relation(fields: [storeId], references: [id])
-  variant ProductVariant @relation(fields: [variantId], references: [id])
+  // The projection carried a tenantId with no foreign key at all until P1-8H: nothing stopped a
+  // level naming a tenant that did not exist, or a store and variant belonging to someone else.
+  // All three are now enforced by PostgreSQL.
+  tenant  Tenant         @relation(fields: [tenantId], references: [id])
+  store   Store          @relation(fields: [storeId, tenantId], references: [id, tenantId])
+  variant ProductVariant @relation(fields: [variantId, tenantId], references: [id, tenantId])
 
   @@unique([storeId, variantId])
   @@index([tenantId])
@@ -1304,7 +1337,7 @@ model Order {
   tenant    Tenant         @relation(fields: [tenantId], references: [id])
   store     Store          @relation(fields: [storeId, tenantId], references: [id, tenantId])
   customer  Customer?      @relation(fields: [customerId, tenantId], references: [id, tenantId])
-  createdBy User           @relation("OrdersCreated", fields: [createdByUserId], references: [id])
+  createdBy User           @relation("OrdersCreated", fields: [createdByUserId, tenantId], references: [id, tenantId])
   items     OrderItem[]
   addresses OrderAddress[]
 
