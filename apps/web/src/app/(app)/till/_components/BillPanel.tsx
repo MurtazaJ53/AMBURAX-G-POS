@@ -14,6 +14,12 @@ import { Button, Chip, Panel } from "./primitives";
  * discarded the moment the server answers with the real sale. The screen never decides what a
  * customer is charged; it predicts it, accurately, and then defers.
  *
+ * No money is calculated in this file, and that is the point rather than an accident. The rows
+ * are drawn from the computed lines, so a change to how a line total is worked out reaches this
+ * screen by changing one function — not by changing one function and hoping the copy in the UI
+ * was noticed. A second expression here would be correct on the day it was written and wrong on
+ * the day tax, rounding or discount rules moved.
+ *
  * Quantity editing is deliberately coarse and physical: large plus and minus targets, and a
  * number field for the case where a cashier knows the count. Stepping below one removes the
  * line, which is what pressing minus on a single item means.
@@ -65,10 +71,17 @@ export function BillPanel({
               </tr>
             </thead>
             <tbody>
-              {bill.lines.map((line) => {
-                const computed = totals.lines.find((entry) => entry.variantId === line.variantId);
+              {/* Iterating the computed lines rather than the bill's is what removes the last
+                  place a total could be derived twice. Every figure in a row — quantity, unit
+                  price, line total — is read from `computeSaleTotals`, the same function the
+                  sale transaction uses; the bill is consulted only for the words beside them. */}
+              {totals.lines.map((computed) => {
+                const line = bill.lines.find((entry) => entry.variantId === computed.variantId);
+                // Presentation metadata only. A row with no name to put on it cannot be drawn,
+                // and there is deliberately no arithmetic to fall back to.
+                if (!line) return null;
                 return (
-                  <tr key={line.variantId} className="border-b border-amb-line last:border-0">
+                  <tr key={computed.variantId} className="border-b border-amb-line last:border-0">
                     <td className="px-4 py-3 align-top">
                       <p className="text-sm font-semibold text-amb-ink">{line.productName}</p>
                       <p className="text-xs text-amb-ink-muted">
@@ -77,7 +90,7 @@ export function BillPanel({
                         {line.colour ? ` · ${line.colour}` : ""}
                       </p>
                       <p className="mt-1 flex items-center gap-2 text-xs text-amb-ink-secondary">
-                        <span className="amb-tnum">{formatMinor(line.unitPriceMinor)} each</span>
+                        <span className="amb-tnum">{formatMinor(computed.unitPriceMinor)} each</span>
                         {/* Never rendered as "0 in stock" when the store has never counted it —
                             those are different facts and a cashier acts on them differently. */}
                         <Chip tone={line.stockQuantity === null ? "neutral" : "info"}>
@@ -105,7 +118,7 @@ export function BillPanel({
                           id={`qty-${line.variantId}`}
                           type="number"
                           min={1}
-                          value={line.quantity}
+                          value={computed.quantity}
                           disabled={readOnly}
                           onChange={(event) =>
                             dispatch({
@@ -130,7 +143,7 @@ export function BillPanel({
                       </div>
                     </td>
                     <td className="amb-tnum px-4 py-3 text-right align-top text-base font-semibold text-amb-ink">
-                      {formatMinor(computed?.lineTotalMinor ?? line.unitPriceMinor * line.quantity)}
+                      {formatMinor(computed.lineTotalMinor)}
                     </td>
                     <td className="px-4 py-3 text-right align-top">
                       <Button
