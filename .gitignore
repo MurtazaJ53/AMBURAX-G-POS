@@ -59,3 +59,9 @@ $RECYCLE.BIN/
 .cache/
 .turbo/
 *.local
+
+# --- browser end-to-end test output ---
+test-results/
+playwright-report/
+blob-report/
+.playwright/
