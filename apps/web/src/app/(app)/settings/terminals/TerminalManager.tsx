@@ -36,6 +36,7 @@ export function TerminalManager() {
   const [forbidden, setForbidden] = useState(false);
 
   const [mutatingId, setMutatingId] = useState<string | null>(null);
+  const [mutationError, setMutationError] = useState<string | null>(null);
   
   // Dialog state
   const [disableTarget, setDisableTarget] = useState<PosDeviceView | null>(null);
@@ -83,29 +84,32 @@ export function TerminalManager() {
 
   const handleDisable = async () => {
     if (!disableTarget) return;
+    setMutationError(null);
     setMutatingId(disableTarget.id);
     const res = await apiRequest(`/api/v1/pos/devices/${disableTarget.id}/disable`, { method: "POST" });
     setMutatingId(null);
-    setDisableTarget(null);
+    
     if (res.ok) {
+      setDisableTarget(null);
       await loadDevices();
     } else {
-      alert(`Disable failed: ${res.kind === "api" ? res.message : "Network error"}`);
+      setMutationError(res.kind === "api" ? res.message : "Network error");
     }
   };
 
   const handleRepair = async () => {
     if (!repairTarget) return;
+    setMutationError(null);
     setMutatingId(repairTarget.id);
     const res = await apiRequest<{ pairingCode: string }>(`/api/v1/pos/devices/${repairTarget.id}/re-pair`, { method: "POST" });
     setMutatingId(null);
-    setRepairTarget(null);
     
     if (res.ok) {
+      setRepairTarget(null);
       setRepairSuccess({ code: res.data.pairingCode, device: repairTarget.name });
       await loadDevices();
     } else {
-      alert(`Re-pair failed: ${res.kind === "api" ? res.message : "Network error"}`);
+      setMutationError(res.kind === "api" ? res.message : "Network error");
     }
   };
 
@@ -166,28 +170,38 @@ export function TerminalManager() {
         </DataTable>
       </Card>
 
-      <dialog ref={disableDialogRef} className="rounded-xl border border-slate-200 p-6 shadow-xl backdrop:bg-slate-900/50 open:animate-in open:fade-in open:zoom-in-95" onClose={() => setDisableTarget(null)}>
+      <dialog ref={disableDialogRef} className="rounded-xl border border-slate-200 p-6 shadow-xl backdrop:bg-slate-900/50 open:animate-in open:fade-in open:zoom-in-95" onClose={() => { setDisableTarget(null); setMutationError(null); }}>
         <h2 className="text-lg font-semibold text-slate-900">Disable Terminal</h2>
         <p className="mt-2 max-w-sm text-sm text-slate-600">
           Are you sure you want to disable <strong>{disableTarget?.name}</strong>? 
           This will prevent the terminal from starting or continuing sales.
         </p>
+        {mutationError && (
+          <div className="mt-4 rounded-md bg-red-50 p-3 text-sm text-red-700">
+            {mutationError}
+          </div>
+        )}
         <div className="mt-6 flex justify-end gap-3">
-          <button type="button" className={buttonClass("ghost")} onClick={() => setDisableTarget(null)} disabled={mutatingId !== null}>Cancel</button>
+          <button type="button" className={buttonClass("ghost")} onClick={() => { setDisableTarget(null); setMutationError(null); }} disabled={mutatingId !== null}>Cancel</button>
           <button type="button" className={buttonClass("primary")} onClick={handleDisable} disabled={mutatingId !== null}>
             {mutatingId !== null ? "Disabling..." : "Confirm Disable"}
           </button>
         </div>
       </dialog>
 
-      <dialog ref={repairDialogRef} className="rounded-xl border border-slate-200 p-6 shadow-xl backdrop:bg-slate-900/50 open:animate-in open:fade-in open:zoom-in-95" onClose={() => setRepairTarget(null)}>
+      <dialog ref={repairDialogRef} className="rounded-xl border border-slate-200 p-6 shadow-xl backdrop:bg-slate-900/50 open:animate-in open:fade-in open:zoom-in-95" onClose={() => { setRepairTarget(null); setMutationError(null); }}>
         <h2 className="text-lg font-semibold text-slate-900">Re-pair Terminal</h2>
         <p className="mt-2 max-w-sm text-sm text-slate-600">
           Are you sure you want to re-pair <strong>{repairTarget?.name}</strong>? 
           The existing terminal credential will be invalidated and physical pairing will be required again.
         </p>
+        {mutationError && (
+          <div className="mt-4 rounded-md bg-red-50 p-3 text-sm text-red-700">
+            {mutationError}
+          </div>
+        )}
         <div className="mt-6 flex justify-end gap-3">
-          <button type="button" className={buttonClass("secondary")} onClick={() => setRepairTarget(null)} disabled={mutatingId !== null}>Cancel</button>
+          <button type="button" className={buttonClass("secondary")} onClick={() => { setRepairTarget(null); setMutationError(null); }} disabled={mutatingId !== null}>Cancel</button>
           <button type="button" className={buttonClass("primary")} onClick={handleRepair} disabled={mutatingId !== null}>
             {mutatingId !== null ? "Working..." : "Confirm Re-pair"}
           </button>

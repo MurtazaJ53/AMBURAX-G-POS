@@ -150,6 +150,103 @@ describe("Admin POS Terminal Management", () => {
     });
   });
 
+  it("DISABLE: failure keeps dialog open, renders inline error, allows retry", async () => {
+    let alertCalled = false;
+    window.alert = () => { alertCalled = true; };
+
+    const api = stubApi([
+      {
+        path: "/api/v1/pos/devices",
+        method: "GET",
+        replies: [{ kind: "ok", body: { status: "ok", devices: MOCK_DEVICES } }]
+      },
+      {
+        path: "/api/v1/pos/devices/dev_1/disable",
+        method: "POST",
+        replies: [
+          { kind: "error", status: 409, code: "conflict", message: "Cannot disable right now." },
+          { kind: "ok", body: { status: "ok" } }
+        ]
+      }
+    ]);
+
+    const user = userEvent.setup();
+    render(<TerminalManager />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Register 1")).toBeTruthy();
+    });
+
+    await user.click(screen.getByRole("button", { name: "Disable Register 1" }));
+
+    const confirmBtn = screen.getByRole("button", { name: "Confirm Disable" });
+    await user.click(confirmBtn);
+
+    await waitFor(() => {
+      expect(screen.getAllByText("Cannot disable right now.").length).toBeGreaterThan(0);
+    });
+    
+    expect(alertCalled).toBe(false);
+    expect(api.countFor("/api/v1/pos/devices/dev_1/disable")).toBe(1);
+
+    // Dialog should still be open
+    expect(screen.getAllByText(/Are you sure you want to disable/).length).toBeGreaterThan(0);
+
+    // Retry
+    await user.click(confirmBtn);
+
+    await waitFor(() => {
+      expect(api.countFor("/api/v1/pos/devices/dev_1/disable")).toBe(2);
+      expect(screen.queryByText("Cannot disable right now.")).toBeNull();
+    });
+  });
+
+  it("RE-PAIR: failure keeps dialog open, renders inline error, allows retry", async () => {
+    let alertCalled = false;
+    window.alert = () => { alertCalled = true; };
+
+    const api = stubApi([
+      {
+        path: "/api/v1/pos/devices",
+        method: "GET",
+        replies: [{ kind: "ok", body: { status: "ok", devices: MOCK_DEVICES } }]
+      },
+      {
+        path: "/api/v1/pos/devices/dev_3/re-pair",
+        method: "POST",
+        replies: [
+          { kind: "offline" },
+          { kind: "ok", body: { status: "ok", pairingCode: "RETRY-CODE" } }
+        ]
+      }
+    ]);
+
+    const user = userEvent.setup();
+    render(<TerminalManager />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Register 3")).toBeTruthy();
+    });
+
+    await user.click(screen.getByRole("button", { name: "Re-pair Register 3" }));
+
+    const confirmBtn = screen.getByRole("button", { name: "Confirm Re-pair" });
+    await user.click(confirmBtn);
+
+    await waitFor(() => {
+      expect(screen.getAllByText("Network error").length).toBeGreaterThan(0);
+    });
+    
+    expect(alertCalled).toBe(false);
+    
+    // Retry
+    await user.click(confirmBtn);
+
+    await waitFor(() => {
+      expect(screen.getByText("RETRY-CODE")).toBeTruthy();
+    });
+  });
+
   it("SECURITY: does not display sensitive credentials or hashes", async () => {
     stubApi([
       {
