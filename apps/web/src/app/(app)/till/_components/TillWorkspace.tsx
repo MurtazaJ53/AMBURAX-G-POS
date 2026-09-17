@@ -161,7 +161,17 @@ export function TillWorkspace({
         </div>
 
         {/* --- shift, customer, payment -------------------------------------- */}
-        <div className="flex min-h-0 flex-col gap-4 overflow-y-auto">
+        {/* `[&>*]:shrink-0` is load-bearing, not tidiness.
+            Every panel in this column is a flex item, and `Panel` carries `min-h-0` so the bill
+            can scroll on the other side. Together those remove the automatic minimum size, so
+            when the column's content is taller than the column — which it is at 1440x900 with a
+            shift open — the panels collapse instead of the column scrolling. Measured: the
+            payment panel's box shrank to 2px while its content still painted 404px tall, and the
+            shift panel, ordered last and therefore painted last, covered it. The Take-payment
+            button was visible, enabled, and could not be clicked.
+            Refusing to shrink gives each panel its natural height and lets `overflow-y-auto` do
+            what it was put here to do. */}
+        <div className="flex min-h-0 flex-col gap-4 overflow-y-auto [&>*]:shrink-0">
           {/* One instance, reordered rather than re-rendered. A till that cannot sell needs the
               shift panel first; a till that can needs it out of the way. Rendering it twice
               would unmount it on the transition and lose a half-typed closing note. */}

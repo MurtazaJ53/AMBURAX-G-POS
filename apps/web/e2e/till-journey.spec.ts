@@ -118,10 +118,11 @@ test("a merchant adds a terminal, pairs it, and rings up a real sale", async ({ 
   await expect(page.getByLabel(/search for a customer by name or phone/i)).toBeVisible();
 
   // ── PAYMENT → COMPLETE ────────────────────────────────────────────────────────────────────
-  // F9, not a click: it is the shortcut the till documents on screen and the one a cashier
-  // actually uses, and it does not depend on where the right-hand column happens to be
-  // scrolled. The button's own enabled state was asserted above, so this is not avoiding it.
-  await page.keyboard.press("F9");
+  // A real mouse click, which is what a cashier does. This used to be an F9 keypress because
+  // the click could not land: the panels in the right-hand column collapsed and the shift panel
+  // painted over the button. That is fixed, and `payment-click-repro.spec.ts` guards it at four
+  // viewports — so the journey now takes the ordinary path rather than routing around a defect.
+  await payButton.click();
   await expect(page.getByText(/sale complete/i)).toBeVisible({ timeout: 30_000 });
 
   const billLine = await page.getByText(/^Bill /).first().textContent();
