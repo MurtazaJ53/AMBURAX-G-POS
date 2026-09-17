@@ -14,11 +14,15 @@
  * at the route, service and test that implement a claim, it does not belong on a screen a
  * merchant reads as a statement of what they are buying.
  *
- * The content here comes from a design supplied by the product owner, and several entries — the
- * commerce, wholesale and AI feature cards, and every figure in the statistics and floating
- * cards — are forward-looking or illustrative rather than measured. That was an explicit
- * decision, not an oversight. If you are editing this file, keep the distinction in mind: the
- * P1-3 rule still applies to anything *new* you add.
+ * The copy has since been brought back under that rule. Every headline figure the supplied design
+ * carried — a customer count, an uptime percentage, a growth percentage — has been replaced with
+ * a capability statement rather than with a smaller number, because nothing in this repository
+ * measures any of them and a fabricated figure is not improved by being conservative.
+ *
+ * What remains forward-looking is the feature grid: commerce, wholesale and AI name capabilities
+ * the architecture is built for and does not yet fully ship. That is a deliberate decision by the
+ * product owner, not an oversight. If you are adding to this file, the P1-3 rule applies to
+ * whatever you add: no figure without a measurement behind it.
  */
 
 const features = [
@@ -196,19 +200,34 @@ const features = [
   },
 ];
 
-const stats = [
-  { val: "10K+", label: "Businesses" },
-  { val: "99.9%", label: "Uptime" },
-  { val: "24/7", label: "Support" },
+/**
+ * What the platform *is*, in the slot the design gave to headline figures.
+ *
+ * The figures that were here — a customer count, an uptime percentage — were the kind of claim
+ * P1-3 exists to keep off this screen: nothing in the repository measures them, and a merchant
+ * reads them as fact. They are replaced with capability statements rather than with smaller or
+ * more cautious numbers, because a number nobody measures is not improved by being modest.
+ */
+const capabilities = [
+  { val: "Multi-Tenant", label: "Business Platform" },
+  { val: "Real-Time", label: "Operations" },
+  { val: "AI-Powered", label: "Insights" },
 ];
 
-const SalesGrowthCard = () => (
+/**
+ * The design's sales card, with its headline figure removed.
+ *
+ * "+18.4%" was a measurement of nothing. The bars stay because they are ornament — the card's
+ * job is to say the product has a sales dashboard, which it does, and the shape communicates
+ * that without asserting a number.
+ */
+const SalesTrendCard = () => (
   <div
     className="absolute right-6 top-6 z-10 w-48 rounded-2xl bg-white p-4 shadow-xl"
     style={{ boxShadow: "0 8px 32px rgba(0,0,0,0.12)" }}
   >
-    <p className="text-xs font-medium text-slate-500">Sales Growth</p>
-    <p className="mt-0.5 text-lg font-bold text-emerald-500">+18.4%</p>
+    <p className="text-xs font-medium text-slate-500">Sales Trends</p>
+    <p className="mt-0.5 text-sm font-bold text-emerald-500">Live by store</p>
     <div className="mt-3 flex h-10 items-end gap-1">
       {[3, 5, 4, 6, 5, 7, 8, 9, 8, 10].map((h, i) => (
         <div
@@ -248,13 +267,29 @@ const MultiChannelCard = () => (
   </div>
 );
 
-const HappyCustomersCard = () => (
+/**
+ * The design's customer-count card, carrying the platform's scope instead.
+ *
+ * "52,000+ Happy Customers" is the claim this screen most obviously could not support. The card
+ * keeps its position, its geometry and its colour cluster; only the sentence changed, to one the
+ * architecture actually backs — these are the business models the same tenant model serves.
+ */
+const OnePlatformCard = () => (
   <div
     className="absolute bottom-44 left-2 z-10 rounded-2xl bg-white p-3 shadow-xl"
-    style={{ boxShadow: "0 8px 32px rgba(0,0,0,0.12)", minWidth: 160 }}
+    style={{ boxShadow: "0 8px 32px rgba(0,0,0,0.12)", minWidth: 190, maxWidth: 200 }}
   >
-    <p className="text-xs font-medium text-slate-500">Happy Customers</p>
-    <p className="mt-1 text-2xl font-extrabold text-slate-800">52,000+</p>
+    <p className="text-xs font-medium text-slate-500">One Platform</p>
+    {/*
+      Broken onto two lines deliberately rather than left to wrap. Allowed to reflow it runs to
+      three, and this card floats over the feature grid — every extra line covers another row of
+      it. Two lines is the height the card it replaced occupied.
+    */}
+    <p className="mt-1 text-sm font-extrabold leading-snug text-slate-800">
+      Retail • B2B
+      <br />
+      Manufacturing • Commerce
+    </p>
     <div className="mt-2 flex items-center gap-1">
       {["#f97316", "#3b82f6", "#10b981"].map((c, i) => (
         <div
@@ -356,17 +391,28 @@ export function MarketingPanel() {
           ))}
         </div>
 
-        <div className="mb-6 flex items-center gap-10">
-          {stats.map((s) => (
-            <div key={s.label}>
-              <p className="text-2xl font-extrabold text-slate-800">{s.val}</p>
-              <p className="text-sm text-slate-400">{s.label}</p>
+        {/*
+          `flex-wrap` and a slightly smaller headline than the design's `text-2xl`: the words that
+          replaced the figures are three to four times longer than "10K+", and at 1280px the row
+          would otherwise run past the column. Wrapping is the safety net; the type size is what
+          keeps it on one line at every width the responsive suite checks.
+        */}
+        <div className="mb-6 flex flex-wrap items-center gap-x-10 gap-y-4">
+          {capabilities.map((c) => (
+            <div key={c.label}>
+              <p className="text-xl font-extrabold text-slate-800">{c.val}</p>
+              <p className="text-sm text-slate-400">{c.label}</p>
             </div>
           ))}
         </div>
 
+        {/*
+          The design set this line in quotation marks, which read it as a testimonial from a
+          customer who does not exist. The words are the product's own strapline, so they stay;
+          the quotation marks do not, because the only thing they added was an attribution.
+        */}
         <p className="text-sm italic text-slate-400">
-          &ldquo;More Sales. Happier Customers. A Smarter Tomorrow.&rdquo;
+          More Sales. Happier Customers. A Smarter Tomorrow.
         </p>
       </div>
 
@@ -379,9 +425,9 @@ export function MarketingPanel() {
         className="pointer-events-none absolute bottom-0 right-0 top-16 w-80 select-none xl:w-96"
         aria-hidden="true"
       >
-        <SalesGrowthCard />
+        <SalesTrendCard />
         <MultiChannelCard />
-        <HappyCustomersCard />
+        <OnePlatformCard />
         <AIInsightsCard />
       </div>
     </div>

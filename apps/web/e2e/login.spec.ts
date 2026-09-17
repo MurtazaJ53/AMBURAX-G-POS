@@ -32,17 +32,18 @@ test.describe("sign-in screen", () => {
 
     // Header
     await expect(page.getByText("AMBURAX", { exact: true })).toBeVisible();
-    await expect(page.getByText("Retail | Commerce | B2B | Powered by AI")).toBeVisible();
+    await expect(page.getByText("Business Operating Platform")).toBeVisible();
 
     // Left marketing panel — visible at the configured 1440x900 desktop viewport.
     await expect(page.getByText("All Businesses. One Platform.")).toBeVisible();
     await expect(page.getByRole("heading", { level: 1 })).toContainText("Run Your Business");
     await expect(page.getByText("Point of Sale")).toBeVisible();
     await expect(page.getByText("Scalable Platform")).toBeVisible();
-    await expect(page.getByText("10K+")).toBeVisible();
+    await expect(page.getByText("Multi-Tenant")).toBeVisible();
+    await expect(page.getByText("AI-Powered")).toBeVisible();
     await expect(page.getByText("More Sales. Happier Customers.")).toBeVisible();
     await expect(page.getByText("Multi-Channel")).toBeVisible();
-    await expect(page.getByText("Happy Customers")).toBeVisible();
+    await expect(page.getByText("One Platform", { exact: true })).toBeVisible();
 
     // Right sign-in panel
     await expect(page.getByRole("heading", { name: "Welcome Back" })).toBeVisible();
@@ -60,18 +61,78 @@ test.describe("sign-in screen", () => {
   test("advertises nothing it cannot do", async ({ page }) => {
     await page.goto("/auth/login");
 
-    // AMBURAX has no OAuth and no second language. The design's controls for both are kept
-    // visible, and both must be disabled — a control that looks live and does nothing is the
-    // failure this asserts against.
-    for (const name of [
-      /continue with google/i,
-      /continue with apple/i,
-      /continue with microsoft/i,
-    ]) {
-      await expect(page.getByRole("button", { name })).toBeDisabled();
+    // AMBURAX has no federated identity. The design's three OAuth buttons and their divider are
+    // gone rather than disabled: a switched-off control still advertises a door.
+    await expect(page.getByText(/google|apple|microsoft/i)).toHaveCount(0);
+    await expect(page.getByText(/or continue with/i)).toHaveCount(0);
+
+    // One language ships, so "English" is a label. Not a button, not a disabled button, and
+    // nothing a person can press and be disappointed by.
+    await expect(page.getByText("English", { exact: true })).toBeVisible();
+    await expect(page.getByRole("button", { name: /english/i })).toHaveCount(0);
+    await expect(page.getByRole("combobox")).toHaveCount(0);
+
+    // Every figure the supplied design carried was a measurement of nothing. None of them may
+    // come back without something in the repository that actually measures it.
+    for (const claim of [/10K\+/, /99\.9%/, /52,000\+/, /\+18\.4%/, /thousands of businesses/i]) {
+      await expect(page.getByText(claim)).toHaveCount(0);
     }
-    await expect(page.getByText(/social sign-in isn.t available yet/i)).toBeVisible();
-    await expect(page.getByRole("button", { name: /^language: english/i })).toBeDisabled();
+  });
+
+  test("shows the right kind of failure for the right kind of refusal", async ({ page }) => {
+    await page.goto("/auth/login");
+    const alert = page.locator("form").getByRole("alert");
+
+    // Nothing typed: the form's own check, presented as something to correct.
+    await page.getByRole("button", { name: "Sign In" }).click();
+    await expect(alert).toContainText("Check your details");
+    await expect(alert).toContainText(/enter your email and password/i);
+
+    // Wrong password: the server's refusal, presented as a failure. The title says nothing about
+    // whether the account exists, and neither does the body — that is the server's doing and this
+    // asserts we did not undo it.
+    await page.getByLabel(/email/i).fill(E2E_EMAIL);
+    await page.getByLabel("Password", { exact: true }).fill("definitely-not-the-password");
+    await page.getByRole("button", { name: "Sign In" }).click();
+    await expect(alert).toContainText("Sign-in failed");
+    await expect(alert).not.toContainText(/exist|unknown user|no such/i);
+  });
+
+  test("a sign-in in flight cannot be submitted twice", async ({ page }) => {
+    await page.goto("/auth/login");
+
+    // Hold the login response open so the in-flight state is observable rather than a flicker.
+    let release: () => void = () => {};
+    const held = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    let attempts = 0;
+    await page.route("**/api/v1/auth/login", async (route) => {
+      attempts += 1;
+      await held;
+      // Not a mock of the answer: the real endpoint still decides. Only the timing is ours.
+      await route.continue();
+    });
+
+    await page.getByLabel(/email/i).fill(E2E_EMAIL);
+    await page.getByLabel("Password", { exact: true }).fill("definitely-not-the-password");
+
+    const submit = page.getByRole("button", { name: /signing in|sign in/i });
+    await submit.click();
+
+    await expect(submit).toBeDisabled();
+    await expect(submit).toHaveAttribute("aria-busy", "true");
+    await expect(submit).toContainText("Signing in");
+
+    // The disabled button covers the mouse. This covers what it does not: a submit event raised
+    // directly on the form, which is what a held Enter key and some password managers produce.
+    await page.evaluate(() => {
+      document.querySelector("form")?.requestSubmit();
+    });
+    expect(attempts, "a second request was sent while the first was in flight").toBe(1);
+
+    release();
+    await expect(submit).toBeEnabled();
   });
 
   test("the password reveal toggles the field and nothing else", async ({ page }) => {
@@ -235,7 +296,8 @@ for (const vp of VIEWPORTS) {
 
     const email = page.getByLabel(/email/i);
     const password = page.getByLabel("Password", { exact: true });
-    const reveal = page.getByRole("button", { name: "Show password" });
+    // Named for either state: this test clicks it, and clicking renames it to "Hide password".
+    const reveal = page.getByRole("button", { name: /show password|hide password/i });
     const submit = page.getByRole("button", { name: "Sign In" });
 
     for (const control of [email, password, reveal, submit]) {
@@ -256,8 +318,17 @@ for (const vp of VIEWPORTS) {
     await reveal.click();
     await expect(password).toHaveAttribute("type", "text");
 
-    // The submit button is a touch target, not a sliver.
-    const submitBox = (await submit.boundingBox())!;
-    expect(submitBox.height).toBeGreaterThanOrEqual(44);
+    // Touch targets. 44px is the floor for anything a thumb has to find, and these four are the
+    // controls a person actually reaches for on this screen.
+    const targets: [string, typeof submit][] = [
+      ["Sign In", submit],
+      ["password reveal", reveal],
+      ["Forgot password", page.getByRole("link", { name: /forgot password/i })],
+      ["Create Account", page.getByRole("link", { name: /create account/i })],
+    ];
+    for (const [label, control] of targets) {
+      const box = (await control.boundingBox())!;
+      expect(box.height, `${label} is only ${box.height}px tall`).toBeGreaterThanOrEqual(44);
+    }
   });
 }

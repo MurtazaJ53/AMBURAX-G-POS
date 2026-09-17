@@ -7,16 +7,7 @@ import { env } from "@/lib/env";
 import { resolveSession } from "@/server/identity/session";
 import { LoginForm } from "./LoginForm";
 import { MarketingPanel } from "./_components/MarketingPanel";
-import {
-  AppleLogo,
-  GoogleLogo,
-  IconChevronDown,
-  IconCloud,
-  IconGlobe,
-  IconMonitor,
-  IconShield,
-  MicrosoftLogo,
-} from "./_components/icons";
+import { IconCloud, IconGlobe, IconMonitor, IconShield } from "./_components/icons";
 
 /**
  * The supplied design is set in Inter, and `next/font` self-hosts it: the browser makes no
@@ -31,7 +22,7 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: "Sign in — AMBURAX POS",
+  title: "Sign in — AMBURAX",
 };
 
 /**
@@ -62,38 +53,38 @@ export default async function LoginPage() {
           <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-blue-600 text-lg font-extrabold text-white">
             A
           </div>
+          {/*
+            "AMBURAX POS" understated the product: POS is one capability of a platform that also
+            covers wholesale, manufacturing and commerce, and the name on the sign-in screen was
+            the last place still describing it as a till. The blue accent the "POS" lockup carried
+            now lives in the mark alone, which is why the mark stayed.
+          */}
           <div>
-            <div className="flex items-center gap-1">
-              <span className="text-lg font-extrabold leading-none text-slate-800">AMBURAX</span>
-              <span className="ml-1 text-lg font-extrabold leading-none text-blue-600">POS</span>
-            </div>
+            <span className="block text-lg font-extrabold leading-none text-slate-800">
+              AMBURAX
+            </span>
             {/*
-              Hidden on the narrowest phones. At 375px the mark, the wordmark, this tagline and
-              the language control together overrun the viewport, and a horizontal scrollbar on a
+              Hidden on the narrowest phones. At 375px the mark, the wordmark, this line and the
+              language label together overrun the viewport, and a horizontal scrollbar on a
               sign-in screen is worse than a missing strapline.
             */}
-            <p className="mt-0.5 hidden text-xs text-slate-400 sm:block">
-              Retail | Commerce | B2B | Powered by AI
+            <p className="mt-1 hidden text-xs text-slate-400 sm:block">
+              Business Operating Platform
             </p>
           </div>
         </div>
         {/*
-          The design's language selector, preserved but inert. AMBURAX ships one language today —
-          there is no locale routing, no message catalogue and nothing to switch to — so this
-          announces the current language and says plainly that it cannot be changed. Wiring it to
-          a menu with a single entry would be a control that pretends to do something.
+          The current language, stated — not a selector.
+          AMBURAX ships one language: no locale routing, no message catalogue, nothing to switch
+          to. The design drew this as a dropdown, and a dropdown is a promise. Previously it was a
+          disabled button, which still looked like a control that had been switched off; it is now
+          simply a label, so there is nothing to press and nothing to be disappointed by. When a
+          real locale system exists, this is the place to wire it — and only to that.
         */}
-        <button
-          type="button"
-          disabled
-          title="AMBURAX is currently available in English only."
-          aria-label="Language: English. Other languages are not available yet."
-          className="flex shrink-0 cursor-default items-center gap-1.5 text-sm text-slate-600 disabled:opacity-100"
-        >
+        <p className="flex shrink-0 items-center gap-1.5 text-sm text-slate-600">
           <IconGlobe />
           <span>English</span>
-          <IconChevronDown />
-        </button>
+        </p>
       </header>
 
       {/* Main split layout */}
@@ -105,61 +96,41 @@ export default async function LoginPage() {
           <div className="mx-auto w-full max-w-md">
             <h2 className="mb-1 text-center text-3xl font-extrabold text-slate-900">Welcome Back</h2>
             <p className="mb-8 text-center text-sm text-slate-500">
-              Sign in to your Amburax POS account
+              Sign in to your AMBURAX account
             </p>
 
             <LoginForm />
 
-            {/* Divider */}
-            <div className="my-6 flex items-center gap-3">
-              <div className="h-px flex-1 bg-slate-200" />
-              <span className="text-xs text-slate-400">Or continue with</span>
-              <div className="h-px flex-1 bg-slate-200" />
-            </div>
-
             {/*
-              Social sign-in, shown and disabled.
-              AMBURAX has no OAuth: no provider configuration, no callback route, no federated
-              identity anywhere in src/server/identity. Buttons that opened a provider and then
-              failed — or worse, appeared to succeed — would be the fake login behaviour this
-              integration exists to avoid. They are kept visible because the design calls for them
-              and because "coming soon" is true, and they are disabled so the promise is honest.
-              The note below the row is what a screen reader and a sighted user both get.
+              Where the design put "Or continue with" and three OAuth buttons.
+
+              AMBURAX has no federated identity: no provider configuration, no callback route,
+              nothing under src/server/identity that speaks OAuth. The buttons previously shipped
+              visible-and-disabled, which is honest but still advertises a door that does not
+              exist. They are gone, along with their divider, and the column is the better for it:
+              the form now runs straight into the one thing a visitor without an account can
+              actually do. Nothing replaced them, because a placeholder is a smaller version of
+              the same lie.
+
+              If OAuth is implemented later, this is the seam to reopen.
             */}
-            <div className="grid grid-cols-3 gap-3">
-              {[
-                { label: "Google", logo: <GoogleLogo /> },
-                { label: "Apple", logo: <AppleLogo /> },
-                { label: "Microsoft", logo: <MicrosoftLogo /> },
-              ].map((p) => (
-                <button
-                  key={p.label}
-                  type="button"
-                  disabled
-                  title={`${p.label} sign-in is not available yet.`}
-                  aria-label={`Continue with ${p.label} — not available yet`}
-                  className="flex cursor-not-allowed items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white py-2.5 text-sm font-medium text-slate-700 opacity-50"
-                >
-                  {p.logo}
-                  {p.label}
-                </button>
-              ))}
-            </div>
-            <p className="mt-2 text-center text-xs text-slate-400">
-              Social sign-in isn&rsquo;t available yet. Use your email and password.
-            </p>
 
             {/* Create account CTA */}
-            <div className="mt-6 flex items-center justify-between rounded-xl border border-slate-100 bg-slate-50 px-4 py-3">
+            <div className="mt-8 flex items-center justify-between gap-4 rounded-xl border border-slate-100 bg-slate-50 px-4 py-3">
               <div>
-                <p className="text-sm font-semibold text-slate-800">New to Amburax POS?</p>
+                <p className="text-sm font-semibold text-slate-800">New to AMBURAX?</p>
                 <p className="mt-0.5 text-xs text-slate-500">
-                  Join thousands of businesses growing with us.
+                  Register your business and set up your first store.
                 </p>
               </div>
+              {/*
+                `min-h-[44px]` and `inline-flex` rather than padding alone: `py-2` on a 14px line
+                gives a 36px target, and this is a primary action that has to be hittable with a
+                thumb. The border, radius and colour are the design's.
+              */}
               <Link
                 href="/onboarding/business"
-                className="ml-4 whitespace-nowrap rounded-xl border-2 border-blue-600 px-4 py-2 text-sm font-semibold text-blue-600 transition-all hover:bg-blue-600 hover:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+                className="inline-flex min-h-[44px] shrink-0 items-center whitespace-nowrap rounded-xl border-2 border-blue-600 px-4 text-sm font-semibold text-blue-600 transition-all hover:bg-blue-600 hover:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
               >
                 Create Account
               </Link>
