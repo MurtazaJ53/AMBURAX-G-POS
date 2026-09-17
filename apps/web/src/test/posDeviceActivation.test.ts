@@ -6,6 +6,7 @@ import { describe, expect, it, vi, beforeEach } from "vitest";
 
 const mockDb = {
   posDevice: { findUnique: vi.fn(), updateMany: vi.fn() },
+  $transaction: vi.fn(async (cb) => cb(mockDb)),
 };
 
 vi.mock("@/server/db", () => ({ db: mockDb }));
@@ -14,6 +15,7 @@ vi.mock("@/server/identity/loginGuard", () => ({
   recordAttempt: vi.fn(async () => {}),
 }));
 vi.mock("@/server/identity/audit", () => ({ writeAuditLog: vi.fn(async () => {}) }));
+vi.mock("@/server/events/outbox", () => ({ enqueueOutboxEvent: vi.fn(async () => {}) }));
 
 const { activatePosDevice } = await import("@/server/pos/posDeviceActivation");
 const { derivePosDeviceStatus, formatPairingCode, generatePairingCode, hashPairingCode, normalizePairingCode } =

@@ -4,6 +4,7 @@ import { generateOpaqueToken, hashOpaqueToken } from "@/server/identity/token";
 import { isIpRateLimited, recordAttempt } from "@/server/identity/loginGuard";
 import { writeAuditLog } from "@/server/identity/audit";
 import { hashPairingCode, normalizePairingCode } from "@/server/pos/posDevice";
+import { enqueueOutboxEvent } from "@/server/events/outbox";
 
 /**
  * The other half of A9, and the reason A9 can claim anything at all about a *physical*
@@ -94,25 +95,48 @@ export async function activatePosDevice(params: {
   // The claim, not the read above, is what arbitrates concurrency: two terminals racing
   // with the same code both reach here, but only one `updateMany` matches — the winner
   // nulls `pairingCodeHash` in the same statement, so the loser matches zero rows and is
-  // issued no secret. Single statement, so there is nothing to roll back.
-  const claimed = await db.posDevice.updateMany({
-    where: {
-      id: device.id,
-      activatedAt: null,
-      disabledAt: null,
-      pairingCodeHash: hashPairingCode(normalized),
-      pairingExpiresAt: { gt: new Date() },
-    },
-    data: {
-      activatedAt: new Date(),
-      lastSeenAt: new Date(),
-      deviceSecretHash: hashOpaqueToken(deviceSecret),
-      pairingCodeHash: null,
-      pairingExpiresAt: null,
-    },
+  // issued no secret.
+  const claimed = await db.$transaction(async (tx) => {
+    const updated = await tx.posDevice.updateMany({
+      where: {
+        id: device.id,
+        activatedAt: null,
+        disabledAt: null,
+        pairingCodeHash: hashPairingCode(normalized),
+        pairingExpiresAt: { gt: new Date() },
+      },
+      data: {
+        activatedAt: new Date(),
+        lastSeenAt: new Date(),
+        deviceSecretHash: hashOpaqueToken(deviceSecret),
+        pairingCodeHash: null,
+        pairingExpiresAt: null,
+      },
+    });
+
+    if (updated.count === 0) {
+      return false;
+    }
+
+    await enqueueOutboxEvent(tx, {
+      tenantId: device.tenantId,
+      storeId: device.storeId,
+      eventType: "PosDeviceActivated",
+      correlationId: params.correlationId,
+      entityId: device.id,
+      payload: {
+        code: device.code,
+        name: device.name,
+        storeId: device.storeId,
+        status: "ACTIVE",
+      },
+      discriminator: params.correlationId,
+    });
+
+    return true;
   });
 
-  if (claimed.count === 0) {
+  if (!claimed) {
     return { status: "already_activated" };
   }
 

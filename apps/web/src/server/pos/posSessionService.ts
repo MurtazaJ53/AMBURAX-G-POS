@@ -295,12 +295,15 @@ export async function resolveSessionForSale(params: {
 }): Promise<ResolveSessionResult> {
   const session = await db.posSession.findFirst({
     where: { id: params.sessionId, tenantId: params.tenantId },
-    select: SESSION_SELECT,
+    select: { ...SESSION_SELECT, posDevice: { select: { disabledAt: true } } },
   });
   if (!session) return { status: "not_found", what: "session" };
 
   if (session.closedAt) {
     return { status: "conflict", reason: "That shift has already been closed." };
+  }
+  if (session.posDevice?.disabledAt) {
+    return { status: "conflict", reason: "The terminal for this shift has been disabled." };
   }
   if (session.storeId !== params.storeId) {
     return { status: "conflict", reason: "That shift belongs to a different store." };
