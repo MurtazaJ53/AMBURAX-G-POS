@@ -27,5 +27,5 @@ test("an unauthenticated visitor is sent to sign in rather than shown the till",
 test("the sign-in page renders", async ({ page }) => {
   await page.goto("/auth/login");
   await expect(page.getByLabel(/email/i)).toBeVisible();
-  await expect(page.getByLabel(/password/i)).toBeVisible();
+  await expect(page.getByLabel("Password", { exact: true })).toBeVisible();
 });

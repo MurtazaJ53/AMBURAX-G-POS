@@ -12,7 +12,9 @@ import { E2E_EMAIL, E2E_PASSWORD } from "./credentials";
 export async function signIn(page: Page): Promise<void> {
   await page.goto("/auth/login");
   await page.getByLabel(/email/i).fill(E2E_EMAIL);
-  await page.getByLabel(/password/i).fill(E2E_PASSWORD);
+  // Exact, not /password/i: the reveal toggle beside the field is named "Show password", so a
+  // substring match would find two controls and fail on strict mode rather than on the product.
+  await page.getByLabel("Password", { exact: true }).fill(E2E_PASSWORD);
   await page.getByRole("button", { name: /sign in|log ?in/i }).click();
 
   // Landing anywhere inside the application means the server accepted the password and set a
