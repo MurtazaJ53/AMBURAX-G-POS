@@ -5,8 +5,7 @@ import { resolveSession } from "@/server/identity/session";
 import { isIpRateLimited, recordAttempt } from "@/server/identity/loginGuard";
 import { writeAuditLog } from "@/server/identity/audit";
 import { canConfigurePos } from "@/server/pos/posRoles";
-import { formatPairingCode, generatePairingCode, hashPairingCode } from "@/server/pos/posDevice";
-import { enqueueOutboxEvent } from "@/server/events/outbox";
+import { provisionPosDevice } from "@/server/pos/posDeviceProvisioning";
 
 /**
  * A9 — the store's first POS terminal.
@@ -156,11 +155,9 @@ export async function createFirstPosDevice(
   }
 
   const code = input.code.trim().toUpperCase();
-  const pairingCode = generatePairingCode();
-  const pairingExpiresAt = new Date(Date.now() + env.POS_PAIRING_TTL_MINUTES * 60 * 1000);
 
   try {
-    const device = await db.$transaction(async (tx) => {
+    const provisioned = await db.$transaction(async (tx) => {
       const claimed = await tx.tenant.updateMany({
         where: { id: session.tenantId, onboardingStep: { in: [...POS_STEP_PREDECESSORS] } },
         data: { onboardingStep: "POS_CONFIGURED" },
@@ -169,47 +166,22 @@ export async function createFirstPosDevice(
         throw new StepAlreadyClaimedError();
       }
 
-      const created = await tx.posDevice.create({
-        data: {
-          tenantId: session.tenantId,
-          storeId: store.id,
-          name: input.name.trim(),
-          code,
-          createdByUserId: session.userId,
-          pairingCodeHash: hashPairingCode(pairingCode),
-          pairingExpiresAt,
-          receiptHeader: input.receiptHeader?.trim() || null,
-          receiptFooter: input.receiptFooter?.trim() || null,
-          showProductImages: input.showProductImages,
-          scanSoundEnabled: input.scanSoundEnabled,
-          cashDrawerEnabled: input.cashDrawerEnabled,
-        },
-      });
-
-      // The domain event is enqueued with `tx`, so it commits with the device or not at
-      // all — the guarantee the audit writes below deliberately do not provide (they use
-      // the global client and would survive a rollback). First real producer for ADR-010's
-      // durable outbox; see events/outbox.ts.
-      //
-      // The payload carries ids and configuration only. The pairing code is a live
-      // credential and must never enter an event body, which is replayable and readable by
-      // every future consumer.
-      await enqueueOutboxEvent(tx, {
+      // The row, the pairing code and the domain event now come from the shared primitive, so
+      // this path and the post-onboarding one cannot drift apart. What stays here is the part
+      // that is genuinely onboarding's: the step claim above.
+      return provisionPosDevice(tx, {
         tenantId: session.tenantId,
         storeId: store.id,
-        eventType: "PosDeviceCreated",
         actorUserId: session.userId,
+        name: input.name,
+        code,
         correlationId: input.correlationId,
-        entityId: created.id,
-        payload: {
-          code: created.code,
-          name: created.name,
-          storeId: store.id,
-          status: "PENDING_ACTIVATION",
-        },
+        receiptHeader: input.receiptHeader,
+        receiptFooter: input.receiptFooter,
+        showProductImages: input.showProductImages,
+        scanSoundEnabled: input.scanSoundEnabled,
+        cashDrawerEnabled: input.cashDrawerEnabled,
       });
-
-      return created;
     });
 
     await recordAttempt({ email: session.user.email, ip: input.ip, success: true, context: "pos_setup" });
@@ -219,14 +191,17 @@ export async function createFirstPosDevice(
       userId: session.userId,
       action: "PosDeviceCreated",
       correlationId: input.correlationId,
-      metadata: { posDeviceId: device.id, storeId: store.id, code },
+      metadata: { posDeviceId: provisioned.device.id, storeId: store.id, code },
     });
     await writeAuditLog({
       tenantId: session.tenantId,
       userId: session.userId,
       action: "PosDevicePairingCodeIssued",
       correlationId: input.correlationId,
-      metadata: { posDeviceId: device.id, expiresAt: pairingExpiresAt.toISOString() },
+      metadata: {
+        posDeviceId: provisioned.device.id,
+        expiresAt: provisioned.pairingExpiresAt.toISOString(),
+      },
     });
     await writeAuditLog({
       tenantId: session.tenantId,
@@ -238,9 +213,17 @@ export async function createFirstPosDevice(
 
     return {
       status: "ok",
-      device: { id: device.id, name: device.name, code: device.code, status: "PENDING_ACTIVATION" },
-      pairingCode: formatPairingCode(pairingCode),
-      pairingExpiresAt: pairingExpiresAt.toISOString(),
+      // Rebuilt field by field rather than passed through: the shared primitive also reports
+      // the store, and this response has never carried one. A refactor is not a licence to
+      // change an endpoint's shape.
+      device: {
+        id: provisioned.device.id,
+        name: provisioned.device.name,
+        code: provisioned.device.code,
+        status: provisioned.device.status,
+      },
+      pairingCode: provisioned.pairingCode,
+      pairingExpiresAt: provisioned.pairingExpiresAt.toISOString(),
     };
   } catch (err) {
     if (err instanceof StepAlreadyClaimedError) {
