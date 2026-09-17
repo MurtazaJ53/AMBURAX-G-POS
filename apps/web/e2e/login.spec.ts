@@ -32,7 +32,9 @@ test.describe("sign-in screen", () => {
 
     // Header
     await expect(page.getByText("AMBURAX", { exact: true })).toBeVisible();
-    await expect(page.getByText("Business Operating Platform")).toBeVisible();
+    // Exact: the body copy now says "business operating platform" too, and a substring match
+    // would find both and fail on strict mode rather than on the product.
+    await expect(page.getByText("Business Operating Platform", { exact: true })).toBeVisible();
 
     // Left marketing panel — visible at the configured 1440x900 desktop viewport.
     await expect(page.getByText("All Businesses. One Platform.")).toBeVisible();
@@ -40,7 +42,8 @@ test.describe("sign-in screen", () => {
     await expect(page.getByText("Point of Sale")).toBeVisible();
     await expect(page.getByText("Scalable Platform")).toBeVisible();
     await expect(page.getByText("Multi-Tenant")).toBeVisible();
-    await expect(page.getByText("AI-Powered")).toBeVisible();
+    // Exact for the same reason: the AI card's "AI-ready foundation" is a substring match.
+    await expect(page.getByText("AI-Ready", { exact: true })).toBeVisible();
     await expect(page.getByText("More Sales. Happier Customers.")).toBeVisible();
     await expect(page.getByText("Multi-Channel")).toBeVisible();
     await expect(page.getByText("One Platform", { exact: true })).toBeVisible();
@@ -77,6 +80,16 @@ test.describe("sign-in screen", () => {
     for (const claim of [/10K\+/, /99\.9%/, /52,000\+/, /\+18\.4%/, /thousands of businesses/i]) {
       await expect(page.getByText(claim)).toHaveCount(0);
     }
+
+    // Nor may a named third party. There is no marketplace connector in this repository, so the
+    // screen must not imply an Amazon, Flipkart or Shopify integration — in words or in a logo.
+    for (const named of [/amazon/i, /flipkart/i, /shopify/i, /marketplaces/i]) {
+      await expect(page.getByText(named)).toHaveCount(0);
+    }
+
+    // And the positioning stays a platform, not a till with extras.
+    await expect(page.getByText(/all-in-one POS/i)).toHaveCount(0);
+    await expect(page.getByText(/AI powered insights/i)).toHaveCount(0);
   });
 
   test("shows the right kind of failure for the right kind of refusal", async ({ page }) => {
@@ -317,6 +330,36 @@ for (const vp of VIEWPORTS) {
     await password.fill("typed");
     await reveal.click();
     await expect(password).toHaveAttribute("type", "text");
+
+    // The decorative cards float over the marketing column by design, and at narrow desktop
+    // widths they cover the tail of a feature description. That is the supplied design's
+    // behaviour and it is left alone. What is not allowed is a decorative card reaching a
+    // control: nothing a person has to click may sit under a picture.
+    const overlappedControls = await page.evaluate(() => {
+      const rect = (el: Element) => el.getBoundingClientRect();
+      const decorations = Array.from(document.querySelectorAll("[aria-hidden='true'] > div"));
+      const controls = Array.from(
+        document.querySelectorAll("input, button, a[href], label, select, textarea"),
+      );
+      const hits: string[] = [];
+      for (const control of controls) {
+        const c = rect(control);
+        if (c.width === 0 || c.height === 0) continue;
+        for (const decoration of decorations) {
+          const d = rect(decoration);
+          const x = Math.min(c.right, d.right) - Math.max(c.left, d.left);
+          const y = Math.min(c.bottom, d.bottom) - Math.max(c.top, d.top);
+          if (x > 0 && y > 0) {
+            hits.push(`${control.tagName} "${control.textContent?.trim().slice(0, 24)}"`);
+          }
+        }
+      }
+      return hits;
+    });
+    expect(
+      overlappedControls,
+      `a decorative card is covering a control:\n${overlappedControls.join("\n")}`,
+    ).toEqual([]);
 
     // Touch targets. 44px is the floor for anything a thumb has to find, and these four are the
     // controls a person actually reaches for on this screen.

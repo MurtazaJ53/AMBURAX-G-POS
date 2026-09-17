@@ -19,10 +19,14 @@
  * a capability statement rather than with a smaller number, because nothing in this repository
  * measures any of them and a fabricated figure is not improved by being conservative.
  *
- * What remains forward-looking is the feature grid: commerce, wholesale and AI name capabilities
- * the architecture is built for and does not yet fully ship. That is a deliberate decision by the
- * product owner, not an oversight. If you are adding to this file, the P1-3 rule applies to
- * whatever you add: no figure without a measurement behind it.
+ * The feature grid still names capabilities the architecture is built for and does not yet fully
+ * ship. Those stay, by the product owner's decision — but their wording has been pulled back to
+ * what is true today: "AI Ready" rather than "AI Intelligence", "Connect channels & web stores"
+ * rather than "Marketplaces", because no marketplace connector exists in this repository.
+ *
+ * Two rules for anything you add here. No figure without a measurement behind it. No named
+ * third party — no marketplace, no processor, no platform — unless there is a connector in the
+ * repository that talks to it.
  */
 
 const features = [
@@ -67,7 +71,7 @@ const features = [
       </svg>
     ),
     title: "Inventory",
-    desc: "Real-time stock control",
+    desc: "Centralized stock control",
     bg: "#ecfdf5",
   },
   {
@@ -132,8 +136,8 @@ const features = [
         <path d="M8 21h8M12 17v4" />
       </svg>
     ),
-    title: "Online Commerce",
-    desc: "Marketplaces & web stores",
+    title: "Commerce",
+    desc: "Connect channels & web stores",
     bg: "#eff6ff",
   },
   {
@@ -154,7 +158,7 @@ const features = [
       </svg>
     ),
     title: "B2B & Wholesale",
-    desc: "Leads, quotes and orders",
+    desc: "Customers, pricing & orders",
     bg: "#ecfdf5",
   },
   {
@@ -174,8 +178,8 @@ const features = [
         <path d="M12 1v4M12 19v4M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M1 12h4M19 12h4M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83" />
       </svg>
     ),
-    title: "AI Intelligence",
-    desc: "Insights and automation",
+    title: "AI Ready",
+    desc: "Intelligence & automation",
     bg: "#f5f3ff",
   },
   {
@@ -211,7 +215,7 @@ const features = [
 const capabilities = [
   { val: "Multi-Tenant", label: "Business Platform" },
   { val: "Real-Time", label: "Operations" },
-  { val: "AI-Powered", label: "Insights" },
+  { val: "AI-Ready", label: "Intelligence" },
 ];
 
 /**
@@ -240,6 +244,15 @@ const SalesTrendCard = () => (
   </div>
 );
 
+/**
+ * Channels, drawn generically.
+ *
+ * The supplied design filled these circles with an Amazon "a", a Flipkart-shaped mark and a
+ * Shopify bag. AMBURAX integrates with none of them — there is no marketplace connector in the
+ * repository — and a merchant reading a named marketplace on a sign-in screen reads it as
+ * "this connects to my Amazon account". The circles keep their sizes, colours, spacing and
+ * overlap; only the marks inside them changed, to a counter, a web store and an order.
+ */
 const MultiChannelCard = () => (
   <div
     className="absolute right-12 top-52 z-10 rounded-2xl bg-white p-3 shadow-xl"
@@ -247,17 +260,51 @@ const MultiChannelCard = () => (
   >
     <p className="mb-2 text-xs font-semibold text-slate-700">Multi-Channel</p>
     <div className="flex items-center gap-2">
-      <div className="flex h-8 w-8 items-center justify-center rounded-full bg-amber-100 text-sm font-bold text-amber-700">
-        a
+      <div className="flex h-8 w-8 items-center justify-center rounded-full bg-amber-100">
+        <svg
+          width="15"
+          height="15"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="#b45309"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          aria-hidden="true"
+        >
+          <path d="M3 7l1.5-3h15L21 7M4 7v13h16V7M9 20v-5h6v5" />
+        </svg>
       </div>
       <div className="flex h-8 w-8 items-center justify-center rounded-full bg-yellow-400">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="white" aria-hidden="true">
-          <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" />
+        <svg
+          width="15"
+          height="15"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="white"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          aria-hidden="true"
+        >
+          <rect x="3" y="4" width="18" height="12" rx="1" />
+          <path d="M8 20h8M12 16v4" />
         </svg>
       </div>
       <div className="flex h-8 w-8 items-center justify-center rounded-full bg-green-500">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="white" aria-hidden="true">
-          <path d="M15.5 2.1l-.4 1.3c-.8-.2-1.6-.3-2.4-.3C8.9 3.1 6 6.4 6 10.3c0 2.5 1.1 4.8 2.9 6.3L7.6 22h8.8l.6-5.8c1.1-1.2 1.8-2.8 1.8-4.6 0-2.3-1.1-4.3-2.8-5.6l.5-1.5c1 .3 1.9.7 2.6 1.3l.9-2.8c-1.2-.6-2.6-1-4-1z" />
+        <svg
+          width="15"
+          height="15"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="white"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          aria-hidden="true"
+        >
+          <path d="M6 7h12l-1 13H7L6 7z" />
+          <path d="M9 7V5a3 3 0 0 1 6 0v2" />
         </svg>
       </div>
       <div className="flex h-8 w-8 items-center justify-center rounded-full bg-slate-100 text-xs text-slate-400">
@@ -277,34 +324,26 @@ const MultiChannelCard = () => (
 const OnePlatformCard = () => (
   <div
     className="absolute bottom-44 left-2 z-10 rounded-2xl bg-white p-3 shadow-xl"
-    style={{ boxShadow: "0 8px 32px rgba(0,0,0,0.12)", minWidth: 190, maxWidth: 200 }}
+    style={{ boxShadow: "0 8px 32px rgba(0,0,0,0.12)", minWidth: 160, maxWidth: 172 }}
   >
     <p className="text-xs font-medium text-slate-500">One Platform</p>
     {/*
-      Broken onto two lines deliberately rather than left to wrap. Allowed to reflow it runs to
-      three, and this card floats over the feature grid — every extra line covers another row of
-      it. Two lines is the height the card it replaced occupied.
+      Three deliberate lines at 160px rather than two at 200px, and the avatar cluster dropped.
+
+      This card floats over the feature grid — that overlap is the supplied design's, and every
+      pixel of width or height here covers more of a feature card's description. Measured at
+      1280x720, the 200px version hid 159px of "Customers, pricing & orders"; at this footprint,
+      which is the one the design's own card occupied, it hides what the design's card hid and no
+      more. The circles went because they were avatars for a customer count this card no longer
+      mentions.
     */}
-    <p className="mt-1 text-sm font-extrabold leading-snug text-slate-800">
+    <p className="mt-1 text-xs font-extrabold leading-snug text-slate-800">
       Retail • B2B
       <br />
-      Manufacturing • Commerce
+      Manufacturing
+      <br />
+      Commerce
     </p>
-    <div className="mt-2 flex items-center gap-1">
-      {["#f97316", "#3b82f6", "#10b981"].map((c, i) => (
-        <div
-          key={c}
-          className="h-6 w-6 rounded-full border-2 border-white"
-          style={{ background: c, marginLeft: i > 0 ? -8 : 0, zIndex: 3 - i }}
-        />
-      ))}
-      <div
-        className="flex h-6 w-6 items-center justify-center rounded-full border-2 border-white bg-slate-200 text-xs font-bold text-slate-500"
-        style={{ marginLeft: -8 }}
-      >
-        +
-      </div>
-    </div>
   </div>
 );
 
@@ -328,10 +367,15 @@ const AIInsightsCard = () => (
         <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
       </svg>
     </div>
+    {/*
+      Was "AI powered insights / for a better tomorrow", which asserts a feature that ships
+      today. The feature card beside it says "AI Ready"; this now says the same thing, in the
+      same two lines and the same box.
+    */}
     <p className="text-xs font-medium leading-tight text-blue-700">
-      AI powered insights
+      AI-ready foundation
       <br />
-      for a better tomorrow
+      for insights and automation
     </p>
   </div>
 );
@@ -366,9 +410,14 @@ export function MarketingPanel() {
           Smarter, <span className="text-blue-600">Every Day</span>
         </h1>
 
+        {/*
+          "POS and business operating system" was the last line still describing the product as a
+          till with extras. The header says Business Operating Platform; this now says the same
+          thing, and names the four models the tenant model actually serves.
+        */}
         <p className="mb-8 max-w-md text-base leading-relaxed text-slate-500">
-          A modern, all-in-one POS and business operating system for retail, e-commerce and B2B.
-          Manage sales, inventory, customers and growth — effortlessly.
+          A modern, all-in-one business operating platform for retail, B2B, manufacturing and
+          commerce. Manage sales, inventory, customers and growth — effortlessly.
         </p>
 
         <div className="mb-8 grid grid-cols-2 gap-3">
