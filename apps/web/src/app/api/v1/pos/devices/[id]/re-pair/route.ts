@@ -8,9 +8,10 @@ import { repairPosDevice } from "@/server/pos/posDeviceLifecycle";
 
 export const runtime = "nodejs";
 
-export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
+export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   const correlationId = req.headers.get("x-correlation-id") ?? randomUUID();
   const sessionToken = req.cookies.get(env.SESSION_COOKIE_NAME)?.value;
+  const { id } = await ctx.params;
 
   try {
     const resolved = await resolvePosContext(sessionToken);
@@ -19,12 +20,13 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
 
     const result = await repairPosDevice({
       actor: {
-        tenantId: resolved.tenantId,
-        userId: resolved.user.id,
-        tenantRole: resolved.user.tenantRole,
-        membershipRole: resolved.membershipRole,
+        tenantId: resolved.context.tenantId,
+        userId: resolved.context.userId,
+        tenantRole: resolved.context.tenantRole,
+        membershipRole: resolved.context.membershipRole,
+        storeId: resolved.context.storeId,
       },
-      posDeviceId: params.id,
+      posDeviceId: id,
       correlationId,
     });
 
@@ -36,18 +38,18 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
           pairingExpiresAt: result.pairingExpiresAt.toISOString(),
         });
       case "forbidden":
-        return forbidden("You do not have permission to manage POS terminals.", correlationId);
+        return forbidden(correlationId, "You do not have permission to manage POS terminals.");
       case "not_found":
       case "capability_disabled":
-        return apiError(404, "not_found", "Terminal not found.", correlationId);
+        return apiError({ code: "not_found", status: 404, message: "Terminal not found.", correlationId });
       case "not_disabled":
-        return apiError(400, "not_disabled", "Terminal must be disabled before re-pairing.", correlationId);
+        return apiError({ code: "not_disabled", status: 400, message: "Terminal must be disabled before re-pairing.", correlationId });
     }
   } catch (error) {
     if (error instanceof Error && error.message.includes("ECONNREFUSED")) {
-      return serviceUnavailable(correlationId);
+      return serviceUnavailable(correlationId, "Service unavailable.");
     }
     logError("Unhandled error in POST /pos/devices/[id]/re-pair", error);
-    return apiError(500, "internal_error", "An unexpected error occurred.", correlationId);
+    return apiError({ code: "internal_error", status: 500, message: "An unexpected error occurred.", correlationId });
   }
 }

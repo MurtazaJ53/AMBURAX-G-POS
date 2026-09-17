@@ -12,6 +12,7 @@ export interface PosDeviceLifecycleActor {
   userId: string;
   tenantRole: "OWNER" | "STAFF";
   membershipRole: string | null;
+  storeId: string;
 }
 
 export type DisablePosDeviceResult =
@@ -45,6 +46,7 @@ export async function disablePosDevice(params: {
   });
 
   if (!device) return { status: "not_found" };
+  if (device.storeId !== params.actor.storeId) return { status: "forbidden" };
   if (device.disabledAt) return { status: "ok" }; // Idempotent
 
   await db.$transaction(async (tx) => {
@@ -77,7 +79,7 @@ export async function disablePosDevice(params: {
 
   await writeAuditLog({
     tenantId: tenantId,
-    actorUserId: params.actor.userId,
+    userId: params.actor.userId,
     action: "PosDeviceDisabled",
     correlationId: params.correlationId,
     metadata: { posDeviceId: device.id, storeId: device.storeId },
@@ -122,6 +124,7 @@ export async function repairPosDevice(params: {
   });
 
   if (!device) return { status: "not_found" };
+  if (device.storeId !== params.actor.storeId) return { status: "forbidden" };
   if (!device.disabledAt) return { status: "not_disabled" };
 
   const pairingCode = generatePairingCode();
@@ -160,7 +163,7 @@ export async function repairPosDevice(params: {
 
   await writeAuditLog({
     tenantId: tenantId,
-    actorUserId: params.actor.userId,
+    userId: params.actor.userId,
     action: "PosDeviceRepaired",
     correlationId: params.correlationId,
     metadata: { posDeviceId: device.id, storeId: device.storeId },
