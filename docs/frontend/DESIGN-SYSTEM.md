@@ -91,3 +91,12 @@ The Figma source is entirely hardcoded for:
 **Action Plan**:
 - Replace string literals with data fetched via TanStack Query (e.g. `useCurrentStore()`, `useCurrentUser()`).
 - Wrap POS-specific widgets inside capability checks (e.g., `if (hasCapability('RETAIL')) { render PosMetrics }`).
+
+## 5. Implementation Status
+
+**Phase F1 (Design System Primitives): COMPLETE**
+- Base tailwind config and semantic CSS variables added to globals.css and 	ailwind.config.ts.
+- lucide-react installed for unified iconography.
+- Core UI Primitives built in src/components/ui: Button, Input, Badge, Card, Skeleton, EmptyState, ErrorState, Table, Tabs, Dialog, DropdownMenu.
+- Primitives leverage Radix UI where appropriate for semantic HTML and accessibility.
+- Vitest component tests added in src/test-component/ui-primitives.test.tsx ensuring correct render without crashing.

@@ -5,14 +5,7 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        /**
-         * The AMBURAX platform palette, bound to the tokens in src/design/tokens.css.
-         *
-         * Every value is a CSS variable rather than a literal, so one file decides what the
-         * product looks like and a capability surface added later inherits it for free. The
-         * variables are declared under `[data-amburax]`, so these classes only resolve inside
-         * a surface that opts in — which is why the existing workspace screens are unaffected.
-         */
+        /* Legacy AMBURAX (Do Not Remove) */
         amb: {
           surface: "var(--amb-surface-base)",
           raised: "var(--amb-surface-raised)",
@@ -47,16 +40,66 @@ const config: Config = {
           600: "#1d4ed8",
           700: "#1e40af",
         },
+        /* New F1 Semantic Tokens */
+        background: {
+          app: "var(--color-bg-app)",
+          card: "var(--color-bg-card)",
+          subtle: "var(--color-bg-subtle)",
+          hover: "var(--color-bg-hover)",
+          active: "var(--color-bg-active)",
+        },
+        border: {
+          DEFAULT: "var(--color-border)",
+          hover: "var(--color-border-hover)",
+          focus: "var(--color-border-focus)",
+        },
+        primary: {
+          DEFAULT: "var(--color-primary)",
+          hover: "var(--color-primary-hover)",
+          active: "var(--color-primary-active)",
+          subtle: "var(--color-primary-subtle)",
+        },
+        success: {
+          DEFAULT: "var(--color-success)",
+          subtle: "var(--color-success-subtle)",
+        },
+        warning: {
+          DEFAULT: "var(--color-warning)",
+          subtle: "var(--color-warning-subtle)",
+        },
+        danger: {
+          DEFAULT: "var(--color-danger)",
+          subtle: "var(--color-danger-subtle)",
+        },
+        info: {
+          DEFAULT: "var(--color-info)",
+          subtle: "var(--color-info-subtle)",
+        },
+      },
+      textColor: {
+        primary: "var(--color-text-primary)",
+        secondary: "var(--color-text-secondary)",
+        tertiary: "var(--color-text-tertiary)",
+        disabled: "var(--color-text-disabled)",
       },
       borderRadius: {
         amb: "var(--amb-radius-md)",
         "amb-sm": "var(--amb-radius-sm)",
         "amb-lg": "var(--amb-radius-lg)",
+        /* New F1 Tokens */
+        sm: "var(--radius-sm)",
+        md: "var(--radius-md)",
+        lg: "var(--radius-lg)",
+        xl: "var(--radius-xl)",
       },
       boxShadow: {
         amb: "var(--amb-shadow-sm)",
         "amb-md": "var(--amb-shadow-md)",
         "amb-lg": "var(--amb-shadow-lg)",
+        /* New F1 Tokens */
+        subtle: "var(--shadow-subtle)",
+        card: "var(--shadow-card)",
+        dialog: "var(--shadow-dialog)",
       },
       minHeight: {
         touch: "var(--amb-touch)",
@@ -68,3 +111,4 @@ const config: Config = {
 };
 
 export default config;
+

@@ -70,7 +70,7 @@ export default defineConfig({
     // the hoisted React 18.
     server: {
       deps: {
-        inline: [/@testing-library\//],
+        inline: [/@testing-library\//, /@radix-ui\//, /lucide-react/],
       },
     },
     env: {
@@ -78,3 +78,4 @@ export default defineConfig({
     },
   },
 });
+
