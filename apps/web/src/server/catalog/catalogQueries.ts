@@ -4,7 +4,7 @@ import { db } from "@/server/db";
  * Catalogue and stock reads for the Products and Inventory workspaces.
  *
  * Deliberately separate from `server/sales/catalog.ts`, which answers a different question:
- * that module is the till's fast lookup — barcode-first, capped, optimised for a cashier
+ * that module is the till's fast lookup Ã¢â‚¬â€ barcode-first, capped, optimised for a cashier
  * mid-sale. These are paginated management views over the same rows. Merging them would
  * force one query to serve two access patterns and make the counter slower to serve the
  * back office.
@@ -41,6 +41,7 @@ export interface ProductRow {
   name: string;
   category: string | null;
   brand: string | null;
+  imageUrl: string | null;
   isActive: boolean;
   variantCount: number;
   /** Lowest and highest selling price across the product's variants, in minor units. */
@@ -48,7 +49,7 @@ export interface ProductRow {
   priceToMinor: number | null;
   /**
    * Summed operational count across this store (ADR-080). Null when *no* variant of the
-   * product has ever been counted here — different from a genuine zero.
+   * product has ever been counted here Ã¢â‚¬â€ different from a genuine zero.
    */
   stockQuantity: number | null;
   variants: ProductVariantRow[];
@@ -93,6 +94,7 @@ export async function listProducts(params: {
       name: true,
       category: true,
       brand: true,
+      imageUrl: true,
       isActive: true,
       variants: {
         select: {
@@ -136,6 +138,7 @@ export async function listProducts(params: {
       name: product.name,
       category: product.category,
       brand: product.brand,
+      imageUrl: product.imageUrl,
       isActive: product.isActive,
       variantCount: variants.length,
       priceFromMinor: prices.length > 0 ? Math.min(...prices) : null,
@@ -156,6 +159,7 @@ export interface InventoryRow {
   productName: string;
   category: string | null;
   brand: string | null;
+  imageUrl: string | null;
   sku: string;
   barcode: string | null;
   size: string | null;
@@ -205,7 +209,7 @@ export async function listInventory(params: {
       size: true,
       colour: true,
       priceMinor: true,
-      product: { select: { name: true, category: true, brand: true } },
+      product: { select: { name: true, category: true, brand: true, imageUrl: true } },
       stockLevels: {
         where: { storeId: params.storeId },
         select: { quantity: true, updatedAt: true },
@@ -222,6 +226,7 @@ export async function listInventory(params: {
       productName: variant.product.name,
       category: variant.product.category,
       brand: variant.product.brand,
+      imageUrl: variant.product.imageUrl,
       sku: variant.sku,
       barcode: variant.barcode,
       size: variant.size,
@@ -241,7 +246,7 @@ export interface CatalogSummary {
   variants: number;
   /** Variants with a counted row in this store. */
   counted: number;
-  /** Total units on hand across counted variants. Can be negative — see ADR-080. */
+  /** Total units on hand across counted variants. Can be negative Ã¢â‚¬â€ see ADR-080. */
   unitsOnHand: number;
   outOfStock: number;
   oversold: number;
@@ -251,7 +256,7 @@ export interface CatalogSummary {
  * Headline figures for the Inventory workspace.
  *
  * Note what is missing: stock *value*. `ProductVariant` has a selling price but no cost
- * price, and valuing inventory at retail would be a different — and wrong — number from the
+ * price, and valuing inventory at retail would be a different Ã¢â‚¬â€ and wrong Ã¢â‚¬â€ number from the
  * one an accountant means by "stock value".
  */
 export async function getCatalogSummary(params: {
@@ -275,4 +280,27 @@ export async function getCatalogSummary(params: {
     outOfStock,
     oversold,
   };
+}
+
+
+
+export async function getProduct(params: { tenantId: string; productId: string }) {
+  const product = await db.product.findUnique({
+    where: { id_tenantId: { id: params.productId, tenantId: params.tenantId } },
+    include: {
+      variants: {
+        orderBy: { sku: "asc" },
+      },
+      baseUom: true,
+    }
+  });
+  return product;
+}
+export async function getVariant(opts: {
+  tenantId: string;
+  variantId: string;
+}) {
+  return await db.productVariant.findUnique({
+    where: { id_tenantId: { id: opts.variantId, tenantId: opts.tenantId } },
+  });
 }
