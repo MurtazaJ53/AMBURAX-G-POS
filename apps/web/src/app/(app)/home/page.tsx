@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { redirect } from "next/navigation";
 import { cookies } from "next/headers";
 import { env } from "@/lib/env";
@@ -7,56 +6,60 @@ import { ServiceUnavailableScreen } from "@/app/ServiceUnavailableScreen";
 import { resolveSession } from "@/server/identity/session";
 import { getOnboardingResume } from "@/server/onboarding/resume";
 import { resolvePosContext, type PosContext } from "@/server/sales/posContext";
+import { getTenantCapabilities } from "@/server/tenant/capabilities";
 import {
-  getTodayMetrics,
+  getPaymentMix,
+  getSalesBreakdown,
+  getSalesTrend,
+  getShiftActivity,
   getStockSignal,
+  getTodayMetrics,
   startOfStoreDay,
-  type DashboardTodayMetrics,
-  type DashboardStockSignal,
 } from "@/server/dashboard/dashboardQueries";
-import { listSales, type SaleListRow } from "@/server/sales/saleQueries";
-import { formatMinor } from "@/server/sales/saleTotals";
-import { formatDateTime, formatTime } from "../sales/formatDateTime";
 import {
-  Card,
-  CardHeader,
-  DataTable,
-  EmptyState,
-  KpiCard,
-  LinkButton,
-  PageHeader,
-  QuickAction,
-  StatusBadge,
-  StockBadge,
-  Td,
-  Th,
-} from "../_components/ui";
+  canViewShiftActivity,
+  canViewStockSignal,
+  canViewStoreAnalytics,
+} from "@/server/dashboard/dashboardAccess";
+import { formatTradingDay, greetingFor } from "@/server/dashboard/dashboardTransforms";
+import { listSales } from "@/server/sales/saleQueries";
+import { DashboardHeader } from "@/components/dashboard/DashboardHeader";
+import { KpiGrid } from "@/components/dashboard/KpiGrid";
+import { SalesTrendCard } from "@/components/dashboard/SalesTrendCard";
+import { CategorySalesCard, PaymentMethodsCard } from "@/components/dashboard/AnalyticsCards";
+import {
+  FastMovingProductsCard,
+  RecentSalesCard,
+  StockSignalCard,
+} from "@/components/dashboard/OperationsCards";
+import {
+  NextStepBanner,
+  ShiftStatusCard,
+  SystemStatusCard,
+  TargetsCard,
+} from "@/components/dashboard/BusinessCards";
+import {
+  DashboardCard,
+  DashboardCardHeader,
+  WidgetUnavailable,
+} from "@/components/dashboard/primitives";
 
 /**
  * The dashboard — the landing workspace after sign-in.
  *
- * Every figure on this screen is computed from real rows for the signed-in tenant and
- * store. Where the data cannot support a metric the design reference shows, the metric is
- * absent rather than estimated: there is no inventory value (no cost price exists), no
- * growth arrows (no defined comparison period), no category or payment breakdown, no
- * targets and no staff shift panel.
+ * A server component, and deliberately: every figure on the screen is a database aggregate,
+ * so the page fetches them in parallel and ships HTML. The only thing that reaches the
+ * browser is the trend card, because it alone has state (the range switch).
  *
- * This page also keeps the onboarding resume guard (ADR-075): every authenticated entry
- * path lands here, so this is the one place that decides whether setup is still unfinished.
+ * The composition is capability- and role-aware rather than a fixed retail layout. What a
+ * tenant has switched on decides which widgets are eligible; what the viewer's role is
+ * decides which of those are worth their screen. Both are presentation decisions — the
+ * queries below are already scoped to the tenant and store the session resolved to, and no
+ * identifier on this page comes from the client.
+ *
+ * It also keeps the onboarding resume guard (ADR-075): every authenticated entry path lands
+ * here, so this is the one place that decides whether setup is still unfinished.
  */
-
-function greeting(now: Date = new Date()): string {
-  const hour = Number(
-    new Intl.DateTimeFormat("en-GB", {
-      timeZone: "Asia/Kolkata",
-      hour: "2-digit",
-      hour12: false,
-    }).format(now),
-  );
-  if (hour < 12) return "Good morning";
-  if (hour < 17) return "Good afternoon";
-  return "Good evening";
-}
 
 export default async function DashboardPage() {
   const token = (await cookies()).get(env.SESSION_COOKIE_NAME)?.value;
@@ -86,26 +89,30 @@ export default async function DashboardPage() {
   if (resume.inconsistent) {
     return (
       <div className="mx-auto max-w-xl px-4 py-16">
-        <Card className="p-8 text-center">
+        <DashboardCard className="p-8 text-center">
           <div role="alert">
-            <StatusBadge tone="warning">Setup incomplete</StatusBadge>
-            <p className="mt-4 text-base font-semibold text-slate-900">
+            <p className="text-base font-semibold text-primary">
               We can&apos;t safely continue your setup
             </p>
-            <p className="mt-2 text-sm text-slate-600">
+            <p className="mt-2 text-sm text-secondary">
               Your business is in an unexpected state. Please contact support — nothing
               you&apos;ve entered has been lost.
             </p>
           </div>
-        </Card>
+        </DashboardCard>
       </div>
     );
   }
 
-  let context: PosContext | null = null;
-  let metrics: DashboardTodayMetrics | null = null;
-  let stock: DashboardStockSignal | null = null;
-  let recent: SaleListRow[] = [];
+  let context: PosContext;
+  let capabilities: string[] = [];
+  let metrics: Awaited<ReturnType<typeof getTodayMetrics>>;
+  let stock: Awaited<ReturnType<typeof getStockSignal>>;
+  let breakdown: Awaited<ReturnType<typeof getSalesBreakdown>>;
+  let payments: Awaited<ReturnType<typeof getPaymentMix>>;
+  let shift: Awaited<ReturnType<typeof getShiftActivity>>;
+  let trend: Awaited<ReturnType<typeof getSalesTrend>>;
+  let recent: Awaited<ReturnType<typeof listSales>>;
 
   try {
     const resolved = await resolvePosContext(token);
@@ -113,208 +120,99 @@ export default async function DashboardPage() {
     if (resolved.status === "no_store") redirect("/onboarding/store");
 
     context = resolved.context;
-    [metrics, stock, recent] = await Promise.all([
-      getTodayMetrics({ tenantId: context.tenantId, storeId: context.storeId }),
-      getStockSignal({ tenantId: context.tenantId, storeId: context.storeId }),
-      listSales({ tenantId: context.tenantId, storeId: context.storeId, limit: 8 }),
+    const scope = { tenantId: context.tenantId, storeId: context.storeId };
+
+    // Every load is independent, so they run together rather than in a waterfall. Each is a
+    // narrow aggregate — no widget on this page pulls a full table to count it.
+    [capabilities, metrics, stock, breakdown, payments, shift, trend, recent] = await Promise.all([
+      getTenantCapabilities(context.tenantId),
+      getTodayMetrics(scope),
+      getStockSignal(scope),
+      getSalesBreakdown(scope),
+      getPaymentMix(scope),
+      getShiftActivity(scope),
+      getSalesTrend({ ...scope, range: "today" }),
+      listSales({ ...scope, limit: 6 }),
     ]);
   } catch (err) {
     logError("dashboard: metrics load failed", err);
     return <ServiceUnavailableScreen />;
   }
 
-  const tradingDay = new Intl.DateTimeFormat("en-IN", {
-    dateStyle: "full",
-    timeZone: "Asia/Kolkata",
-  }).format(startOfStoreDay());
+  const viewer = { tenantRole: context.tenantRole, membershipRole: context.membershipRole };
+  const showAnalytics = canViewStoreAnalytics(viewer);
+  const showShift = canViewShiftActivity(viewer);
+  const showStock = canViewStockSignal(viewer);
+
+  // Capability gates. A payment split and a shift panel are statements about a counter, so
+  // they belong to the retail capability; a tenant running wholesale-only has neither.
+  const hasRetail = capabilities.includes("RETAIL");
+  const hasWholesale = capabilities.includes("WHOLESALE");
+  const showPaymentMix = showAnalytics && hasRetail;
 
   return (
-    <div className="px-4 py-6 sm:px-6">
-      <PageHeader
-        title={`${greeting()}, ${context.userName}`}
-        subtitle={`${context.storeName} · #${context.storeCode} — ${tradingDay}`}
-        actions={
-          context.canSell ? (
-            <LinkButton href="/pos">+ New Sale</LinkButton>
-          ) : (
-            <StatusBadge tone="neutral">View only in this store</StatusBadge>
-          )
-        }
+    <div className="space-y-4 px-4 py-4 sm:px-5">
+      <DashboardHeader
+        greeting={greetingFor()}
+        userName={context.userName}
+        storeName={context.storeName}
+        tradingDay={formatTradingDay(startOfStoreDay())}
+        canSell={context.canSell}
       />
 
-      {/* Four figures, each a direct aggregate of today's committed rows. */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <KpiCard
-          label="Today's sales"
-          value={formatMinor(metrics.salesMinor)}
-          hint={
-            metrics.averageBillMinor === null
-              ? "No sales yet today"
-              : `Average bill ${formatMinor(metrics.averageBillMinor)}`
-          }
-          tone="blue"
-        />
-        <KpiCard
-          label="Bills"
-          value={String(metrics.billCount)}
-          hint="Completed sales today"
-          tone="violet"
-        />
-        <KpiCard
-          label="Items sold"
-          value={String(metrics.itemsSold)}
-          hint="Units across today's bills"
-          tone="emerald"
-        />
-        <KpiCard
-          label="New customers"
-          value={String(metrics.newCustomers)}
-          hint="Added today"
-          tone="amber"
-        />
-      </div>
+      <KpiGrid metrics={metrics} stock={stock} />
 
-      <div className="mt-6 grid grid-cols-1 gap-4 xl:grid-cols-3">
-        <Card className="xl:col-span-2">
-          <CardHeader
-            title="Recent sales"
-            subtitle="Most recent completed bills in this store"
-            action={
-              <Link href="/sales" className="text-xs font-medium text-blue-600 hover:underline">
-                View all
-              </Link>
-            }
+      {/* The reference's middle-row proportions, but only at the width that can hold three
+          columns; below that they wrap rather than compress into slivers. */}
+      {showAnalytics && (
+        <div className="grid grid-cols-1 gap-3 lg:grid-cols-2 xl:grid-cols-[minmax(0,1fr)_280px_220px]">
+          <SalesTrendCard
+            initialRange="today"
+            initialPoints={trend.map((point) => ({
+              label: point.label,
+              salesMinor: point.salesMinor,
+              billCount: point.billCount,
+            }))}
           />
-          {recent.length === 0 ? (
-            <EmptyState
-              title="No sales yet"
-              description="Completed sales in this store will appear here."
-              action={
-                context.canSell ? <LinkButton href="/pos">Open the till</LinkButton> : undefined
-              }
-            />
-          ) : (
-            <DataTable caption="Recent sales">
-              <thead className="border-b border-slate-100">
-                <tr>
-                  <Th>Time</Th>
-                  <Th>Bill no.</Th>
-                  <Th>Customer</Th>
-                  <Th align="right">Amount</Th>
-                  <Th>Payment</Th>
-                  <Th>Accounting</Th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-50">
-                {recent.map((sale) => (
-                  <tr key={sale.id} className="hover:bg-slate-50">
-                    <Td className="whitespace-nowrap text-slate-500">
-                      {formatTime(sale.completedAt)}
-                    </Td>
-                    <Td>
-                      <Link
-                        href={`/sales/${sale.id}`}
-                        className="font-medium text-blue-600 hover:underline"
-                      >
-                        {sale.billNumber}
-                      </Link>
-                    </Td>
-                    <Td className="text-slate-600">{sale.customerName ?? "Walk-in"}</Td>
-                    <Td align="right" className="font-medium text-slate-900">
-                      {formatMinor(sale.totalMinor)}
-                    </Td>
-                    <Td className="text-slate-600">{sale.paymentMethod ?? "—"}</Td>
-                    <Td>
-                      {/* No ERPNext adapter exists, so this is always "not posted" today.
-                          Showing it per row is what stops the list implying the books are
-                          up to date. */}
-                      {sale.erpSyncStatus === "SYNCED" ? (
-                        <StatusBadge tone="success">Posted</StatusBadge>
-                      ) : (
-                        <StatusBadge tone="warning">Not posted</StatusBadge>
-                      )}
-                    </Td>
-                  </tr>
-                ))}
-              </tbody>
-            </DataTable>
-          )}
-        </Card>
-
-        <Card>
-          <CardHeader
-            title="Stock signal"
-            subtitle="AMBURAX operational count — not an accounting stock ledger"
-            action={
-              <Link href="/inventory" className="text-xs font-medium text-blue-600 hover:underline">
-                Inventory
-              </Link>
-            }
+          <CategorySalesCard
+            categories={breakdown.categories}
+            uncategorisedMinor={breakdown.uncategorisedMinor}
           />
-          <div className="grid grid-cols-2 gap-px bg-slate-100">
-            <div className="bg-white px-5 py-4">
-              <p className="text-xs text-slate-500">Counted here</p>
-              <p className="mt-1 text-xl font-semibold text-slate-900">{stock.countedVariants}</p>
-            </div>
-            <div className="bg-white px-5 py-4">
-              <p className="text-xs text-slate-500">Never counted</p>
-              <p className="mt-1 text-xl font-semibold text-slate-900">{stock.uncountedVariants}</p>
-            </div>
-            <div className="bg-white px-5 py-4">
-              <p className="text-xs text-slate-500">Out of stock</p>
-              <p className="mt-1 text-xl font-semibold text-amber-600">{stock.outOfStock}</p>
-            </div>
-            <div className="bg-white px-5 py-4">
-              <p className="text-xs text-slate-500">Oversold</p>
-              <p className="mt-1 text-xl font-semibold text-rose-600">{stock.oversold}</p>
-            </div>
-          </div>
-
-          {stock.lowest.length > 0 && (
-            <div className="border-t border-slate-100 px-5 py-4">
-              <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
-                Lowest counts
-              </p>
-              <ul className="mt-2 space-y-2">
-                {stock.lowest.map((row) => (
-                  <li key={row.variantId} className="flex items-center justify-between gap-2">
-                    <span className="min-w-0">
-                      <span className="block truncate text-sm text-slate-900">
-                        {row.productName}
-                      </span>
-                      <span className="block text-xs text-slate-400">{row.sku}</span>
-                    </span>
-                    <StockBadge quantity={row.quantity} />
-                  </li>
-                ))}
-              </ul>
-            </div>
+          {showPaymentMix && (
+            <PaymentMethodsCard rows={payments.rows} totalMinor={payments.totalMinor} />
           )}
-
-          {/*
-            There is no reorder-level column in the schema, so this panel never claims "low
-            stock" — that would be a threshold the data cannot support (ADR-080).
-          */}
-          <p className="border-t border-slate-100 px-5 py-3 text-xs text-slate-400">
-            No reorder levels are configured yet, so AMBURAX doesn&apos;t flag low stock —
-            only what it has actually counted.
-          </p>
-        </Card>
-      </div>
-
-      <div className="mt-6">
-        <h2 className="text-sm font-semibold text-slate-900">Quick actions</h2>
-        <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4">
-          {context.canSell && <QuickAction href="/pos" label="New sale" hint="F2" />}
-          <QuickAction href="/products" label="Products" hint="Catalogue" />
-          <QuickAction href="/customers" label="Customers" hint="Records" />
-          <QuickAction href="/sales" label="Sales" hint="History" />
         </div>
+      )}
+
+      <div className="grid grid-cols-1 gap-3 lg:grid-cols-2 xl:grid-cols-3">
+        <FastMovingProductsCard products={breakdown.topProducts} />
+        {showStock && <StockSignalCard stock={stock} />}
+        <RecentSalesCard sales={recent} />
       </div>
 
-      <p className="mt-6 text-xs text-slate-400">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        {stock.uncountedVariants > 0 ? (
+          <NextStepBanner uncountedVariants={stock.uncountedVariants} />
+        ) : null}
+        {showShift && hasRetail && <ShiftStatusCard activity={shift} />}
+        {hasWholesale && (
+          <DashboardCard aria-labelledby="b2b-heading">
+            <DashboardCardHeader id="b2b-heading" title="B2B orders" />
+            {/* The capability is on, so the slot is real; the module behind it is not built,
+                so the slot says that rather than showing a zero that looks like no trade. */}
+            <WidgetUnavailable
+              title="Not available yet"
+              reason="Wholesale ordering is enabled for this business but the module has not shipped, so there are no B2B figures to report."
+            />
+          </DashboardCard>
+        )}
+        <TargetsCard />
+        <SystemStatusCard activity={shift} stock={stock} />
+      </div>
+
+      <p className="text-xs text-tertiary">
         Figures cover today&apos;s trading day in {context.storeName} and update as sales are
-        completed. Last loaded {formatDateTime(new Date())}.
+        completed.
       </p>
     </div>
   );

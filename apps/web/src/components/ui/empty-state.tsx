@@ -25,12 +25,12 @@ export function EmptyState({
       )}
       {...props}
     >
-      <div className="flex h-12 w-12 items-center justify-center rounded-full bg-bg-subtle mb-4">
-        <Icon className="h-6 w-6 text-text-tertiary" />
+      <div className="flex h-12 w-12 items-center justify-center rounded-full bg-background-subtle mb-4">
+        <Icon className="h-6 w-6 text-tertiary" />
       </div>
-      <h3 className="text-lg font-semibold text-text-primary">{title}</h3>
+      <h3 className="text-lg font-semibold text-primary">{title}</h3>
       {description && (
-        <p className="text-sm text-text-secondary mt-2 max-w-sm">
+        <p className="text-sm text-secondary mt-2 max-w-sm">
           {description}
         </p>
       )}

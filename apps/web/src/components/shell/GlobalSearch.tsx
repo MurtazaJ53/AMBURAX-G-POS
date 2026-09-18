@@ -45,7 +45,9 @@ export function GlobalSearch() {
         <Search className="h-4 w-4 shrink-0" />
         <span className="flex-1 text-left truncate">Search products, customers, orders...</span>
         <kbd className="pointer-events-none hidden h-5 select-none items-center gap-1 rounded border border-border bg-background-subtle px-1.5 font-mono text-[10px] font-medium opacity-100 sm:flex">
-          <span className="text-xs">âŒ˜</span >K
+          {/* Was mojibake: the command glyph had been written as its UTF-8 bytes decoded as
+              Latin-1, so the shortcut rendered as "âŒ˜K" in the browser. */}
+          <span className="text-xs">⌘</span>K
         </kbd>
       </button>
 
