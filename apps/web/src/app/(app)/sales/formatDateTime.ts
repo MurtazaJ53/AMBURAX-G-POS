@@ -16,3 +16,14 @@ export function formatDateTime(value: Date): string {
     timeZone: "Asia/Kolkata",
   }).format(value);
 }
+
+/**
+ * Time alone, for lists where every row is from the same trading day and repeating the
+ * date would be noise the operator has to read past.
+ */
+export function formatTime(value: Date): string {
+  return new Intl.DateTimeFormat("en-IN", {
+    timeStyle: "short",
+    timeZone: "Asia/Kolkata",
+  }).format(value);
+}

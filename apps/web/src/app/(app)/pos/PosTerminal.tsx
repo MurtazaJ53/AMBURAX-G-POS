@@ -11,17 +11,21 @@ import {
 } from "@/server/sales/saleTotals";
 
 /**
- * The selling screen.
+ * The till.
  *
- * Two rules shape everything here:
+ * The request this screen sends is unchanged from the version covered by the integration
+ * suite: variant ids, quantities, an optional customer and a tender. No price, no total, no
+ * tenant, no store, no cashier. The server re-reads every price and recomputes the total
+ * before charging, so the figures here are a preview — computed with the same pure function
+ * the server uses, from prices the server sent, which is why they agree.
  *
- * 1. **The totals on screen are a preview, not the price.** They are computed with the
- *    same pure function the server uses, from prices the server sent, so they agree — but
- *    the sale request carries no money at all. The server re-reads every price and
- *    recomputes the total before charging. If the two ever disagree, the server is right.
- * 2. **A sale must never be rung twice.** One idempotency key is minted per cart and
- *    reused for every attempt at that cart, so a double click, an impatient retry or a
- *    flaky connection resolves to the same sale rather than a second one.
+ * The other invariant: one idempotency key per cart, reused for every attempt at that cart,
+ * so a double click, an impatient retry or a flaky connection resolves to the same sale
+ * rather than a second one.
+ *
+ * Deliberately absent: the discount control from the design reference. Discount is not yet
+ * authorized server-side (known gap D-1), and putting it on screen would make an unguarded
+ * financial input reachable from the counter.
  */
 
 interface CatalogHit {
@@ -68,17 +72,12 @@ const PAYMENT_METHODS: { value: PaymentMethod; label: string }[] = [
   { value: "CARD", label: "Card" },
 ];
 
-function variantLabel(line: { size: string | null; colour: string | null }): string {
-  return [line.colour, line.size].filter(Boolean).join(" · ");
-}
-
 /**
  * A settled search result, tagged with the term that produced it.
  *
- * Carrying the term is what lets "loading", "cleared" and "stale" be *derived* from what
- * is typed rather than tracked as separate state. Flags like `searching` and `searched`
- * have to be cleared in an effect the moment the box is emptied; a tagged result does not,
- * because a result whose term no longer matches the input is simply not displayed.
+ * Carrying the term is what lets "loading", "cleared" and "stale" be derived from what is
+ * typed rather than tracked as separate state — a result whose term no longer matches the
+ * input is simply not displayed.
  */
 interface SearchState<T> {
   term: string;
@@ -88,13 +87,26 @@ interface SearchState<T> {
 
 const EMPTY_SEARCH = { term: "", results: [], error: null };
 
+function variantLabel(line: { size: string | null; colour: string | null }): string | null {
+  const parts = [line.colour, line.size].filter(Boolean);
+  return parts.length > 0 ? parts.join(" · ") : null;
+}
+
+/** Stock wording, matching the Inventory workspace: an operational count, never a ledger. */
+function stockLabel(quantity: number | null): { text: string; className: string } {
+  if (quantity === null) return { text: "Not counted", className: "bg-slate-100 text-slate-500" };
+  if (quantity < 0)
+    return { text: `Oversold (${quantity})`, className: "bg-rose-50 text-rose-700" };
+  if (quantity === 0) return { text: "Out of stock", className: "bg-amber-50 text-amber-700" };
+  return { text: `${quantity} on hand`, className: "bg-emerald-50 text-emerald-700" };
+}
+
 export function PosTerminal(props: { storeName: string; storeCode: string; cashierName: string }) {
   const [query, setQuery] = useState("");
   const [search, setSearch] = useState<SearchState<CatalogHit>>(EMPTY_SEARCH);
 
   const [cart, setCart] = useState<CartLine[]>([]);
   const [cartNotice, setCartNotice] = useState<string | null>(null);
-
   const [customer, setCustomer] = useState<CustomerHit | null>(null);
 
   const [method, setMethod] = useState<PaymentMethod>("CASH");
@@ -104,22 +116,18 @@ export function PosTerminal(props: { storeName: string; storeCode: string; cashi
   const [saleError, setSaleError] = useState<string | null>(null);
   const [completed, setCompleted] = useState<CompletedSale | null>(null);
 
-  // One key per cart. Minted when the cart is created and held until the sale succeeds and
-  // the operator starts a new one, so every retry of *this* cart carries the same key.
+  // One key per cart, minted when the cart is created and held until the operator starts a
+  // new one, so every retry of *this* cart carries the same key.
   const idempotencyKey = useRef<string>(crypto.randomUUID());
-
   const searchInput = useRef<HTMLInputElement>(null);
-
-  // Debounced search. The request is sequenced so a slow earlier response cannot overwrite
-  // a fast later one — at a counter, stale results on screen are results the operator will
-  // click.
   const requestSeq = useRef(0);
+
   const term = query.trim();
 
+  // Debounced, sequenced search. A slow earlier response cannot overwrite a fast later one
+  // — at a counter, stale results on screen are results the operator will click.
   useEffect(() => {
     const current = query.trim();
-    // Nothing typed means nothing to search. The displayed state is derived below, so
-    // there is nothing to clear here either.
     if (current.length === 0) return;
 
     const seq = ++requestSeq.current;
@@ -131,7 +139,11 @@ export function PosTerminal(props: { storeName: string; storeCode: string; cashi
         setSearch(
           res.ok
             ? { term: current, results: data.results as CatalogHit[], error: null }
-            : { term: current, results: [], error: data?.error?.message ?? "Product lookup failed." },
+            : {
+                term: current,
+                results: [],
+                error: data?.error?.message ?? "Product lookup failed.",
+              },
         );
       } catch {
         if (seq !== requestSeq.current) return;
@@ -146,8 +158,6 @@ export function PosTerminal(props: { storeName: string; storeCode: string; cashi
     return () => clearTimeout(timer);
   }, [query]);
 
-  // Derived from what is typed and what came back, so emptying the box or typing a new
-  // term cannot leave a stale list or a stale spinner on screen.
   const settled = search.term === term;
   const results = settled ? search.results : [];
   const searchError = settled ? search.error : null;
@@ -245,10 +255,7 @@ export function PosTerminal(props: { storeName: string; storeCode: string; cashi
           idempotencyKey: idempotencyKey.current,
           lines: cart.map((l) => ({ variantId: l.variantId, quantity: l.quantity })),
           customerId: customer?.id ?? null,
-          payment: {
-            method,
-            reference: reference.trim() ? reference.trim() : undefined,
-          },
+          payment: { method, reference: reference.trim() ? reference.trim() : undefined },
         }),
       });
       const data = await res.json();
@@ -285,142 +292,176 @@ export function PosTerminal(props: { storeName: string; storeCode: string; cashi
   }
 
   return (
-    <div className="flex min-h-screen flex-col gap-4 p-4 lg:flex-row">
-      {/* Catalogue side */}
-      <section className="flex min-w-0 flex-1 flex-col rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-        <label htmlFor="pos-search" className="text-sm font-medium text-slate-700">
-          Scan or search
-        </label>
-        <input
-          id="pos-search"
-          ref={searchInput}
-          autoFocus
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          onKeyDown={onSearchKeyDown}
-          placeholder="Barcode, SKU or product name"
-          className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-slate-900"
-        />
+    <div className="flex min-h-[calc(100vh-57px)] flex-col gap-4 p-4 lg:flex-row">
+      {/* ---------------------------------------------------------- catalogue */}
+      <section className="flex min-w-0 flex-1 flex-col rounded-xl border border-slate-200 bg-white shadow-sm">
+        <div className="border-b border-slate-100 p-4">
+          <label htmlFor="pos-search" className="text-sm font-medium text-slate-700">
+            Scan or search
+          </label>
+          <input
+            id="pos-search"
+            ref={searchInput}
+            autoFocus
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            onKeyDown={onSearchKeyDown}
+            placeholder="Barcode, SKU or product name"
+            className="mt-1.5 w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+          />
+        </div>
 
-        <div className="mt-4 min-h-0 flex-1 overflow-y-auto">
-          {searching && <p className="py-6 text-center text-sm text-slate-400">Searching…</p>}
+        <div className="min-h-0 flex-1 overflow-y-auto p-4">
+          {searching && <p className="py-10 text-center text-sm text-slate-400">Searching…</p>}
 
           {searchError && (
-            <p role="alert" className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">
+            <p role="alert" className="rounded-lg bg-rose-50 px-3 py-2 text-sm text-rose-700">
               {searchError}
             </p>
           )}
 
           {!searching && !searchError && searched && results.length === 0 && (
-            <p className="py-6 text-center text-sm text-slate-500">
-              Nothing matches &ldquo;{query.trim()}&rdquo;.
+            <p className="py-10 text-center text-sm text-slate-500">
+              Nothing matches &ldquo;{term}&rdquo;.
             </p>
           )}
 
           {!searching && !searchError && !searched && (
-            <p className="py-6 text-center text-sm text-slate-400">
-              Scan an item or start typing to find it.
-            </p>
+            <div className="py-10 text-center">
+              <p className="text-sm text-slate-500">Scan an item or start typing to find it.</p>
+              <p className="mt-1 text-xs text-slate-400">
+                A single match rings straight in when you press Enter.
+              </p>
+            </div>
           )}
 
-          <ul className="divide-y divide-slate-100">
-            {results.map((hit) => (
-              <li key={hit.variantId}>
-                <button
-                  type="button"
-                  onClick={() => addToCart(hit)}
-                  className="flex w-full items-center justify-between gap-3 px-1 py-3 text-left hover:bg-slate-50"
-                >
-                  <span className="min-w-0">
-                    <span className="block truncate text-sm font-medium text-slate-900">
+          {results.length > 0 && (
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
+              {results.map((hit) => {
+                const stock = stockLabel(hit.stockQuantity);
+                return (
+                  <button
+                    key={hit.variantId}
+                    type="button"
+                    onClick={() => addToCart(hit)}
+                    className="flex flex-col rounded-xl border border-slate-200 bg-white p-3 text-left transition-colors hover:border-blue-400 hover:bg-blue-50/40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600"
+                  >
+                    {/* No image column exists in the schema, so this is a monogram tile
+                        rather than a stock photograph of something else. */}
+                    <span
+                      aria-hidden="true"
+                      className="mb-2 flex h-16 w-full items-center justify-center rounded-lg bg-slate-100 text-base font-semibold text-slate-400"
+                    >
+                      {hit.productName.slice(0, 2).toUpperCase()}
+                    </span>
+                    <span className="line-clamp-2 text-sm font-medium text-slate-900">
                       {hit.productName}
                     </span>
-                    <span className="block truncate text-xs text-slate-500">
+                    <span className="mt-0.5 text-xs text-slate-500">
                       {hit.sku}
                       {variantLabel(hit) && ` · ${variantLabel(hit)}`}
                     </span>
-                  </span>
-                  <span className="shrink-0 text-right">
-                    <span className="block text-sm font-medium text-slate-900">
+                    <span className="mt-2 text-sm font-semibold text-slate-900">
                       {formatMinor(hit.priceMinor)}
                     </span>
-                    {/*
-                      Null stock is genuinely different from zero: the variant has never
-                      been counted in this store. Rendering it as "0 in stock" would be a
-                      figure the system does not have.
-                    */}
-                    <span className="block text-xs text-slate-400">
-                      {hit.stockQuantity === null ? "Not counted" : `${hit.stockQuantity} in stock`}
+                    <span
+                      className={`mt-2 inline-flex w-fit rounded px-1.5 py-0.5 text-[11px] font-medium ${stock.className}`}
+                    >
+                      {stock.text}
                     </span>
-                  </span>
-                </button>
-              </li>
-            ))}
-          </ul>
+                  </button>
+                );
+              })}
+            </div>
+          )}
         </div>
       </section>
 
-      {/* Cart side */}
-      <section className="flex w-full flex-col rounded-xl border border-slate-200 bg-white p-4 shadow-sm lg:max-w-md">
-        <header className="flex items-baseline justify-between gap-2">
-          <h1 className="text-base font-semibold text-slate-900">Current sale</h1>
-          {/* The sidebar that names the store is hidden on narrow screens, and a till is
-              often a tablet — so the store is named here too. An operator must never be
-              unsure which store they are ringing into. */}
+      {/* --------------------------------------------------------------- cart */}
+      <section className="flex w-full flex-col rounded-xl border border-slate-200 bg-white shadow-sm lg:max-w-md">
+        <header className="flex items-baseline justify-between gap-2 border-b border-slate-100 px-4 py-3">
+          <h1 className="text-sm font-semibold text-slate-900">
+            Current sale{cart.length > 0 && ` (${cart.length})`}
+          </h1>
+          {/* The sidebar naming the store is hidden on narrow screens, and a till is often a
+              tablet — an operator must never be unsure which store they are ringing into. */}
           <span className="truncate text-xs text-slate-500">
-            {props.storeName} ({props.storeCode}) · {props.cashierName}
+            {props.storeName} · {props.cashierName}
           </span>
         </header>
 
-        <div className="mt-3 min-h-0 flex-1 overflow-y-auto">
+        <div className="min-h-0 flex-1 overflow-y-auto">
           {cart.length === 0 ? (
-            <p className="py-10 text-center text-sm text-slate-400">
+            <p className="px-4 py-12 text-center text-sm text-slate-400">
               No items yet. Scan or search to begin.
             </p>
           ) : (
             <ul className="divide-y divide-slate-100">
               {cart.map((line) => (
-                <li key={line.variantId} className="flex items-start gap-2 py-3">
+                <li key={line.variantId} className="flex items-start gap-3 px-4 py-3">
+                  <span
+                    aria-hidden="true"
+                    className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-xs font-semibold text-slate-400"
+                  >
+                    {line.productName.slice(0, 2).toUpperCase()}
+                  </span>
+
                   <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-medium text-slate-900">{line.productName}</p>
+                    <p className="truncate text-sm font-medium text-slate-900">
+                      {line.productName}
+                    </p>
                     <p className="truncate text-xs text-slate-500">
                       {line.sku}
                       {variantLabel(line) && ` · ${variantLabel(line)}`}
                     </p>
-                    <p className="mt-1 text-xs text-slate-500">
+                    <p className="mt-0.5 text-xs text-slate-500">
                       {formatMinor(line.unitPriceMinor)} each
                     </p>
+
+                    <div className="mt-2 flex items-center gap-1">
+                      <button
+                        type="button"
+                        aria-label={`Decrease quantity of ${line.productName}`}
+                        onClick={() => setQuantity(line.variantId, line.quantity - 1)}
+                        className="h-7 w-7 rounded-md border border-slate-300 text-slate-700 hover:bg-slate-50"
+                      >
+                        &minus;
+                      </button>
+                      <input
+                        aria-label={`Quantity of ${line.productName}`}
+                        inputMode="numeric"
+                        value={line.quantity}
+                        onChange={(e) => {
+                          // An empty field is mid-edit, not "remove": clearing it to retype
+                          // a quantity must not delete the line out from under the operator.
+                          const raw = e.target.value.trim();
+                          if (raw === "") return;
+                          const next = Number.parseInt(raw, 10);
+                          if (Number.isNaN(next)) return;
+                          setQuantity(line.variantId, next);
+                        }}
+                        className="h-7 w-12 rounded-md border border-slate-300 text-center text-sm"
+                      />
+                      <button
+                        type="button"
+                        aria-label={`Increase quantity of ${line.productName}`}
+                        onClick={() => setQuantity(line.variantId, line.quantity + 1)}
+                        className="h-7 w-7 rounded-md border border-slate-300 text-slate-700 hover:bg-slate-50"
+                      >
+                        +
+                      </button>
+                      <button
+                        type="button"
+                        aria-label={`Remove ${line.productName}`}
+                        onClick={() => setQuantity(line.variantId, 0)}
+                        className="ml-1 rounded-md px-2 py-1 text-xs text-slate-400 hover:bg-rose-50 hover:text-rose-600"
+                      >
+                        Remove
+                      </button>
+                    </div>
                   </div>
-                  <div className="flex items-center gap-1">
-                    <button
-                      type="button"
-                      aria-label={`Decrease quantity of ${line.productName}`}
-                      onClick={() => setQuantity(line.variantId, line.quantity - 1)}
-                      className="h-8 w-8 rounded-lg border border-slate-300 text-slate-700 hover:bg-slate-50"
-                    >
-                      &minus;
-                    </button>
-                    <input
-                      aria-label={`Quantity of ${line.productName}`}
-                      inputMode="numeric"
-                      value={line.quantity}
-                      onChange={(e) => {
-                        const next = Number.parseInt(e.target.value, 10);
-                        if (Number.isNaN(next)) return;
-                        setQuantity(line.variantId, next);
-                      }}
-                      className="h-8 w-12 rounded-lg border border-slate-300 text-center text-sm"
-                    />
-                    <button
-                      type="button"
-                      aria-label={`Increase quantity of ${line.productName}`}
-                      onClick={() => setQuantity(line.variantId, line.quantity + 1)}
-                      className="h-8 w-8 rounded-lg border border-slate-300 text-slate-700 hover:bg-slate-50"
-                    >
-                      +
-                    </button>
-                  </div>
-                  <p className="w-20 shrink-0 text-right text-sm font-medium text-slate-900">
+
+                  <p className="w-20 shrink-0 text-right text-sm font-semibold text-slate-900">
                     {formatMinor(line.unitPriceMinor * line.quantity)}
                   </p>
                 </li>
@@ -429,92 +470,94 @@ export function PosTerminal(props: { storeName: string; storeCode: string; cashi
           )}
         </div>
 
-        {cartNotice && (
-          <p role="alert" className="mt-2 rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-800">
-            {cartNotice}
-          </p>
-        )}
-
-        <CustomerPicker customer={customer} onChange={setCustomer} />
-
-        <dl className="mt-4 space-y-1 border-t border-slate-200 pt-3 text-sm">
-          <div className="flex justify-between text-slate-600">
-            <dt>Subtotal</dt>
-            <dd>{formatMinor(totals.subtotalMinor)}</dd>
-          </div>
-          {/* Prices are tax-inclusive (ADR-081), so tax is shown as a component of the
-              total rather than added to it. Saying "included" is what stops an operator
-              reading the total as subtotal plus tax. */}
-          <div className="flex justify-between text-slate-600">
-            <dt>Tax (included)</dt>
-            <dd>{formatMinor(totals.taxMinor)}</dd>
-          </div>
-          <div className="flex justify-between border-t border-slate-200 pt-2 text-base font-semibold text-slate-900">
-            <dt>Total</dt>
-            <dd>{formatMinor(totals.totalMinor)}</dd>
-          </div>
-        </dl>
-
-        <fieldset className="mt-4">
-          <legend className="text-sm font-medium text-slate-700">Payment</legend>
-          <div className="mt-2 flex gap-2">
-            {PAYMENT_METHODS.map((m) => (
-              <button
-                key={m.value}
-                type="button"
-                aria-pressed={method === m.value}
-                onClick={() => setMethod(m.value)}
-                className={
-                  method === m.value
-                    ? "flex-1 rounded-lg bg-slate-900 px-3 py-2 text-sm font-medium text-white"
-                    : "flex-1 rounded-lg border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
-                }
-              >
-                {m.label}
-              </button>
-            ))}
-          </div>
-
-          {method !== "CASH" && (
-            <div className="mt-2">
-              <label htmlFor="pos-reference" className="text-xs text-slate-600">
-                Reference (optional)
-              </label>
-              <input
-                id="pos-reference"
-                value={reference}
-                onChange={(e) => setReference(e.target.value)}
-                maxLength={100}
-                placeholder="Last 4 digits, UPI reference…"
-                className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
-              />
-              {/*
-                No gateway is integrated. The operator confirms on their own terminal or
-                UPI app and records the reference here; the system must not imply it
-                verified the payment itself.
-              */}
-              <p className="mt-1 text-xs text-slate-500">
-                Recorded as taken on your own {method === "UPI" ? "UPI app" : "card terminal"} —
-                AMBURAX doesn&apos;t process the payment.
-              </p>
-            </div>
+        <div className="border-t border-slate-100 p-4">
+          {cartNotice && (
+            <p role="alert" className="mb-3 rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-800">
+              {cartNotice}
+            </p>
           )}
-        </fieldset>
 
-        {saleError && (
-          <p role="alert" className="mt-3 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">
-            {saleError}
-          </p>
-        )}
+          <CustomerPicker customer={customer} onChange={setCustomer} />
 
-        <button
-          type="button"
-          onClick={completeSale}
-          disabled={cart.length === 0 || submitting}
-          className="mt-4 w-full rounded-lg bg-slate-900 px-4 py-3 text-sm font-semibold text-white disabled:opacity-50"
-        >
-          {submitting ? "Completing…" : `Complete sale · ${formatMinor(totals.totalMinor)}`}
-        </button>
+          <dl className="mt-4 space-y-1.5 text-sm">
+            <div className="flex justify-between text-slate-600">
+              <dt>Subtotal</dt>
+              <dd>{formatMinor(totals.subtotalMinor)}</dd>
+            </div>
+            {/* Prices are tax-inclusive (ADR-081), so tax is shown as a component of the
+                total rather than added to it. Saying "included" is what stops an operator
+                reading the total as subtotal plus tax. */}
+            <div className="flex justify-between text-slate-600">
+              <dt>Tax (included)</dt>
+              <dd>{formatMinor(totals.taxMinor)}</dd>
+            </div>
+            <div className="flex justify-between border-t border-slate-200 pt-2 text-lg font-semibold text-slate-900">
+              <dt>Total</dt>
+              <dd>{formatMinor(totals.totalMinor)}</dd>
+            </div>
+          </dl>
+
+          <fieldset className="mt-4">
+            <legend className="text-xs font-medium uppercase tracking-wide text-slate-500">
+              Payment mode
+            </legend>
+            <div className="mt-2 flex gap-2">
+              {PAYMENT_METHODS.map((m) => (
+                <button
+                  key={m.value}
+                  type="button"
+                  aria-pressed={method === m.value}
+                  onClick={() => setMethod(m.value)}
+                  className={
+                    method === m.value
+                      ? "flex-1 rounded-lg bg-blue-600 px-3 py-2 text-sm font-medium text-white"
+                      : "flex-1 rounded-lg border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+                  }
+                >
+                  {m.label}
+                </button>
+              ))}
+            </div>
+
+            {method !== "CASH" && (
+              <div className="mt-2">
+                <label htmlFor="pos-reference" className="text-xs text-slate-600">
+                  Reference (optional)
+                </label>
+                <input
+                  id="pos-reference"
+                  value={reference}
+                  onChange={(e) => setReference(e.target.value)}
+                  maxLength={100}
+                  placeholder="Last 4 digits, UPI reference…"
+                  className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                />
+                {/* No gateway is integrated. The operator confirms on their own terminal or
+                    UPI app and records the reference here; the system must not imply it
+                    verified the payment itself. */}
+                <p className="mt-1 text-xs text-slate-500">
+                  Recorded as taken on your own {method === "UPI" ? "UPI app" : "card terminal"} —
+                  AMBURAX doesn&apos;t process the payment.
+                </p>
+              </div>
+            )}
+          </fieldset>
+
+          {saleError && (
+            <p role="alert" className="mt-3 rounded-lg bg-rose-50 px-3 py-2 text-sm text-rose-700">
+              {saleError}
+            </p>
+          )}
+
+          <button
+            type="button"
+            onClick={completeSale}
+            disabled={cart.length === 0 || submitting}
+            className="mt-4 w-full rounded-lg bg-emerald-600 px-4 py-3 text-sm font-semibold text-white transition-colors hover:bg-emerald-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-600 disabled:pointer-events-none disabled:opacity-50"
+          >
+            {submitting ? "Completing…" : `Complete sale · ${formatMinor(totals.totalMinor)}`}
+          </button>
+        </div>
       </section>
     </div>
   );
@@ -523,9 +566,9 @@ export function PosTerminal(props: { storeName: string; storeCode: string; cashi
 /**
  * Customer attach.
  *
- * Searching never creates. Creating is a separate, explicit action, and the server
- * resolves a repeated phone number to the existing customer, so a busy counter cannot
- * accumulate three records for the same person.
+ * Searching never creates. Creating is a separate, explicit action, and the server resolves
+ * a repeated phone number to the existing customer, so a busy counter cannot accumulate
+ * three records for the same person.
  */
 function CustomerPicker(props: {
   customer: CustomerHit | null;
@@ -590,8 +633,8 @@ function CustomerPicker(props: {
       const res = await fetch("/api/v1/customers", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        // A typed search term that looks like a phone number is carried over, which is
-        // what makes the server's phone-based deduplication actually bite.
+        // A typed search term that looks like a phone number is carried over, which is what
+        // makes the server's phone-based deduplication actually bite.
         body: JSON.stringify({
           name,
           phone: /^[+0-9 ()-]+$/.test(typed) ? typed : undefined,
@@ -615,7 +658,7 @@ function CustomerPicker(props: {
 
   if (props.customer) {
     return (
-      <div className="mt-4 flex items-center justify-between rounded-lg bg-slate-50 px-3 py-2">
+      <div className="flex items-center justify-between rounded-lg bg-blue-50 px-3 py-2.5">
         <div className="min-w-0">
           <p className="truncate text-sm font-medium text-slate-900">{props.customer.name}</p>
           {props.customer.phone && (
@@ -625,7 +668,7 @@ function CustomerPicker(props: {
         <button
           type="button"
           onClick={() => props.onChange(null)}
-          className="text-xs font-medium text-slate-600 underline"
+          className="text-xs font-medium text-slate-600 underline hover:text-slate-900"
         >
           Remove
         </button>
@@ -638,15 +681,15 @@ function CustomerPicker(props: {
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="mt-4 w-full rounded-lg border border-dashed border-slate-300 px-3 py-2 text-sm text-slate-600 hover:bg-slate-50"
+        className="w-full rounded-lg border border-dashed border-slate-300 px-3 py-2.5 text-sm text-slate-600 hover:border-blue-400 hover:bg-blue-50/40"
       >
-        Add customer (optional)
+        + Add customer (optional)
       </button>
     );
   }
 
   return (
-    <div className="mt-4 rounded-lg border border-slate-200 p-3">
+    <div className="rounded-lg border border-slate-200 p-3">
       <div className="flex items-center justify-between">
         <label htmlFor="customer-search" className="text-sm font-medium text-slate-700">
           Customer
@@ -668,12 +711,12 @@ function CustomerPicker(props: {
         value={term}
         onChange={(e) => setTerm(e.target.value)}
         placeholder="Name or phone"
-        className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+        className="mt-1.5 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
       />
 
       {searching && <p className="mt-2 text-xs text-slate-400">Searching…</p>}
       {(searchError ?? createError) && (
-        <p role="alert" className="mt-2 rounded bg-red-50 px-2 py-1 text-xs text-red-700">
+        <p role="alert" className="mt-2 rounded bg-rose-50 px-2 py-1 text-xs text-rose-700">
           {searchError ?? createError}
         </p>
       )}
@@ -688,7 +731,7 @@ function CustomerPicker(props: {
                 setOpen(false);
                 setTerm("");
               }}
-              className="w-full px-1 py-2 text-left text-sm hover:bg-slate-50"
+              className="w-full rounded px-1 py-2 text-left text-sm hover:bg-slate-50"
             >
               <span className="block text-slate-900">{hit.name}</span>
               {hit.phone && <span className="block text-xs text-slate-500">{hit.phone}</span>}
@@ -704,13 +747,14 @@ function CustomerPicker(props: {
             value={newName}
             onChange={(e) => setNewName(e.target.value)}
             placeholder="Customer name"
-            className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+            aria-label="New customer name"
+            className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
           />
           <button
             type="button"
             onClick={createCustomer}
             disabled={creating}
-            className="mt-2 w-full rounded-lg bg-slate-900 px-3 py-2 text-sm font-medium text-white disabled:opacity-50"
+            className="mt-2 w-full rounded-lg bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
           >
             {creating ? "Adding…" : "Add customer"}
           </button>
@@ -723,10 +767,10 @@ function CustomerPicker(props: {
 /**
  * Post-sale confirmation.
  *
- * States what actually happened and nothing more. In particular `erpSyncStatus` is shown
- * honestly: no ERPNext adapter exists yet, so the sale is recorded in AMBURAX and not yet
- * in the accounting ledger, and the screen says exactly that rather than implying a
- * posting that never occurred.
+ * States what actually happened and nothing more. `erpSyncStatus` is shown honestly: no
+ * ERPNext adapter exists yet, so the sale is recorded in AMBURAX and not yet in the
+ * accounting ledger, and the screen says exactly that rather than implying a posting that
+ * never occurred.
  */
 function SaleSuccess(props: {
   sale: CompletedSale;
@@ -736,21 +780,25 @@ function SaleSuccess(props: {
   return (
     <div className="mx-auto max-w-md px-4 py-10">
       <div className="rounded-xl border border-slate-200 bg-white p-6 text-center shadow-sm">
-        <p className="text-sm font-medium text-emerald-700">Sale complete</p>
-        <p className="mt-2 text-3xl font-semibold text-slate-900">
+        <span
+          aria-hidden="true"
+          className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-emerald-50 text-xl text-emerald-600"
+        >
+          ✓
+        </span>
+        <p className="mt-3 text-sm font-medium text-emerald-700">Sale complete</p>
+        <p className="mt-1 text-3xl font-semibold tracking-tight text-slate-900">
           {formatMinor(props.sale.totalMinor)}
         </p>
         <p className="mt-1 text-sm text-slate-500">Bill {props.sale.billNumber}</p>
         {props.customerName && (
-          <p className="mt-1 text-sm text-slate-500">for {props.customerName}</p>
+          <p className="mt-0.5 text-sm text-slate-500">for {props.customerName}</p>
         )}
 
-        {/*
-          A retried submission returns the original sale rather than creating a second one.
-          Saying so is what stops an operator concluding they charged the customer twice.
-        */}
+        {/* A retried submission returns the original sale rather than creating a second one.
+            Saying so is what stops an operator concluding they charged the customer twice. */}
         {props.sale.duplicate && (
-          <p className="mt-3 rounded-lg bg-slate-50 px-3 py-2 text-xs text-slate-600">
+          <p className="mt-4 rounded-lg bg-slate-50 px-3 py-2 text-xs text-slate-600">
             This sale was already completed — showing the original bill. The customer was
             charged once.
           </p>
@@ -766,7 +814,7 @@ function SaleSuccess(props: {
           <button
             type="button"
             onClick={props.onNewSale}
-            className="w-full rounded-lg bg-slate-900 px-4 py-3 text-sm font-semibold text-white"
+            className="w-full rounded-lg bg-blue-600 px-4 py-3 text-sm font-semibold text-white hover:bg-blue-700"
           >
             New sale
           </button>

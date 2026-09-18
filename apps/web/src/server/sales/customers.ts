@@ -39,6 +39,134 @@ export async function searchCustomers(params: {
   });
 }
 
+/* ------------------------------------------------- the Customers workspace */
+
+export const CUSTOMER_PAGE_SIZE = 20;
+
+export interface CustomerRow {
+  id: string;
+  name: string;
+  phone: string | null;
+  email: string | null;
+  isActive: boolean;
+  createdAt: Date;
+  /** Completed sales attributed to this customer. */
+  purchaseCount: number;
+  /** Lifetime spend in minor units. */
+  totalSpentMinor: number;
+  lastPurchaseAt: Date | null;
+}
+
+export interface CustomerPage {
+  rows: CustomerRow[];
+  total: number;
+  page: number;
+  pageCount: number;
+}
+
+/**
+ * One page of customers with their real purchase history.
+ *
+ * The purchase figures are aggregated from committed sales, so they are facts rather than
+ * estimates. What the design reference shows and this deliberately omits is a customer
+ * *segment* (VIP / Regular / New) and loyalty standing: no segmentation or loyalty model
+ * exists, and a badge invented from a spend threshold this product has never defined would
+ * be a fabricated metric.
+ */
+export async function listCustomers(params: {
+  tenantId: string;
+  query?: string;
+  page?: number;
+}): Promise<CustomerPage> {
+  const trimmed = (params.query ?? "").trim();
+  const where = {
+    tenantId: params.tenantId,
+    ...(trimmed.length === 0
+      ? {}
+      : {
+          OR: [
+            { name: { contains: trimmed, mode: "insensitive" as const } },
+            { phone: { contains: trimmed } },
+            { email: { contains: trimmed, mode: "insensitive" as const } },
+          ],
+        }),
+  };
+
+  const total = await db.customer.count({ where });
+  const pageCount = Math.max(1, Math.ceil(total / CUSTOMER_PAGE_SIZE));
+  const page = Math.min(Math.max(1, Math.floor(params.page ?? 1)), pageCount);
+
+  const customers = await db.customer.findMany({
+    where,
+    select: { id: true, name: true, phone: true, email: true, isActive: true, createdAt: true },
+    orderBy: { name: "asc" },
+    skip: (page - 1) * CUSTOMER_PAGE_SIZE,
+    take: CUSTOMER_PAGE_SIZE,
+  });
+
+  // One grouped aggregate for the whole page rather than a query per row.
+  const ids = customers.map((c) => c.id);
+  const stats =
+    ids.length === 0
+      ? []
+      : await db.sale.groupBy({
+          by: ["customerId"],
+          where: { tenantId: params.tenantId, customerId: { in: ids }, status: "COMPLETED" },
+          _sum: { totalMinor: true },
+          _count: { _all: true },
+          _max: { completedAt: true },
+        });
+
+  const byCustomer = new Map(stats.map((row) => [row.customerId, row]));
+
+  return {
+    rows: customers.map((customer) => {
+      const stat = byCustomer.get(customer.id);
+      return {
+        ...customer,
+        purchaseCount: stat?._count._all ?? 0,
+        totalSpentMinor: stat?._sum.totalMinor ?? 0,
+        lastPurchaseAt: stat?._max.completedAt ?? null,
+      };
+    }),
+    total,
+    page,
+    pageCount,
+  };
+}
+
+export interface CustomerSummary {
+  total: number;
+  active: number;
+  /** Customers with more than one completed sale — a real, countable definition. */
+  repeat: number;
+  /** Lifetime takings attributable to a named customer, in minor units. */
+  attributedSalesMinor: number;
+}
+
+export async function getCustomerSummary(params: { tenantId: string }): Promise<CustomerSummary> {
+  const [total, active, grouped, attributed] = await Promise.all([
+    db.customer.count({ where: { tenantId: params.tenantId } }),
+    db.customer.count({ where: { tenantId: params.tenantId, isActive: true } }),
+    db.sale.groupBy({
+      by: ["customerId"],
+      where: { tenantId: params.tenantId, status: "COMPLETED", customerId: { not: null } },
+      _count: { _all: true },
+    }),
+    db.sale.aggregate({
+      where: { tenantId: params.tenantId, status: "COMPLETED", customerId: { not: null } },
+      _sum: { totalMinor: true },
+    }),
+  ]);
+
+  return {
+    total,
+    active,
+    repeat: grouped.filter((row) => row._count._all > 1).length,
+    attributedSalesMinor: attributed._sum.totalMinor ?? 0,
+  };
+}
+
 export type CreateCustomerResult =
   | { status: "invalid_name" }
   | { status: "ok"; customer: CustomerHit; existing: boolean };

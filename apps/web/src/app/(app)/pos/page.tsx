@@ -5,6 +5,7 @@ import { logError } from "@/lib/safeLog";
 import { ServiceUnavailableScreen } from "@/app/ServiceUnavailableScreen";
 import { resolvePosContext, type PosContextResult } from "@/server/sales/posContext";
 import { PosTerminal } from "./PosTerminal";
+import { PermissionDeniedState } from "../_components/ui";
 
 /**
  * The till.
@@ -13,6 +14,9 @@ import { PosTerminal } from "./PosTerminal";
  * browser: a user who may not sell never receives the selling UI at all. The API re-checks
  * the same thing on every request regardless — this guard is for the operator's clarity,
  * not for security.
+ *
+ * Renders inside the (app) shell, so the persistent sidebar and top bar remain visible
+ * around the till, matching the design reference.
  */
 export default async function PosPage() {
   const token = (await cookies()).get(env.SESSION_COOKIE_NAME)?.value;
@@ -42,19 +46,11 @@ export default async function PosPage() {
   if (!context.canSell) {
     return (
       <div className="mx-auto max-w-xl px-6 py-16">
-        <div
-          role="alert"
-          className="rounded-xl border border-slate-200 bg-white p-6 text-center shadow-sm"
-        >
-          <h1 className="text-lg font-semibold text-slate-900">You can&apos;t sell in this store</h1>
-          <p className="mt-2 text-sm text-slate-600">
-            Your role in {context.storeName} doesn&apos;t include taking payments. Ask an owner
-            or store manager to change your access.
-          </p>
-          <p className="mt-4 text-xs text-slate-400">
-            Signed in as {context.userName} · {context.membershipRole ?? "no store role"}
-          </p>
-        </div>
+        <PermissionDeniedState
+          title="You can't sell in this store"
+          description={`Your role in ${context.storeName} doesn't include taking payments. Ask an owner or store manager to change your access.`}
+          hint={`Signed in as ${context.userName} · ${context.membershipRole ?? "no store role"}`}
+        />
       </div>
     );
   }

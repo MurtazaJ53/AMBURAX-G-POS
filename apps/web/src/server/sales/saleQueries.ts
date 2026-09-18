@@ -26,6 +26,47 @@ export interface SaleListRow {
   storeName: string;
 }
 
+/** Shared by the capped list and the paginated workspace, so the two cannot drift. */
+const SALE_LIST_SELECT = {
+  id: true,
+  billNumber: true,
+  completedAt: true,
+  totalMinor: true,
+  status: true,
+  erpSyncStatus: true,
+  customer: { select: { name: true } },
+  cashier: { select: { name: true } },
+  store: { select: { name: true } },
+  payments: { select: { status: true, method: true }, take: 1 },
+} as const;
+
+function toListRow(s: {
+  id: string;
+  billNumber: string;
+  completedAt: Date;
+  totalMinor: number;
+  status: string;
+  erpSyncStatus: string;
+  customer: { name: string } | null;
+  cashier: { name: string };
+  store: { name: string };
+  payments: { status: string; method: string }[];
+}): SaleListRow {
+  return {
+    id: s.id,
+    billNumber: s.billNumber,
+    completedAt: s.completedAt,
+    totalMinor: s.totalMinor,
+    status: s.status,
+    erpSyncStatus: s.erpSyncStatus,
+    paymentStatus: s.payments[0]?.status ?? null,
+    paymentMethod: s.payments[0]?.method ?? null,
+    customerName: s.customer?.name ?? null,
+    cashierName: s.cashier.name,
+    storeName: s.store.name,
+  };
+}
+
 export async function listSales(params: {
   tenantId: string;
   storeId?: string;
@@ -48,35 +89,127 @@ export async function listSales(params: {
             ],
           }),
     },
-    select: {
-      id: true,
-      billNumber: true,
-      completedAt: true,
-      totalMinor: true,
-      status: true,
-      erpSyncStatus: true,
-      customer: { select: { name: true } },
-      cashier: { select: { name: true } },
-      store: { select: { name: true } },
-      payments: { select: { status: true, method: true }, take: 1 },
-    },
+    select: SALE_LIST_SELECT,
     orderBy: { completedAt: "desc" },
     take: Math.min(params.limit ?? 50, 100),
   });
 
-  return rows.map((s) => ({
-    id: s.id,
-    billNumber: s.billNumber,
-    completedAt: s.completedAt,
-    totalMinor: s.totalMinor,
-    status: s.status,
-    erpSyncStatus: s.erpSyncStatus,
-    paymentStatus: s.payments[0]?.status ?? null,
-    paymentMethod: s.payments[0]?.method ?? null,
-    customerName: s.customer?.name ?? null,
-    cashierName: s.cashier.name,
-    storeName: s.store.name,
-  }));
+  return rows.map(toListRow);
+}
+
+/* ----------------------------------------------------- the Sales workspace */
+
+export const SALES_PAGE_SIZE = 20;
+
+export interface SalesPage {
+  rows: SaleListRow[];
+  total: number;
+  page: number;
+  pageCount: number;
+}
+
+export interface SalesFilters {
+  query?: string;
+  /** Tender filter. Matches a sale carrying at least one payment of this method. */
+  method?: "CASH" | "UPI" | "CARD";
+  /** Inclusive start of the range. */
+  from?: Date;
+  /** Exclusive end of the range. */
+  to?: Date;
+}
+
+function buildSalesWhere(params: { tenantId: string; storeId?: string } & SalesFilters) {
+  const query = (params.query ?? "").trim();
+
+  return {
+    tenantId: params.tenantId,
+    ...(params.storeId ? { storeId: params.storeId } : {}),
+    ...(params.method ? { payments: { some: { method: params.method } } } : {}),
+    ...(params.from || params.to
+      ? {
+          completedAt: {
+            ...(params.from ? { gte: params.from } : {}),
+            ...(params.to ? { lt: params.to } : {}),
+          },
+        }
+      : {}),
+    ...(query.length === 0
+      ? {}
+      : {
+          OR: [
+            { billNumber: { contains: query, mode: "insensitive" as const } },
+            { customer: { name: { contains: query, mode: "insensitive" as const } } },
+            { customer: { phone: { contains: query } } },
+          ],
+        }),
+  };
+}
+
+/**
+ * A page of sale history.
+ *
+ * Real pagination against a real count, rather than a silent cap: an operator looking for
+ * last month's bill must be able to reach it. `page` is 1-based and clamped, so a
+ * hand-typed page number beyond the end lands on the last page instead of an empty screen
+ * that reads as lost data.
+ */
+export async function listSalesPage(
+  params: { tenantId: string; storeId?: string; page?: number } & SalesFilters,
+): Promise<SalesPage> {
+  const where = buildSalesWhere(params);
+
+  const total = await db.sale.count({ where });
+  const pageCount = Math.max(1, Math.ceil(total / SALES_PAGE_SIZE));
+  const page = Math.min(Math.max(1, Math.floor(params.page ?? 1)), pageCount);
+
+  const rows = await db.sale.findMany({
+    where,
+    select: SALE_LIST_SELECT,
+    orderBy: { completedAt: "desc" },
+    skip: (page - 1) * SALES_PAGE_SIZE,
+    take: SALES_PAGE_SIZE,
+  });
+
+  return { rows: rows.map(toListRow), total, page, pageCount };
+}
+
+export interface SalesSummary {
+  /** Takings across every sale matching the current filters, in minor units. */
+  totalMinor: number;
+  billCount: number;
+  /** Null when the filtered set is empty — an average of nothing is not zero. */
+  averageBillMinor: number | null;
+  /** Sales not yet posted to accounting. Today that is all of them (ADR-001). */
+  unpostedCount: number;
+}
+
+/**
+ * Headline figures for the filtered set.
+ *
+ * Scoped to whatever the operator is currently looking at, so the numbers always describe
+ * the rows on screen. There is deliberately no "vs previous period" comparison: the product
+ * has not defined what the previous period is, and an arrow without a definition is a
+ * decoration that reads as a fact.
+ */
+export async function getSalesSummary(
+  params: { tenantId: string; storeId?: string } & SalesFilters,
+): Promise<SalesSummary> {
+  const where = buildSalesWhere(params);
+
+  const [aggregate, unpostedCount] = await Promise.all([
+    db.sale.aggregate({ where, _sum: { totalMinor: true }, _count: { _all: true } }),
+    db.sale.count({ where: { ...where, erpSyncStatus: { not: "SYNCED" } } }),
+  ]);
+
+  const totalMinor = aggregate._sum.totalMinor ?? 0;
+  const billCount = aggregate._count._all;
+
+  return {
+    totalMinor,
+    billCount,
+    averageBillMinor: billCount > 0 ? Math.floor(totalMinor / billCount) : null,
+    unpostedCount,
+  };
 }
 
 export interface SaleDetail {

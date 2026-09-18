@@ -796,6 +796,29 @@ model Customer {
   /// a walk-in retail customer has no negotiated pricing and never will.
   priceListId String?
 
+  // --- Commercial profile (W-1) --------------------------------------------------------------
+  //
+  // Everything below is CONFIGURATION: terms a merchant agreed with a buyer. None of it is
+  // accounting state, and nothing in this system computes a balance from it. Outstanding,
+  // ageing and receivables are ERPNext's, and until that integration exists any figure AMBURAX
+  // derived would be invented.
+
+  /// Retail, wholesale or distributor. Defaults to RETAIL, so existing customers are unchanged.
+  customerType CustomerType @default(RETAIL)
+
+  /// Agreed credit period in days — "NET 30" is 30. Null means no terms were agreed, which is
+  /// the ordinary case for a walk-in. Not a payment schedule, and nothing computes a due date
+  /// from it yet.
+  paymentTermsDays Int?
+
+  /// The credit ceiling agreed with this buyer, in integer minor units like every other money
+  /// column here.
+  ///
+  /// **Stored, never enforced.** No order is refused because of it, and no "available credit"
+  /// is computed anywhere — doing so would need the outstanding balance, which ERPNext owns and
+  /// which this system cannot see. Enforcement is W-7 and requires ERP integration first.
+  creditLimitMinor Int?
+
   tenant          Tenant            @relation(fields: [tenantId], references: [id])
   sales           Sale[]
   orders          Order[]
@@ -906,6 +929,20 @@ model PriceListItem {
 // registered office and the goods go to a warehouse, and very often both are the same place.
 // Finer categories (registered office, branch, godown) are labels a business can keep in
 // `contactName` until something in the system actually branches on them.
+// What kind of buyer this is. The distinction that makes a wholesale customer a wholesale
+// customer, rather than a retail one with a bigger cart.
+//
+// Defaulted to RETAIL so every existing customer keeps its current meaning and no backfill has
+// to guess. A tenant that never sells wholesale simply never changes it.
+//
+// Deliberately not a "customer group": groups are a W-2 concept with their own pricing
+// behaviour, and this is one field on the customer, not a hierarchy.
+enum CustomerType {
+  RETAIL
+  WHOLESALE
+  DISTRIBUTOR
+}
+
 enum AddressType {
   BILLING
   SHIPPING
