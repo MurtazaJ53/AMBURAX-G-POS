@@ -84,9 +84,15 @@ const stock: DashboardStockSignal = {
   outOfStock: 2,
   oversold: 1,
   lowest: [
-    { variantId: "v1", productName: "Cotton shirt", sku: "SH-1", quantity: -2 },
-    { variantId: "v2", productName: "Linen trouser", sku: "TR-9", quantity: 0 },
-    { variantId: "v3", productName: "Wool scarf", sku: "SC-4", quantity: 5 },
+    {
+      variantId: "v1",
+      productName: "Cotton shirt",
+      sku: "SH-1",
+      quantity: -2,
+      imageUrl: "/demo/catalogue/shirts.svg",
+    },
+    { variantId: "v2", productName: "Linen trouser", sku: "TR-9", quantity: 0, imageUrl: null },
+    { variantId: "v3", productName: "Wool scarf", sku: "SC-4", quantity: 5, imageUrl: null },
   ],
 };
 
@@ -204,8 +210,22 @@ test("fast moving products are ranked and show real SKUs", () => {
   render(
     <FastMovingProductsCard
       products={[
-        { variantId: "v1", name: "Cotton shirt", sku: "SH-1", unitsSold: 9, revenueMinor: 45_000 },
-        { variantId: "v2", name: "Wool scarf", sku: "SC-4", unitsSold: 4, revenueMinor: 20_000 },
+        {
+          variantId: "v1",
+          name: "Cotton shirt",
+          sku: "SH-1",
+          unitsSold: 9,
+          revenueMinor: 45_000,
+          imageUrl: "/demo/catalogue/shirts.svg",
+        },
+        {
+          variantId: "v2",
+          name: "Wool scarf",
+          sku: "SC-4",
+          unitsSold: 4,
+          revenueMinor: 20_000,
+          imageUrl: null,
+        },
       ]}
     />,
   );
@@ -213,6 +233,41 @@ test("fast moving products are ranked and show real SKUs", () => {
   expect(screen.getByText("Cotton shirt")).toBeTruthy();
   expect(screen.getByText("SH-1")).toBeTruthy();
   expect(screen.getByText("₹450.00")).toBeTruthy();
+});
+
+test("a product with a picture shows it; one without falls back to its initial", () => {
+  const { container } = render(
+    <FastMovingProductsCard
+      products={[
+        {
+          variantId: "v1",
+          name: "Cotton shirt",
+          sku: "SH-1",
+          unitsSold: 9,
+          revenueMinor: 45_000,
+          imageUrl: "/demo/catalogue/shirts.svg",
+        },
+        {
+          variantId: "v2",
+          name: "Wool scarf",
+          sku: "SC-4",
+          unitsSold: 4,
+          revenueMinor: 20_000,
+          imageUrl: null,
+        },
+      ]}
+    />,
+  );
+
+  const images = container.querySelectorAll("img");
+  expect(images).toHaveLength(1);
+  expect(images[0]!.getAttribute("src")).toBe("/demo/catalogue/shirts.svg");
+  // Decorative: the product name is already in the row, so the picture must not repeat it.
+  expect(images[0]!.getAttribute("alt")).toBe("");
+
+  // The one without a picture gets its initial, never a stand-in garment photo.
+  expect(screen.getByTitle("No picture for this product yet")).toBeTruthy();
+  expect(screen.getByText("W")).toBeTruthy();
 });
 
 test("the stock card names itself honestly and explains the missing reorder level", () => {

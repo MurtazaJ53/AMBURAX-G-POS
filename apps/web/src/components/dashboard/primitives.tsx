@@ -159,6 +159,44 @@ export function WidgetUnavailable({ title, reason }: { title: string; reason: st
   );
 }
 
+/**
+ * A product thumbnail, or an honest stand-in for one.
+ *
+ * The design reference shows a photograph beside every row, and most catalogues will not
+ * have one for most products. The stand-in is the product's own initial on a tinted tile —
+ * never a generic garment picture, because a cashier picks stock by sight and a photo of
+ * something that is not this product is a picking error the screen invited.
+ *
+ * `img` rather than `next/image`: these are 32px decorations from arbitrary catalogue URLs,
+ * and routing them through the optimiser buys nothing while adding a configuration burden
+ * for every domain a shop happens to host its pictures on.
+ */
+export function ProductThumb({ name, imageUrl }: { name: string; imageUrl?: string | null }) {
+  if (imageUrl) {
+    return (
+      // eslint-disable-next-line @next/next/no-img-element
+      <img
+        src={imageUrl}
+        alt=""
+        width={32}
+        height={32}
+        loading="lazy"
+        className="h-8 w-8 shrink-0 rounded-lg border border-border object-cover"
+      />
+    );
+  }
+
+  return (
+    <span
+      aria-hidden="true"
+      className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-border bg-background-subtle text-[11px] font-semibold text-tertiary"
+      title="No picture for this product yet"
+    >
+      {name.trim().charAt(0).toUpperCase() || "?"}
+    </span>
+  );
+}
+
 /** Column headers for the dense tables in the lower half of the reference. */
 export function Th({
   children,

@@ -617,6 +617,19 @@ model Product {
   brand    String?
   isActive Boolean @default(true)
 
+  // Where this product's picture lives. Nullable, and expected to be null for most of a
+  // catalogue's life: a shop photographs its best sellers and never gets to the rest.
+  //
+  // A URL rather than bytes. AMBURAX stores no binaries, and a product image is a
+  // presentation asset — losing one costs a thumbnail, not a sale, so it does not belong in
+  // the transactional database beside money.
+  //
+  // Product-level rather than variant-level, for now. A shirt in white and blue really does
+  // want two pictures, and when that matters this moves to ProductVariant with a fallback to
+  // here; putting it on the product first is the smaller honest step rather than a guess at
+  // the eventual shape.
+  imageUrl String?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 

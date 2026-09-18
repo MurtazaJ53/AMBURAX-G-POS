@@ -169,6 +169,8 @@ export interface DashboardBreakdown {
     sku: string;
     unitsSold: number;
     revenueMinor: number;
+    /** The product's picture, where the catalogue has one. Null is the common case. */
+    imageUrl: string | null;
   }[];
 }
 
@@ -206,7 +208,7 @@ export async function getSalesBreakdown(params: {
       skuSnapshot: true,
       quantity: true,
       lineTotalMinor: true,
-      variant: { select: { product: { select: { category: true } } } },
+      variant: { select: { product: { select: { category: true, imageUrl: true } } } },
     },
   });
 
@@ -214,7 +216,14 @@ export async function getSalesBreakdown(params: {
   let uncategorisedMinor = 0;
   const byVariant = new Map<
     string,
-    { variantId: string; name: string; sku: string; unitsSold: number; revenueMinor: number }
+    {
+      variantId: string;
+      name: string;
+      sku: string;
+      unitsSold: number;
+      revenueMinor: number;
+      imageUrl: string | null;
+    }
   >();
 
   for (const line of lines) {
@@ -236,6 +245,11 @@ export async function getSalesBreakdown(params: {
         sku: line.skuSnapshot,
         unitsSold: line.quantity,
         revenueMinor: line.lineTotalMinor,
+        // The picture comes from the live product, unlike the name and SKU beside it, which
+        // are the snapshots taken at the till. That asymmetry is deliberate: what the
+        // customer was charged for must never change, but a shop that photographs a product
+        // today should see that photo against yesterday's sales.
+        imageUrl: line.variant.product.imageUrl,
       });
     }
   }
@@ -354,7 +368,13 @@ export interface DashboardStockSignal {
    */
   oversold: number;
   /** The thinnest counts in the store, lowest first. */
-  lowest: { variantId: string; productName: string; sku: string; quantity: number }[];
+  lowest: {
+    variantId: string;
+    productName: string;
+    sku: string;
+    quantity: number;
+    imageUrl: string | null;
+  }[];
 }
 
 /**
@@ -380,7 +400,7 @@ export async function getStockSignal(params: {
       select: {
         variantId: true,
         quantity: true,
-        variant: { select: { sku: true, product: { select: { name: true } } } },
+        variant: { select: { sku: true, product: { select: { name: true, imageUrl: true } } } },
       },
       orderBy: { quantity: "asc" },
       take: Math.min(params.lowestLimit ?? 5, 20),
@@ -397,6 +417,7 @@ export async function getStockSignal(params: {
       productName: row.variant.product.name,
       sku: row.variant.sku,
       quantity: row.quantity,
+      imageUrl: row.variant.product.imageUrl,
     })),
   };
 }

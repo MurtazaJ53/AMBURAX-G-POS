@@ -9,6 +9,7 @@ import {
   DashboardCard,
   DashboardCardHeader,
   DenseTable,
+  ProductThumb,
   Td,
   Th,
   WidgetEmpty,
@@ -55,7 +56,12 @@ export function FastMovingProductsCard({
             {products.map((product, index) => (
               <tr key={product.variantId} className="hover:bg-background-hover">
                 <Td className="text-tertiary">{index + 1}</Td>
-                <Td className="font-medium text-primary">{product.name}</Td>
+                <Td className="font-medium text-primary">
+                  <span className="flex items-center gap-2.5">
+                    <ProductThumb name={product.name} imageUrl={product.imageUrl} />
+                    <span className="truncate">{product.name}</span>
+                  </span>
+                </Td>
                 <Td className="text-tertiary">{product.sku}</Td>
                 <Td align="right" className="text-secondary">
                   {product.unitsSold}
@@ -116,7 +122,12 @@ export function StockSignalCard({ stock }: { stock: DashboardStockSignal }) {
             <tbody className="divide-y divide-border">
               {stock.lowest.map((row) => (
                 <tr key={row.variantId} className="hover:bg-background-hover">
-                  <Td className="font-medium text-primary">{row.productName}</Td>
+                  <Td className="font-medium text-primary">
+                    <span className="flex items-center gap-2.5">
+                      <ProductThumb name={row.productName} imageUrl={row.imageUrl} />
+                      <span className="truncate">{row.productName}</span>
+                    </span>
+                  </Td>
                   <Td className="text-tertiary">{row.sku}</Td>
                   <Td align="right">
                     <span

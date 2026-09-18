@@ -119,6 +119,35 @@ export interface SeedCatalogueCounts {
  * rather than blind-created; otherwise a second run would produce duplicate products.
  * Variants resolve on the tenant-scoped SKU; stock resolves on (store, variant).
  */
+/**
+ * Demo artwork for a seeded product.
+ *
+ * Illustrations keyed by category, not photographs of specific garments. A picture is how a
+ * cashier identifies stock, so a demo catalogue that borrowed real product photography would
+ * teach the screen to lie the moment a real shop's data replaced it. A flat drawing of "a
+ * dress" against a product in the Dresses category is true at the level it claims.
+ *
+ * Returns null for a category with no drawing, which exercises the placeholder path that
+ * most real catalogues will spend most of their life in.
+ */
+const DEMO_CATEGORY_ART = new Set([
+  "accessories",
+  "activewear",
+  "dresses",
+  "ethnic",
+  "kids",
+  "outerwear",
+  "shirts",
+  "tops",
+  "trousers",
+]);
+
+export function demoImageForCategory(category: string | null | undefined): string | null {
+  if (!category) return null;
+  const key = category.trim().toLowerCase();
+  return DEMO_CATEGORY_ART.has(key) ? `/demo/catalogue/${key}.svg` : null;
+}
+
 export async function seedProductCatalogue(
   db: PrismaClient,
   params: { tenantId: string; storeId: string },
@@ -132,6 +161,8 @@ export async function seedProductCatalogue(
       select: { id: true },
     });
 
+    const imageUrl = demoImageForCategory(entry.category);
+
     const product =
       existing ??
       (await db.product.create({
@@ -140,9 +171,20 @@ export async function seedProductCatalogue(
           name: entry.name,
           category: entry.category,
           brand: entry.brand,
+          imageUrl,
         },
         select: { id: true },
       }));
+
+    // Products seeded before this column existed have no picture, and re-running the seed is
+    // how a developer picks one up. Only ever fills a gap — a picture set by hand in the app
+    // is not overwritten by a reseed.
+    if (existing && imageUrl) {
+      await db.product.updateMany({
+        where: { id: existing.id, imageUrl: null },
+        data: { imageUrl },
+      });
+    }
 
     for (const v of entry.variants) {
       const variant = await db.productVariant.upsert({
