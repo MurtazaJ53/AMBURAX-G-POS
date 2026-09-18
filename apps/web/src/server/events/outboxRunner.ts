@@ -55,6 +55,8 @@ export interface OutboxRunnerOptions {
   /** Called after each pass. Observability hook; also how tests watch progress. */
   onCycle?: (result: DispatchResult, cycle: number) => void;
   environment?: NodeJS.ProcessEnv;
+  /** Injectable deterministic time for tests. */
+  now?: Date;
 }
 
 export interface OutboxRunnerSummary {
@@ -146,6 +148,7 @@ export async function runOutboxWorker(
         batchSize: options.batchSize,
         tenantId: options.tenantId,
         publisher,
+        now: options.now,
       });
       summary.claimed += result.claimed;
       summary.published += result.published;

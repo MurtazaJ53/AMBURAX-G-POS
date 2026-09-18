@@ -221,6 +221,7 @@ describe("tenant isolation", () => {
     const seen: string[] = [];
     const result = await dispatchOutboxOnce({
       tenantId: IDS.tenantA,
+      now: new Date(Date.now() + 10),
       publisher: {
         publish: async (e) => {
           seen.push(e.tenantId);
@@ -270,8 +271,9 @@ describe("delivery, retry and dead-lettering against a real row", () => {
     await enqueueOne();
     const publisher = { publish: async () => {} };
 
-    const first = await dispatchOutboxOnce({ publisher });
-    const second = await dispatchOutboxOnce({ publisher });
+    const now = new Date(Date.now() + 10);
+    const first = await dispatchOutboxOnce({ publisher, now });
+    const second = await dispatchOutboxOnce({ publisher, now });
 
     expect(first.published).toBe(1);
     expect(second.claimed).toBe(0); // already published, no longer due
@@ -284,7 +286,9 @@ describe("delivery, retry and dead-lettering against a real row", () => {
     await enqueueOne();
     const before = await db.outboxEvent.findFirstOrThrow();
 
+    const now = new Date(Date.now() + 10);
     const result = await dispatchOutboxOnce({
+      now,
       publisher: {
         publish: async () => {
           throw new Error("broker unreachable");
@@ -300,13 +304,14 @@ describe("delivery, retry and dead-lettering against a real row", () => {
     // Backoff pushed it into the future, so an immediate second pass must not pick it up.
     expect(after.nextAttemptAt.getTime()).toBeGreaterThan(before.nextAttemptAt.getTime());
 
-    const immediate = await dispatchOutboxOnce({ publisher: { publish: async () => {} } });
+    const immediate = await dispatchOutboxOnce({ now, publisher: { publish: async () => {} } });
     expect(immediate.claimed).toBe(0);
   });
 
   it("retries successfully once the backoff has elapsed", async () => {
     await enqueueOne();
     await dispatchOutboxOnce({
+      now: new Date(Date.now() + 10),
       publisher: {
         publish: async () => {
           throw new Error("temporary");
@@ -333,7 +338,7 @@ describe("delivery, retry and dead-lettering against a real row", () => {
       },
     };
 
-    let now = new Date();
+    let now = new Date(Date.now() + 10);
     for (let i = 0; i <= MAX_ATTEMPTS; i += 1) {
       await dispatchOutboxOnce({ now, publisher: failing });
       now = new Date(now.getTime() + 6 * 60 * 60_000); // well past any backoff
@@ -360,9 +365,10 @@ describe("delivery, retry and dead-lettering against a real row", () => {
     };
 
     // SKIP LOCKED is what makes this safe: each pass claims a disjoint set.
+    const now = new Date(Date.now() + 10);
     const [a, b] = await Promise.all([
-      dispatchOutboxOnce({ publisher, batchSize: 6 }),
-      dispatchOutboxOnce({ publisher, batchSize: 6 }),
+      dispatchOutboxOnce({ publisher, batchSize: 6, now }),
+      dispatchOutboxOnce({ publisher, batchSize: 6, now }),
     ]);
 
     expect(a.claimed + b.claimed).toBe(6);
@@ -378,6 +384,7 @@ describe("delivery, retry and dead-lettering against a real row", () => {
     const order: string[] = [];
     await dispatchOutboxOnce({
       batchSize: 2,
+      now: new Date(Date.now() + 10),
       publisher: {
         publish: async (e) => {
           order.push(String(e.entityId));
@@ -473,6 +480,7 @@ describe("the runner, against real PostgreSQL — audit finding F-01", () => {
 
     const summary = await runOutboxWorker({
       publisher: { publish: async () => {} },
+      now: new Date(Date.now() + 10),
       maxCycles: 1,
       sleep: async () => {},
     });
@@ -491,9 +499,10 @@ describe("the runner, against real PostgreSQL — audit finding F-01", () => {
       },
     };
 
+    const now = new Date(Date.now() + 10);
     const [a, b] = await Promise.all([
-      runOutboxWorker({ publisher, maxCycles: 1, batchSize: 8, sleep: async () => {} }),
-      runOutboxWorker({ publisher, maxCycles: 1, batchSize: 8, sleep: async () => {} }),
+      runOutboxWorker({ publisher, maxCycles: 1, batchSize: 8, now, sleep: async () => {} }),
+      runOutboxWorker({ publisher, maxCycles: 1, batchSize: 8, now, sleep: async () => {} }),
     ]);
 
     expect(a.published + b.published).toBe(8);
@@ -507,7 +516,7 @@ describe("the runner, against real PostgreSQL — audit finding F-01", () => {
     const id = await enqueueDueEvent("unconfigured");
 
     await expect(
-      runOutboxWorker({ environment: {} as NodeJS.ProcessEnv, maxCycles: 1, sleep: async () => {} }),
+      runOutboxWorker({ environment: {} as NodeJS.ProcessEnv, maxCycles: 1, now: new Date(Date.now() + 10), sleep: async () => {} }),
     ).rejects.toBeInstanceOf(NoEventTransportConfiguredError);
 
     const event = await db.outboxEvent.findUniqueOrThrow({ where: { id } });
@@ -523,6 +532,7 @@ describe("the runner, against real PostgreSQL — audit finding F-01", () => {
     const summary = await runOutboxWorker({
       publisher: new UnconfiguredOutboxPublisher(),
       maxCycles: 1,
+      now: new Date(Date.now() + 10),
       sleep: async () => {},
     });
 
@@ -552,6 +562,7 @@ describe("the runner, against real PostgreSQL — audit finding F-01", () => {
       publisher: { publish: async () => {} },
       tenantId: IDS.tenantA,
       maxCycles: 1,
+      now: new Date(Date.now() + 10),
       sleep: async () => {},
     });
 
@@ -571,6 +582,7 @@ describe("the runner, against real PostgreSQL — audit finding F-01", () => {
         },
       },
       maxCycles: 1,
+      now: new Date(Date.now() + 10),
       sleep: async () => {},
     });
 
@@ -584,6 +596,7 @@ describe("the runner, against real PostgreSQL — audit finding F-01", () => {
     const recovered = await runOutboxWorker({
       publisher: { publish: async () => {} },
       maxCycles: 1,
+      now: new Date(Date.now() + 10),
       sleep: async () => {},
     });
     expect(recovered.published).toBe(1);
@@ -600,6 +613,7 @@ describe("the runner, against real PostgreSQL — audit finding F-01", () => {
         },
       },
       maxCycles: 1,
+      now: new Date(Date.now() + 10),
       sleep: async () => {},
     });
 
@@ -616,6 +630,7 @@ describe("the runner, against real PostgreSQL — audit finding F-01", () => {
     const summary = await runOutboxWorker({
       publisher: { publish: async () => {} },
       signal: controller.signal,
+      now: new Date(Date.now() + 10),
       sleep: async () => {},
       onCycle: () => controller.abort(),
     });
