@@ -129,18 +129,20 @@ export function SalesTrendCard({ initialPoints, initialRange }: SalesTrendCardPr
         />
       )}
 
-      <div className="mt-2 flex items-center gap-4">
+      {/* Dots for both series, as the reference has them — the line no longer prints an axis,
+          so a line swatch would imply a scale that is not on the chart. */}
+      <div className="mt-2 flex items-center justify-center gap-5">
         <span className="flex items-center gap-1.5 text-[11px] text-secondary">
-          <span aria-hidden="true" className="inline-block h-2 w-3 rounded-sm bg-[#bfdbfe]" />
-          Sales
+          <span aria-hidden="true" className="inline-block h-2 w-2 rounded-full bg-[#bfdbfe]" />
+          Sales (₹)
         </span>
         <span className="flex items-center gap-1.5 text-[11px] text-secondary">
           <span
             aria-hidden="true"
-            className="inline-block h-0.5 w-3"
+            className="inline-block h-2 w-2 rounded-full"
             style={{ background: "var(--color-primary)" }}
           />
-          Bills (right axis)
+          Bills
         </span>
       </div>
     </DashboardCard>
