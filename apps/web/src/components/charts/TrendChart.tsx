@@ -5,26 +5,26 @@ import { formatAxisMoney } from "@/server/dashboard/dashboardTransforms";
 import { formatMinor } from "@/server/sales/saleTotals";
 
 /**
- * The sales trend — bars for takings, a line for bill count.
+ * The sales trend â€” bars for takings, a line for bill count.
  *
  * Hand-drawn SVG rather than a charting library. The design reference uses one chart on one
  * screen, a charting package is a large client bundle to carry for that, and its default
  * axis and tooltip behaviour would have to be overridden almost entirely to match anyway.
- * What is left — a linear scale, a smoothed path and a hit-test — is arithmetic.
+ * What is left â€” a linear scale, a smoothed path and a hit-test â€” is arithmetic.
  *
  * Three decisions shape how it reads:
  *
- * Dead hours are trimmed. A shop trading 10:00–20:00 has fourteen empty columns, and drawing
+ * Dead hours are trimmed. A shop trading 10:00â€“20:00 has fourteen empty columns, and drawing
  * them squeezes the real trading day into a third of the card while a flat line at zero
  * implies something was measured overnight. The window closes to the hours that actually
  * traded, one hour of air either side, and the axis labels still say exactly which hours
- * those are — so nothing is hidden, it is only not padded.
+ * those are â€” so nothing is hidden, it is only not padded.
  *
  * The bill line is smoothed, because a straight segment between two equal counts draws a
  * plateau that reads as a sustained level rather than two separate hours.
  *
- * The line has no printed axis. It is on its own scale — bills are counted in tens, takings
- * in thousands — and the reference prints no second axis either. The exact figures come from
+ * The line has no printed axis. It is on its own scale â€” bills are counted in tens, takings
+ * in thousands â€” and the reference prints no second axis either. The exact figures come from
  * the tooltip on hover, and from the hidden table below for anyone not using a mouse.
  */
 
@@ -60,7 +60,7 @@ function niceCeiling(value: number): number {
  * Close the window onto the hours that traded.
  *
  * One empty column is kept at each end so the first and last bars are not flush against the
- * axis. A range with no trade at all is returned untouched — the caller shows an empty state
+ * axis. A range with no trade at all is returned untouched â€” the caller shows an empty state
  * rather than this chart, and trimming nothing to nothing would produce an empty axis.
  */
 function trimToTrading(points: TrendChartPoint[]): TrendChartPoint[] {
@@ -246,7 +246,7 @@ export function TrendChart({ points, caption, height = 200 }: TrendChartProps) {
       {active && (
         <div
           className="pointer-events-none absolute top-1 z-10 -translate-x-1/2 rounded-xl border border-border bg-background-card px-3 py-2 text-xs shadow-card"
-          style={{ left: `${((hovered! + 0.5) / visible.length) * 100}%` }}
+          style={{ left: `${(xFor(hovered!) / WIDTH) * 100}%` }}
           role="presentation"
         >
           <p className="mb-1 font-semibold text-primary">{active.label}</p>
@@ -289,3 +289,4 @@ export function TrendChart({ points, caption, height = 200 }: TrendChartProps) {
     </figure>
   );
 }
+

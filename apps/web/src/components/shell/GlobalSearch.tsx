@@ -40,14 +40,13 @@ export function GlobalSearch() {
     <>
       <button
         onClick={() => setOpen(true)}
-        className="flex items-center gap-2 w-full max-w-sm rounded-md border border-border bg-background-app px-3 py-1.5 text-sm text-tertiary transition-colors hover:border-border-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+        className="flex items-center justify-center sm:justify-start gap-2 w-10 h-10 sm:h-auto sm:w-full sm:max-w-sm rounded-md sm:border sm:border-border sm:bg-background-app sm:px-3 sm:py-1.5 text-sm text-tertiary transition-colors hover:bg-background-hover sm:hover:bg-transparent sm:hover:border-border-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+        aria-label="Search"
       >
-        <Search className="h-4 w-4 shrink-0" />
-        <span className="flex-1 text-left truncate">Search products, customers, orders...</span>
+        <Search className="h-5 w-5 sm:h-4 sm:w-4 shrink-0" />
+        <span className="hidden sm:inline-block flex-1 text-left truncate">Search products, customers, orders...</span>
         <kbd className="pointer-events-none hidden h-5 select-none items-center gap-1 rounded border border-border bg-background-subtle px-1.5 font-mono text-[10px] font-medium opacity-100 sm:flex">
-          {/* Was mojibake: the command glyph had been written as its UTF-8 bytes decoded as
-              Latin-1, so the shortcut rendered as "âŒ˜K" in the browser. */}
-          <span className="text-xs">⌘</span>K
+          <span className="text-xs">&#8984;</span>K
         </kbd>
       </button>
 

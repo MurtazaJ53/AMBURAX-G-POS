@@ -23,7 +23,7 @@ import { CardLink, DashboardCard, DashboardCardHeader, WidgetUnavailable } from 
  * Who is on the tills right now.
  *
  * Avatars are initials of real users with an open session, not a decorative stack. Where
- * nobody is on shift the card says so — an empty avatar row would read as "loading".
+ * nobody is on shift the card says so â€” an empty avatar row would read as "loading".
  */
 export function ShiftStatusCard({ activity }: { activity: DashboardShiftActivity }) {
   const overflow = activity.cashiers.length - 5;
@@ -49,7 +49,7 @@ export function ShiftStatusCard({ activity }: { activity: DashboardShiftActivity
             : `${activity.openSessions} till${activity.openSessions === 1 ? "" : "s"} open`}
         </span>
         <span className="ml-auto text-[10px] text-tertiary">
-          {activity.staffCount} in this store
+          {activity.staffCount} registered staff
         </span>
       </div>
 
@@ -89,7 +89,7 @@ export function ShiftStatusCard({ activity }: { activity: DashboardShiftActivity
 /**
  * Targets.
  *
- * There is no target anywhere in the schema — not on Store, not on Tenant, not per user. So
+ * There is no target anywhere in the schema â€” not on Store, not on Tenant, not per user. So
  * this card holds a designed "not configured" state rather than a progress ring against an
  * invented number. A ring at 68% of a target nobody set is the single most misleading thing
  * this screen could show.
@@ -112,7 +112,7 @@ export function TargetsCard() {
  * The reference shows "All Systems Operational". That claim needs monitoring this product
  * does not have, so each line here is something the page can actually observe: whether a till
  * is open, whether the catalogue has been counted into this store, and whether accounting is
- * connected — which it is not, because no ERPNext adapter exists.
+ * connected â€” which it is not, because no ERPNext adapter exists.
  */
 export function SystemStatusCard({
   activity,
@@ -202,3 +202,4 @@ export function NextStepBanner({ uncountedVariants }: { uncountedVariants: numbe
     </div>
   );
 }
+

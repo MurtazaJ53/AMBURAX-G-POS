@@ -25,7 +25,7 @@ export interface AppHeaderProps {
  *
  * Rebuilt to the reference's layout: store selector, a wide search field, status pills, the
  * primary action, then identity. What did not survive the rebuild is the reference's
- * notification bell with its red "3" — AMBURAX has no notification system, so a bell would
+ * notification bell with its red "3" Ã¢â‚¬â€ AMBURAX has no notification system, so a bell would
  * either be permanently empty or permanently lying. It returns when there is something to
  * count.
  *
@@ -125,7 +125,7 @@ export function AppHeader({
 
       <StoreSwitcher storeName={storeName} storeCode={storeCode} />
 
-      <div className="hidden min-w-0 flex-1 sm:flex">
+      <div className="flex-1 min-w-0 flex justify-end sm:justify-start">
         <GlobalSearch />
       </div>
 
@@ -150,3 +150,5 @@ export function AppHeader({
     </header>
   );
 }
+
+
