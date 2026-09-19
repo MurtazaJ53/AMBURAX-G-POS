@@ -63,9 +63,7 @@ export default defineConfig({
     // the fixtures deterministic; these suites are small enough that it costs nothing.
     fileParallelism: false,
     pool: "forks",
-    // Vitest 5 removed `poolOptions`; worker count is a top-level option now.
-    // `minWorkers` is not part of InlineConfig — `maxWorkers: 1` plus
-    // `fileParallelism: false` is what actually serializes the run.
+    minWorkers: 1,
     maxWorkers: 1,
     env: {
       DATABASE_URL: testUrl,
