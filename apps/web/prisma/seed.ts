@@ -9,7 +9,7 @@ async function main() {
   const tenant = await db.tenant.upsert({
     where: { slug: "demo-retail" },
     update: {},
-    create: {
+    create: { id: crypto.randomUUID(),
       name: "Demo Retail Co.",
       slug: "demo-retail",
       businessType: "RETAIL",
@@ -25,7 +25,7 @@ async function main() {
   const store = await db.store.upsert({
     where: { tenantId_code: { tenantId: tenant.id, code: "MAIN" } },
     update: {},
-    create: {
+    create: { id: crypto.randomUUID(),
       tenantId: tenant.id,
       name: "Main Store",
       code: "MAIN",
@@ -44,7 +44,7 @@ async function main() {
   const owner = await db.user.upsert({
     where: { email: "owner@demo.amburax.test" },
     update: {},
-    create: {
+    create: { id: crypto.randomUUID(),
       tenantId: tenant.id,
       email: "owner@demo.amburax.test",
       passwordHash,
@@ -57,13 +57,13 @@ async function main() {
   await db.storeMembership.upsert({
     where: { userId_storeId: { userId: owner.id, storeId: store.id } },
     update: {},
-    create: { tenantId: tenant.id, userId: owner.id, storeId: store.id, role: "OWNER" },
+    create: { id: crypto.randomUUID(), tenantId: tenant.id, userId: owner.id, storeId: store.id, role: "OWNER" },
   });
 
   const mfaUser = await db.user.upsert({
     where: { email: "manager.mfa@demo.amburax.test" },
     update: {},
-    create: {
+    create: { id: crypto.randomUUID(),
       tenantId: tenant.id,
       email: "manager.mfa@demo.amburax.test",
       passwordHash,
@@ -76,7 +76,7 @@ async function main() {
   await db.storeMembership.upsert({
     where: { userId_storeId: { userId: mfaUser.id, storeId: store.id } },
     update: {},
-    create: { tenantId: tenant.id, userId: mfaUser.id, storeId: store.id, role: "STORE_MANAGER" },
+    create: { id: crypto.randomUUID(), tenantId: tenant.id, userId: mfaUser.id, storeId: store.id, role: "STORE_MANAGER" },
   });
 
   // A third demo login at the till-operator end of the permission model — PERMISSIONS.md's
@@ -85,7 +85,7 @@ async function main() {
   const cashierUser = await db.user.upsert({
     where: { email: "cashier@demo.amburax.test" },
     update: {},
-    create: {
+    create: { id: crypto.randomUUID(),
       tenantId: tenant.id,
       email: "cashier@demo.amburax.test",
       passwordHash,
@@ -97,7 +97,7 @@ async function main() {
   await db.storeMembership.upsert({
     where: { userId_storeId: { userId: cashierUser.id, storeId: store.id } },
     update: {},
-    create: { tenantId: tenant.id, userId: cashierUser.id, storeId: store.id, role: "CASHIER" },
+    create: { id: crypto.randomUUID(), tenantId: tenant.id, userId: cashierUser.id, storeId: store.id, role: "CASHIER" },
   });
 
   const counts = await seedCatalogue(db, { tenantId: tenant.id, storeId: store.id });
