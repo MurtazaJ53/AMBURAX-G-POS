@@ -14,7 +14,9 @@ test.describe("Catalog Management F4", () => {
     await expect(page).toHaveURL(/.*\/products/);
     
     // 3. Create a product
-    await page.click("text=+ Add Product");
+    // The catalogue workspace renamed this control when it replaced the old list; the flow it
+    // starts is unchanged.
+    await page.getByRole("link", { name: "Add product" }).click();
     await expect(page).toHaveURL(/.*\/products\/new/);
     
     const productName = `Test Product ${Date.now()}`;

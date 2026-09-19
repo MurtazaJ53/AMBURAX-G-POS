@@ -72,7 +72,13 @@ export interface ProductDetailPanelProps {
 
 export function ProductDetailPanel({ detail, filters, canManage }: ProductDetailPanelProps) {
   const [tab, setTab] = React.useState<DetailTab>("stock");
+  // Same reasoning as the grid's thumbnail: a URL that fails to load falls back to the
+  // placeholder rather than the browser's broken-image glyph. The failed URL is remembered
+  // rather than a bare flag, so a corrected picture is retried without an effect to reset it.
+  const [failedUrl, setFailedUrl] = React.useState<string | null>(null);
   const { product } = detail;
+
+  const showImage = Boolean(product.imageUrl) && failedUrl !== product.imageUrl;
 
   const cheapest = product.variants.reduce<(typeof product.variants)[number] | null>(
     (best, variant) => (best === null || variant.priceMinor < best.priceMinor ? variant : best),
@@ -91,9 +97,14 @@ export function ProductDetailPanel({ detail, filters, canManage }: ProductDetail
     >
       <div className="relative border-b border-border bg-background-subtle p-3">
         <div className="mx-auto aspect-[4/5] w-40 overflow-hidden rounded-xl bg-background-card">
-          {product.imageUrl ? (
+          {showImage ? (
             // eslint-disable-next-line @next/next/no-img-element
-            <img src={product.imageUrl} alt={product.name} className="h-full w-full object-cover" />
+            <img
+              src={product.imageUrl!}
+              alt={product.name}
+              onError={() => setFailedUrl(product.imageUrl)}
+              className="h-full w-full object-cover"
+            />
           ) : (
             <span className="flex h-full w-full items-center justify-center text-3xl font-semibold text-tertiary">
               {product.name.trim().charAt(0).toUpperCase() || "?"}
@@ -355,18 +366,23 @@ export function ProductDetailPanel({ detail, filters, canManage }: ProductDetail
 
         {tab === "images" && (
           <div>
-            {product.imageUrl ? (
+            {showImage ? (
               <div className="aspect-square overflow-hidden rounded-lg bg-background-subtle">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
-                  src={product.imageUrl}
+                  src={product.imageUrl!}
                   alt={product.name}
                   loading="lazy"
+                  onError={() => setFailedUrl(product.imageUrl)}
                   className="h-full w-full object-cover"
                 />
               </div>
             ) : (
-              <Empty>No picture has been set for this product.</Empty>
+              <Empty>
+                {product.imageUrl
+                  ? "This product’s picture could not be loaded."
+                  : "No picture has been set for this product."}
+              </Empty>
             )}
             <p className="mt-3 text-[10px] leading-relaxed text-tertiary">
               A product holds one picture today. Multiple images need a media model AMBURAX does

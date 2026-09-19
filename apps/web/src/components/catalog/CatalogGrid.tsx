@@ -96,25 +96,40 @@ function PriceLine({ product }: { product: ProductRow }) {
   );
 }
 
-function Thumb({ product, className }: { product: ProductRow; className?: string }) {
-  if (product.imageUrl) {
-    return (
-      // eslint-disable-next-line @next/next/no-img-element
-      <img
-        src={product.imageUrl}
-        alt=""
-        loading="lazy"
-        className={cn("h-full w-full object-cover", className)}
-      />
-    );
-  }
+function Initial({ name }: { name: string }) {
   return (
     <span
       aria-hidden="true"
       className="flex h-full w-full items-center justify-center bg-background-subtle text-lg font-semibold text-tertiary"
     >
-      {product.name.trim().charAt(0).toUpperCase() || "?"}
+      {name.trim().charAt(0).toUpperCase() || "?"}
     </span>
+  );
+}
+
+function Thumb({ product, className }: { product: ProductRow; className?: string }) {
+  // A URL that 404s is not the same as no URL, and the browser's broken-image glyph is the
+  // one outcome worse than either: it reads as a bug in the page rather than a missing
+  // photograph. Falling back to the same placeholder keeps the grid legible whatever the
+  // catalogue's image hosting is doing today.
+  // The *URL* that failed is remembered, not a bare boolean. A product whose picture is
+  // corrected gets a new URL, which no longer matches, so it is retried without needing an
+  // effect to reset a flag.
+  const [failedUrl, setFailedUrl] = React.useState<string | null>(null);
+
+  if (!product.imageUrl || failedUrl === product.imageUrl) {
+    return <Initial name={product.name} />;
+  }
+
+  return (
+    // eslint-disable-next-line @next/next/no-img-element
+    <img
+      src={product.imageUrl}
+      alt=""
+      loading="lazy"
+      onError={() => setFailedUrl(product.imageUrl)}
+      className={cn("h-full w-full object-cover", className)}
+    />
   );
 }
 

@@ -6,7 +6,7 @@ import { stockStatusOf, type CatalogFilters, type SortOption } from "./catalogFi
  * Catalogue and stock reads for the Products and Inventory workspaces.
  *
  * Deliberately separate from `server/sales/catalog.ts`, which answers a different question:
- * that module is the till's fast lookup Ã¢â‚¬â€ barcode-first, capped, optimised for a cashier
+ * that module is the till's fast lookup — barcode-first, capped, optimised for a cashier
  * mid-sale. These are paginated management views over the same rows. Merging them would
  * force one query to serve two access patterns and make the counter slower to serve the
  * back office.
@@ -51,7 +51,7 @@ export interface ProductRow {
   priceToMinor: number | null;
   /**
    * Summed operational count across this store (ADR-080). Null when *no* variant of the
-   * product has ever been counted here Ã¢â‚¬â€ different from a genuine zero.
+   * product has ever been counted here — different from a genuine zero.
    */
   stockQuantity: number | null;
   variants: ProductVariantRow[];
@@ -385,7 +385,7 @@ export interface CatalogSummary {
   variants: number;
   /** Variants with a counted row in this store. */
   counted: number;
-  /** Total units on hand across counted variants. Can be negative Ã¢â‚¬â€ see ADR-080. */
+  /** Total units on hand across counted variants. Can be negative — see ADR-080. */
   unitsOnHand: number;
   outOfStock: number;
   oversold: number;
@@ -395,7 +395,7 @@ export interface CatalogSummary {
  * Headline figures for the Inventory workspace.
  *
  * Note what is missing: stock *value*. `ProductVariant` has a selling price but no cost
- * price, and valuing inventory at retail would be a different Ã¢â‚¬â€ and wrong Ã¢â‚¬â€ number from the
+ * price, and valuing inventory at retail would be a different — and wrong — number from the
  * one an accountant means by "stock value".
  */
 export async function getCatalogSummary(params: {
