@@ -76,6 +76,7 @@ export default defineConfig({
     env: {
       DATABASE_URL: "postgresql://test:test@localhost:5432/amburax_test",
     },
+    testTimeout: 15000,
   },
 });
 

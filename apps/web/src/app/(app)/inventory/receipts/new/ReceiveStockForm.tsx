@@ -11,11 +11,16 @@ export function ReceiveStockForm({ variants, storeId }: { variants: any[], store
   const router = useRouter();
   const [loading, setLoading] = React.useState(false);
   const [error, setError] = React.useState("");
+  const requestKeyRef = React.useRef<string | null>(null);
 
   async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setError("");
     setLoading(true);
+
+    if (!requestKeyRef.current) {
+      requestKeyRef.current = crypto.randomUUID();
+    }
 
     const formData = new FormData(e.currentTarget);
     const variantId = formData.get("variantId") as string;
@@ -27,7 +32,7 @@ export function ReceiveStockForm({ variants, storeId }: { variants: any[], store
       variantId,
       quantity,
       reason,
-      requestKey: crypto.randomUUID()
+      requestKey: requestKeyRef.current
     };
 
     try {
