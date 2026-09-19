@@ -1,12 +1,11 @@
 import { redirect } from "next/navigation";
 import { cookies } from "next/headers";
+import Link from "next/link";
 import { env } from "@/lib/env";
 import { resolvePosContext } from "@/server/sales/posContext";
 import { canManageInventory } from "@/server/inventory/inventoryRoles";
 import { db } from "@/server/db";
-import { PageHeader } from "../../../_components/ui";
 import { ReceiveStockForm } from "./ReceiveStockForm";
-import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 
 export default async function NewReceiptPage() {
@@ -39,20 +38,15 @@ export default async function NewReceiptPage() {
   }));
 
   return (
-    <div className="mx-auto max-w-3xl px-4 py-8 sm:px-6 lg:px-8">
-      <div className="mb-4">
-        <Link href="/inventory" className="text-sm font-medium text-slate-500 hover:text-slate-700 flex items-center">
-          <ArrowLeft className="mr-1 h-4 w-4" />
-          Back to Inventory
-        </Link>
-      </div>
-
-      <PageHeader
-        title="Receive Stock"
-        subtitle="Record incoming goods into the store."
-      />
-      
-      <div className="mt-6">
+    <div className="flex min-h-0 flex-1 flex-col overflow-y-auto bg-background text-foreground">
+      <div className="mx-auto w-full max-w-4xl p-4 sm:p-6 lg:p-8">
+        <div className="mb-6">
+          <Link href="/inventory" className="inline-flex items-center text-sm font-medium text-secondary hover:text-primary transition-colors">
+            <ArrowLeft className="mr-1.5 h-4 w-4" />
+            Back to Inventory
+          </Link>
+        </div>
+        
         <ReceiveStockForm variants={variantOptions} storeId={resolved.context.storeId} />
       </div>
     </div>
