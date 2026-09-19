@@ -61,9 +61,15 @@ export default defineConfig({
     hookTimeout: 30_000,
     // A shared database cannot be truncated by several workers at once. One worker keeps
     // the fixtures deterministic; these suites are small enough that it costs nothing.
+    //
+    // isolate: false is critical: with pool:"forks" vitest still spawns a fresh fork per
+    // file unless isolate is disabled, so teardown of file N briefly races with startup of
+    // file N+1 — both holding or acquiring AccessExclusiveLock on the same tables through
+    // TRUNCATE. Disabling isolation reuses the single long-lived worker across all files,
+    // giving truly sequential, single-connection access to the test database.
     fileParallelism: false,
+    isolate: false,
     pool: "forks",
-    minWorkers: 1,
     maxWorkers: 1,
     env: {
       DATABASE_URL: testUrl,

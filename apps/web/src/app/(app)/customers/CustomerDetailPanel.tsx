@@ -79,6 +79,15 @@ export function CustomerDetailPanel({ detail }: { detail: CustomerDetail }) {
           </div>
         </div>
       </div>
+
+      <div className="border-t border-slate-100 p-4 bg-slate-50/50 flex justify-end">
+        <Link 
+          href={`/customers/${detail.id}`} 
+          className={buttonClass("primary")}
+        >
+          View Full Profile <ChevronRight className="ml-1 h-4 w-4" />
+        </Link>
+      </div>
     </Card>
   );
 }

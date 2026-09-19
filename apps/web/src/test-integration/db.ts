@@ -62,12 +62,8 @@ export async function resetDatabase(): Promise<void> {
     WHERE schemaname = 'public' AND tablename <> '_prisma_migrations'
   `;
   if (rows.length === 0) return;
-  const list = rows.map((r) => `"public"."${r.tablename}"`);
-  
-  await db.$transaction([
-    db.$executeRawUnsafe(`SET LOCAL session_replication_role = 'replica';`),
-    ...list.map(t => db.$executeRawUnsafe(`DELETE FROM ${t};`))
-  ]);
+  const list = rows.map((r) => `"public"."${r.tablename}"`).join(", ");
+  await db.$executeRawUnsafe(`TRUNCATE TABLE ${list} RESTART IDENTITY CASCADE`);
 }
 
 /** Never a real credential — a fixed bcrypt-shaped string, since nothing here verifies it. */
