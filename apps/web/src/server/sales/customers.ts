@@ -203,3 +203,64 @@ export async function createCustomer(params: {
   });
   return { status: "ok", customer: created, existing: false };
 }
+
+export type CustomerDetail = CustomerRow & {
+  customerType: string;
+  paymentTermsDays: number | null;
+  creditLimitMinor: number | null;
+  gstin: string | null;
+  priceListId: string | null;
+  addressCount: number;
+};
+
+export async function getCustomerDetail(params: {
+  tenantId: string;
+  id: string;
+}): Promise<CustomerDetail | null> {
+  const customer = await db.customer.findUnique({
+    where: { id_tenantId: { id: params.id, tenantId: params.tenantId } },
+    select: {
+      id: true,
+      name: true,
+      phone: true,
+      email: true,
+      isActive: true,
+      createdAt: true,
+      customerType: true,
+      paymentTermsDays: true,
+      creditLimitMinor: true,
+      gstin: true,
+      priceListId: true,
+      _count: {
+        select: { addressLinks: true },
+      },
+    },
+  });
+
+  if (!customer) return null;
+
+  const stats = await db.sale.aggregate({
+    where: { tenantId: params.tenantId, customerId: params.id, status: "COMPLETED" },
+    _sum: { totalMinor: true },
+    _count: { _all: true },
+    _max: { completedAt: true },
+  });
+
+  return {
+    id: customer.id,
+    name: customer.name,
+    phone: customer.phone,
+    email: customer.email,
+    isActive: customer.isActive,
+    createdAt: customer.createdAt,
+    customerType: customer.customerType,
+    paymentTermsDays: customer.paymentTermsDays,
+    creditLimitMinor: customer.creditLimitMinor,
+    gstin: customer.gstin,
+    priceListId: customer.priceListId,
+    addressCount: customer._count.addressLinks,
+    purchaseCount: stats._count._all ?? 0,
+    totalSpentMinor: stats._sum.totalMinor ?? 0,
+    lastPurchaseAt: stats._max.completedAt ?? null,
+  };
+}
