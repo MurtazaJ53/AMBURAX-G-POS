@@ -1,4 +1,4 @@
-﻿import { redirect } from "next/navigation";
+import { redirect } from "next/navigation";
 import { cookies } from "next/headers";
 import { env } from "@/lib/env";
 import { resolvePosContext } from "@/server/sales/posContext";
@@ -86,6 +86,7 @@ export default async function InventoryMovementsPage(props: { searchParams: Prom
                       <td className="whitespace-nowrap px-3 py-4 text-sm font-medium text-slate-900">
                         <div className="flex items-center">
                           {item.variant.product.imageUrl ? (
+                            /* eslint-disable-next-line @next/next/no-img-element */
                             <img src={item.variant.product.imageUrl} alt="" className="h-6 w-6 rounded-md object-cover mr-2" />
                           ) : (
                             <div className="h-6 w-6 rounded-md bg-slate-100 flex items-center justify-center mr-2">

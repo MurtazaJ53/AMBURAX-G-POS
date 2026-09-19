@@ -6,9 +6,19 @@ export async function getInventoryOverview(params: { tenantId: string; storeId: 
   const totalItems = await db.stockLevel.count({
     where: { tenantId, storeId },
   });
+
+  const aggregates = await db.stockLevel.aggregate({
+    where: { tenantId, storeId, quantity: { gt: 0 } },
+    _sum: { quantity: true },
+  });
+  const totalUnits = aggregates._sum.quantity || 0;
   
   const inStock = await db.stockLevel.count({
-    where: { tenantId, storeId, quantity: { gt: 0 } },
+    where: { tenantId, storeId, quantity: { gt: 10 } },
+  });
+
+  const lowStock = await db.stockLevel.count({
+    where: { tenantId, storeId, quantity: { gt: 0, lte: 10 } },
   });
   
   const outOfStock = await db.stockLevel.count({
@@ -22,7 +32,33 @@ export async function getInventoryOverview(params: { tenantId: string; storeId: 
     where: { tenantId, storeId, occurredAt: { gte: weekAgo } },
   });
 
-  return { totalItems, inStock, outOfStock, recentMovements };
+  // Get category distribution for analytics (in memory aggregation)
+  const stockWithCategories = await db.stockLevel.findMany({
+    where: { tenantId, storeId, quantity: { gt: 0 } },
+    select: {
+      quantity: true,
+      variant: {
+        select: {
+          product: {
+            select: { category: true }
+          }
+        }
+      }
+    }
+  });
+
+  const categoryMap = new Map<string, number>();
+  for (const item of stockWithCategories) {
+    const cat = item.variant.product.category || "Uncategorized";
+    categoryMap.set(cat, (categoryMap.get(cat) || 0) + item.quantity);
+  }
+
+  const stockByCategory = Array.from(categoryMap.entries())
+    .map(([name, count]) => ({ name, count }))
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 5); // top 5
+
+  return { totalItems, totalUnits, inStock, lowStock, outOfStock, recentMovements, stockByCategory };
 }
 
 export async function listStockLevels(params: {
@@ -30,23 +66,40 @@ export async function listStockLevels(params: {
   storeId: string;
   search?: string;
   status?: string;
+  category?: string;
+  brand?: string;
   limit?: number;
   offset?: number;
 }) {
-  const { tenantId, storeId, search, status, limit = 50, offset = 0 } = params;
+  const { tenantId, storeId, search, status, category, brand, limit = 50, offset = 0 } = params;
 
   let quantityFilter: any = undefined;
-  if (status === "in_stock") quantityFilter = { gt: 0 };
+  if (status === "in_stock") quantityFilter = { gt: 10 };
+  else if (status === "low_stock") quantityFilter = { gt: 0, lte: 10 };
   else if (status === "out_of_stock") quantityFilter = { lte: 0 };
 
-  let productFilter: any = undefined;
+  const productConditions: any[] = [];
+  
   if (search) {
-    productFilter = {
+    productConditions.push({
       OR: [
         { name: { contains: search, mode: "insensitive" } },
         { variants: { some: { sku: { contains: search, mode: "insensitive" } } } }
       ]
-    };
+    });
+  }
+  
+  if (category) {
+    productConditions.push({ category });
+  }
+
+  if (brand) {
+    productConditions.push({ brand });
+  }
+
+  let productFilter: any = undefined;
+  if (productConditions.length > 0) {
+    productFilter = { AND: productConditions };
   }
 
   const where = {

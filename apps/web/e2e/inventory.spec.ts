@@ -16,8 +16,8 @@ test.describe("Inventory Management F5", () => {
     await expect(page).toHaveURL(/.*\/inventory/);
 
     // Verify overview is visible
-    await expect(page.locator("h3", { hasText: "Total Variants" })).toBeVisible();
-    await expect(page.locator("h2", { hasText: "Stock Levels" })).toBeVisible();
+    await expect(page.locator("p", { hasText: "Total Variants" })).toBeVisible();
+    await expect(page.locator("h1", { hasText: "Inventory" })).toBeVisible();
 
     // 3. Receive stock
     await page.click("text=Receive Stock");
@@ -47,7 +47,7 @@ test.describe("Inventory Management F5", () => {
     await expect(page).toHaveURL(/.*\/inventory/);
 
     // 4. View movement history
-    await page.click("text=History");
+    await page.click("text=Movements History");
     await expect(page).toHaveURL(/.*\/inventory\/movements/);
 
     // Verify the receipt movement is in the list
