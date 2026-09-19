@@ -74,7 +74,7 @@ export async function listStockLevels(params: {
   const { tenantId, storeId, search, status, category, brand, limit = 50, offset = 0 } = params;
 
   let quantityFilter: any = undefined;
-  if (status === "in_stock") quantityFilter = { gt: 10 };
+  if (status === "in_stock") quantityFilter = { gt: 0 };
   else if (status === "low_stock") quantityFilter = { gt: 0, lte: 10 };
   else if (status === "out_of_stock") quantityFilter = { lte: 0 };
 
