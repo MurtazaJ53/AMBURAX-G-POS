@@ -13,6 +13,7 @@ const schema = z.object({
   name: z.string().trim().min(1).max(200).optional(),
   category: z.string().trim().max(100).nullable().optional(),
   brand: z.string().trim().max(100).nullable().optional(),
+  imageUrl: z.string().trim().max(1000).nullable().optional().or(z.literal("")),
   isActive: z.boolean().optional(),
   baseUomId: z.string().nullable().optional(),
 });
@@ -49,6 +50,7 @@ export async function PUT(req: NextRequest, ctx: { params: Promise<{ id: string 
       name: parsed.data.name,
       category: parsed.data.category,
       brand: parsed.data.brand,
+      imageUrl: parsed.data.imageUrl ? parsed.data.imageUrl : (parsed.data.imageUrl === "" || parsed.data.imageUrl === null ? null : undefined),
       isActive: parsed.data.isActive,
       baseUomId: parsed.data.baseUomId,
       correlationId,

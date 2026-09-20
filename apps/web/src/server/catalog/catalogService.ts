@@ -16,6 +16,7 @@ export interface CreateProductInput {
   name: string;
   category: string | null;
   brand: string | null;
+  imageUrl?: string | null;
   isActive: boolean;
   baseUomId: string | null;
   correlationId: string;
@@ -44,6 +45,7 @@ export async function createProduct(input: CreateProductInput): Promise<CreatePr
       name: input.name,
       category: input.category,
       brand: input.brand,
+      imageUrl: input.imageUrl,
       isActive: input.isActive,
       baseUomId: input.baseUomId,
     }
@@ -66,6 +68,7 @@ export interface UpdateProductInput {
   name?: string;
   category?: string | null;
   brand?: string | null;
+  imageUrl?: string | null;
   isActive?: boolean;
   baseUomId?: string | null;
   correlationId: string;
@@ -98,6 +101,7 @@ export async function updateProduct(input: UpdateProductInput): Promise<UpdatePr
       name: input.name,
       category: input.category,
       brand: input.brand,
+      imageUrl: input.imageUrl === undefined ? existing.imageUrl : input.imageUrl,
       isActive: input.isActive,
       baseUomId: input.baseUomId,
     }

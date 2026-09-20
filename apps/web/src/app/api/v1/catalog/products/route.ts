@@ -13,6 +13,7 @@ const schema = z.object({
   name: z.string().trim().min(1, "Name is required").max(200),
   category: z.string().trim().max(100).nullable().optional(),
   brand: z.string().trim().max(100).nullable().optional(),
+  imageUrl: z.string().trim().max(1000).nullable().optional().or(z.literal("")),
   isActive: z.boolean().default(true),
   baseUomId: z.string().nullable().optional(),
 });
@@ -47,6 +48,7 @@ export async function POST(req: NextRequest) {
       name: parsed.data.name,
       category: parsed.data.category ?? null,
       brand: parsed.data.brand ?? null,
+      imageUrl: parsed.data.imageUrl ? parsed.data.imageUrl : null,
       isActive: parsed.data.isActive,
       baseUomId: parsed.data.baseUomId ?? null,
       correlationId,
