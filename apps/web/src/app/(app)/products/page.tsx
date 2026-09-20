@@ -107,7 +107,7 @@ export default async function ProductsPage(props: { searchParams: Promise<Search
             {canManage && (
               <Link
                 href="/products/new"
-                className="inline-flex items-center gap-1.5 rounded-xl px-4 py-2 text-xs font-semibold text-white transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-border-focus"
+                className="inline-flex items-center gap-1.5 rounded px-4 py-2 text-xs font-semibold text-white transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-border-focus"
                 style={{ background: "var(--color-primary)" }}
               >
                 <Plus aria-hidden="true" className="h-3.5 w-3.5" />
@@ -119,9 +119,9 @@ export default async function ProductsPage(props: { searchParams: Promise<Search
       </div>
 
       <div className="flex min-h-0 flex-1 overflow-hidden">
-        <div className="hidden w-52 shrink-0 border-r border-border lg:block">
+        <aside className="hidden w-60 shrink-0 overflow-y-auto border-r border-border bg-background-card md:block">
           <CatalogFilterPanel filters={filters} facets={facets} />
-        </div>
+        </aside>
 
         <div className="flex min-w-0 flex-1 flex-col overflow-hidden bg-background-app">
           <CatalogToolbar

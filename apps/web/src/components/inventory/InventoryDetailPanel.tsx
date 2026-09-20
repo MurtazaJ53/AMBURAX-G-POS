@@ -36,7 +36,7 @@ export function InventoryDetailPanel({
       <div className="flex-1 overflow-y-auto p-4">
         <div className="flex gap-3">
           <div className="h-20 w-16 shrink-0 overflow-hidden rounded-md bg-background-app">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
+            { }
             {p.imageUrl ? (
               <img src={p.imageUrl} alt="" className="h-full w-full object-cover" />
             ) : (

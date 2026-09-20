@@ -158,7 +158,7 @@ export function CatalogFilterPanel({ filters, facets, onNavigate }: CatalogFilte
               event.preventDefault();
               apply({ query: searchDraft.trim() });
             }}
-            className="flex items-center gap-2 rounded-lg border border-border bg-background-subtle px-2.5 py-1.5"
+            className="flex items-center gap-2 rounded border border-border bg-background-subtle px-2.5 py-1.5"
           >
             <Search aria-hidden="true" className="h-3 w-3 shrink-0 text-tertiary" />
             <input
@@ -233,7 +233,7 @@ export function CatalogFilterPanel({ filters, facets, onNavigate }: CatalogFilte
             {(["min", "max"] as const).map((bound) => (
               <React.Fragment key={bound}>
                 {bound === "max" && <span className="text-xs text-tertiary">to</span>}
-                <span className="flex flex-1 items-center gap-1 rounded-lg border border-border px-2 py-1.5 text-xs text-secondary">
+                <span className="flex flex-1 items-center gap-1 rounded border border-border px-2 py-1.5 text-xs text-secondary">
                   <span className="text-tertiary">₹</span>
                   <input
                     name={bound}
@@ -257,7 +257,7 @@ export function CatalogFilterPanel({ filters, facets, onNavigate }: CatalogFilte
             ))}
             <button
               type="submit"
-              className="rounded-lg border border-border px-2 py-1.5 text-xs font-medium text-secondary hover:bg-background-hover"
+              className="rounded border border-border px-2 py-1.5 text-xs font-medium text-secondary hover:bg-background-hover"
             >
               Go
             </button>
@@ -266,7 +266,7 @@ export function CatalogFilterPanel({ filters, facets, onNavigate }: CatalogFilte
 
         {facets.sizes.length > 0 && (
           <Section title="Size">
-            <div className="flex flex-wrap gap-1.5">
+            <div className="grid grid-cols-3 gap-1.5">
               {facets.sizes.map((size) => {
                 const active = filters.sizes.includes(size);
                 return (
@@ -276,7 +276,7 @@ export function CatalogFilterPanel({ filters, facets, onNavigate }: CatalogFilte
                     aria-pressed={active}
                     onClick={() => apply({ sizes: toggleValue(filters.sizes, size) })}
                     className={cn(
-                      "rounded-lg border px-2.5 py-1 text-xs font-medium transition-colors",
+                      "rounded border px-2.5 py-1 text-xs font-medium transition-colors",
                       active
                         ? "border-transparent text-white"
                         : "border-border bg-background-card text-secondary hover:border-border-hover",
@@ -320,7 +320,7 @@ export function CatalogFilterPanel({ filters, facets, onNavigate }: CatalogFilte
                     aria-pressed={active}
                     onClick={() => apply({ colours: toggleValue(filters.colours, colour) })}
                     className={cn(
-                      "rounded-lg border px-2 py-1 text-[11px] font-medium",
+                      "rounded border px-2 py-1 text-[11px] font-medium",
                       active
                         ? "border-transparent text-white"
                         : "border-border text-secondary hover:border-border-hover",

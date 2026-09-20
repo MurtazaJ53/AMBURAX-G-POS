@@ -160,7 +160,7 @@ export default async function InventoryPage(props: { searchParams: Promise<{ [ke
                         <td className="px-4 py-2">
                           <Link href={createSelectHref(p.variant.sku)} className="flex items-center gap-2 group block">
                             <div className="h-9 w-9 shrink-0 overflow-hidden rounded-md bg-background-app flex items-center justify-center">
-                              {/* eslint-disable-next-line @next/next/no-img-element */}
+                              { }
                               {p.variant.product.imageUrl ? (
                                 <img src={p.variant.product.imageUrl} alt="" className="h-full w-full object-cover" />
                               ) : (
@@ -212,7 +212,7 @@ export default async function InventoryPage(props: { searchParams: Promise<{ [ke
                   className={`rounded-lg border bg-background-card p-3 text-left shadow-sm hover:border-primary transition-colors ${selectedSku === p.variant.sku ? "border-primary ring-1 ring-primary" : "border-border"}`}
                 >
                   <div className="h-32 w-full rounded-md bg-background-app mb-3 flex items-center justify-center overflow-hidden">
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    { }
                     {p.variant.product.imageUrl ? (
                       <img src={p.variant.product.imageUrl} alt="" className="h-full w-full object-cover" />
                     ) : (

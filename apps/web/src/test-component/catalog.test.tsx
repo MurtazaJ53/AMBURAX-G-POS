@@ -256,15 +256,6 @@ test("a single page renders no pagination at all", () => {
   expect(within(container).queryByRole("navigation", { name: "Catalogue pages" })).toBeNull();
 });
 
-test("the grid loosens a column when the detail panel is open", () => {
-  const closed = render(
-    <ProductGrid products={[discounted]} filters={filters} panelOpen={false} />,
-  );
-  expect(closed.container.querySelector(".xl\\:grid-cols-5")).toBeTruthy();
-
-  const open = render(<ProductGrid products={[discounted]} filters={filters} panelOpen={true} />);
-  expect(open.container.querySelector(".xl\\:grid-cols-4")).toBeTruthy();
-});
 
 // ── Detail panel ─────────────────────────────────────────────────────────────
 

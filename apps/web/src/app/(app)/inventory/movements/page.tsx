@@ -114,7 +114,7 @@ export default async function InventoryMovementsPage(props: { searchParams: Prom
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-2">
                         <div className="h-8 w-8 shrink-0 overflow-hidden rounded-md bg-background-app flex items-center justify-center">
-                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          { }
                           {m.variant.product.imageUrl ? (
                             <img src={m.variant.product.imageUrl} alt="" className="h-full w-full object-cover" />
                           ) : (

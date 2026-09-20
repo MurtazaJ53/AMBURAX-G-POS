@@ -93,10 +93,10 @@ export function ProductDetailPanel({ detail, filters, canManage }: ProductDetail
   return (
     <aside
       aria-label={`${product.name} details`}
-      className="flex w-full shrink-0 flex-col overflow-y-auto border-l border-border bg-background-card xl:w-96"
+      className="flex w-full shrink-0 flex-col overflow-y-auto border-l border-border bg-background-card xl:w-[380px]"
     >
       <div className="relative border-b border-border bg-background-subtle p-3">
-        <div className="mx-auto aspect-[4/5] w-40 overflow-hidden rounded-xl bg-background-card">
+        <div className="mx-auto aspect-square w-full sm:w-48 overflow-hidden rounded-lg bg-background-card">
           {showImage ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img
@@ -160,12 +160,12 @@ export function ProductDetailPanel({ detail, filters, canManage }: ProductDetail
           </Link>
         )}
 
-        <div className="mt-2 flex flex-wrap items-center gap-2">
+        <div className="mt-2 flex flex-wrap items-center gap-2 tabular-nums">
           {product.priceFromMinor === null ? (
             <span className="text-xs text-tertiary">No price set</span>
           ) : (
             <>
-              <span className="text-lg font-extrabold text-primary">
+              <span className="text-xl font-bold text-primary">
                 {formatMinor(product.priceFromMinor)}
               </span>
               {cheapest?.mrpMinor != null && discount !== null && (
@@ -173,7 +173,7 @@ export function ProductDetailPanel({ detail, filters, canManage }: ProductDetail
                   <span className="text-xs text-tertiary line-through">
                     MRP {formatMinor(cheapest.mrpMinor)}
                   </span>
-                  <span className="rounded-full bg-danger-subtle px-1.5 py-0.5 text-xs font-bold text-danger">
+                  <span className="rounded bg-success-subtle px-1.5 py-0.5 text-[10px] font-bold text-success">
                     {discount}% OFF
                   </span>
                 </>

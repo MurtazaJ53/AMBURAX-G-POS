@@ -72,8 +72,8 @@ function PriceLine({ product }: { product: ProductRow }) {
   const discount = cheapest ? discountPercent(cheapest.priceMinor, cheapest.mrpMinor) : null;
 
   return (
-    <span className="flex flex-wrap items-baseline gap-1.5">
-      <span className="text-sm font-extrabold text-primary">
+    <span className="flex flex-wrap items-baseline gap-1.5 tabular-nums">
+      <span className="text-sm font-bold text-primary">
         {formatMinor(product.priceFromMinor)}
         {ranged && (
           <span className="text-[10px] font-medium text-tertiary">
@@ -156,13 +156,13 @@ export function ProductCard({
         href={href}
         aria-current={selected ? "true" : undefined}
         className={cn(
-          "flex items-center gap-3 rounded-xl border bg-background-card p-3 transition-all hover:shadow-card",
+          "flex items-center gap-3 rounded-md border bg-background-card p-3 transition-all hover:shadow-md",
           selected
             ? "border-[color:var(--color-primary)] ring-1 ring-[color:var(--color-primary)]"
             : "border-border",
         )}
       >
-        <span className="h-14 w-14 shrink-0 overflow-hidden rounded-lg">
+        <span className="h-12 w-12 shrink-0 overflow-hidden rounded">
           <Thumb product={product} />
         </span>
         <span className="min-w-0 flex-1">
@@ -191,29 +191,29 @@ export function ProductCard({
       href={href}
       aria-current={selected ? "true" : undefined}
       className={cn(
-        "group relative flex flex-col overflow-hidden rounded-2xl border bg-background-card transition-all hover:-translate-y-0.5 hover:shadow-card",
+        "group relative flex flex-col justify-between overflow-hidden rounded-md border bg-background-card p-2 transition-all hover:-translate-y-px hover:shadow-md",
         selected
-          ? "border-[color:var(--color-primary)] ring-2 ring-[color:var(--color-primary)] ring-offset-1"
+          ? "border-[color:var(--color-primary)] ring-1 ring-[color:var(--color-primary)]"
           : "border-border",
       )}
     >
-      <span className="relative block aspect-[4/5] overflow-hidden bg-background-subtle">
+      <span className="relative block aspect-square overflow-hidden rounded-md bg-background-subtle">
         <Thumb
           product={product}
           className="transition-transform duration-300 group-hover:scale-105"
         />
         {!product.isActive && (
-          <span className="absolute left-2 top-2 rounded-full bg-background-active px-1.5 py-0.5 text-[9px] font-bold text-secondary">
+          <span className="absolute left-1.5 top-1.5 rounded-sm bg-background-active px-1.5 py-0.5 text-[9px] font-bold text-secondary">
             Inactive
           </span>
         )}
       </span>
 
-      <span className="block p-2.5">
+      <span className="block space-y-1 pt-2">
         <span className="block truncate text-xs font-semibold leading-tight text-primary">
           {product.name}
         </span>
-        <span className="mt-0.5 block truncate text-[10px] text-tertiary">
+        <span className="mt-0.5 block truncate text-[10px] font-bold uppercase tracking-wider text-tertiary">
           {product.variants[0]?.sku ?? "No variants"}
         </span>
         <span className="block truncate text-[10px] text-secondary">
@@ -315,7 +315,7 @@ export function CatalogToolbar({
             )
           }
           aria-label="Sort products"
-          className="rounded-lg border border-border bg-background-card px-2 py-1.5 text-xs text-secondary outline-none focus-visible:ring-2 focus-visible:ring-border-focus"
+          className="rounded border border-border bg-background-card px-2 py-1.5 text-xs text-secondary outline-none focus-visible:ring-2 focus-visible:ring-border-focus"
         >
           {SORT_OPTIONS.map((option) => (
             <option key={option.id} value={option.id}>
@@ -326,7 +326,7 @@ export function CatalogToolbar({
       </label>
 
       <div
-        className="flex overflow-hidden rounded-lg border border-border"
+        className="flex overflow-hidden rounded border border-border"
         role="group"
         aria-label="View mode"
       >
@@ -360,7 +360,7 @@ export function CatalogToolbar({
             <Link
               href={catalogHref({ ...filters, page: page - 1 })}
               aria-label="Previous page"
-              className="flex h-7 w-7 items-center justify-center rounded-lg border border-border hover:bg-background-hover"
+              className="flex h-7 w-7 items-center justify-center rounded border border-border hover:bg-background-hover"
             >
               <ChevronLeft aria-hidden="true" className="h-3 w-3 text-secondary" />
             </Link>
@@ -376,7 +376,7 @@ export function CatalogToolbar({
                 href={catalogHref({ ...filters, page: entry })}
                 aria-current={entry === page ? "page" : undefined}
                 className={cn(
-                  "flex h-7 w-7 items-center justify-center rounded-lg text-xs font-medium transition-colors",
+                  "flex h-7 w-7 items-center justify-center rounded text-xs font-medium transition-colors",
                   entry === page ? "text-white" : "text-secondary hover:bg-background-hover",
                 )}
                 style={entry === page ? { background: "var(--color-primary)" } : undefined}
@@ -389,7 +389,7 @@ export function CatalogToolbar({
             <Link
               href={catalogHref({ ...filters, page: page + 1 })}
               aria-label="Next page"
-              className="flex h-7 w-7 items-center justify-center rounded-lg border border-border hover:bg-background-hover"
+              className="flex h-7 w-7 items-center justify-center rounded border border-border hover:bg-background-hover"
             >
               <ChevronRight aria-hidden="true" className="h-3 w-3 text-secondary" />
             </Link>
@@ -428,10 +428,8 @@ export function ProductGrid({
 
   return (
     <div
-      className={cn(
-        "grid grid-cols-2 gap-3 sm:grid-cols-3",
-        panelOpen ? "xl:grid-cols-4" : "xl:grid-cols-5",
-      )}
+      className="grid gap-2.5"
+      style={{ gridTemplateColumns: "repeat(auto-fill, minmax(154px, 1fr))" }}
     >
       {products.map((product) => (
         <ProductCard

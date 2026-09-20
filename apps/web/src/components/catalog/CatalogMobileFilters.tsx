@@ -29,7 +29,7 @@ export function CatalogMobileFilters({
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="inline-flex items-center gap-1.5 rounded-xl border border-border bg-background-card px-3 py-2 text-xs font-medium text-secondary hover:bg-background-hover lg:hidden"
+        className="inline-flex items-center gap-1.5 rounded border border-border bg-background-card px-3 py-2 text-xs font-medium text-secondary hover:bg-background-hover lg:hidden"
       >
         <SlidersHorizontal aria-hidden="true" className="h-3.5 w-3.5" />
         Filters
@@ -50,12 +50,12 @@ export function CatalogMobileFilters({
           aria-label="Catalogue filters"
         >
           <div className="fixed inset-0 bg-black/50" onClick={() => setOpen(false)} />
-          <div className="relative flex w-72 max-w-[85vw] flex-col bg-background-card">
+          <div className="relative flex w-[320px] max-w-[88vw] flex-col bg-background-card">
             <button
               type="button"
               onClick={() => setOpen(false)}
               aria-label="Close filters"
-              className="absolute right-3 top-3 z-10 flex h-7 w-7 items-center justify-center rounded-lg border border-border bg-background-card"
+              className="absolute right-3 top-3 z-10 flex h-7 w-7 items-center justify-center rounded border border-border bg-background-card"
             >
               <X aria-hidden="true" className="h-3.5 w-3.5 text-secondary" />
             </button>
