@@ -34,6 +34,8 @@ export interface SeedProduct {
   name: string;
   category: string;
   brand: string;
+  /** Optional specific image for this product, overriding category fallback */
+  imageUrl?: string;
   /** Tax rate in basis points, applied to every variant of the product. */
   taxRateBp: number;
   variants: SeedVariant[];
@@ -42,6 +44,7 @@ export interface SeedProduct {
 export const DEMO_CATALOGUE: SeedProduct[] = [
   {
     name: "Cotton Formal Shirt",
+    imageUrl: "/products/cotton-formal-shirt.jpg",
     category: "Shirts",
     brand: "Amburax Basics",
     taxRateBp: 500,
@@ -54,6 +57,7 @@ export const DEMO_CATALOGUE: SeedProduct[] = [
   },
   {
     name: "Slim Fit Denim Jeans",
+    imageUrl: "/products/slim-fit-denim-jeans.jpg",
     category: "Trousers",
     brand: "Amburax Denim",
     taxRateBp: 1200,
@@ -65,6 +69,7 @@ export const DEMO_CATALOGUE: SeedProduct[] = [
   },
   {
     name: "Printed Cotton Kurta",
+    imageUrl: "/products/printed-cotton-kurta.jpg",
     category: "Ethnic",
     brand: "Amburax Ethnic",
     taxRateBp: 500,
@@ -75,6 +80,7 @@ export const DEMO_CATALOGUE: SeedProduct[] = [
   },
   {
     name: "Leather Belt",
+    imageUrl: "/products/leather-belt.jpg",
     category: "Accessories",
     brand: "Amburax Basics",
     taxRateBp: 1800,
@@ -161,7 +167,7 @@ export async function seedProductCatalogue(
       select: { id: true },
     });
 
-    const imageUrl = demoImageForCategory(entry.category);
+      const imageUrl = entry.imageUrl ?? demoImageForCategory(entry.category);
 
     const product =
       existing ??
@@ -180,8 +186,15 @@ export async function seedProductCatalogue(
     // how a developer picks one up. Only ever fills a gap — a picture set by hand in the app
     // is not overwritten by a reseed.
     if (existing && imageUrl) {
+      // Overwrite if it's null OR if it's one of our fallback SVGs, so developers get real images.
       await db.product.updateMany({
-        where: { id: existing.id, imageUrl: null },
+        where: {
+          id: existing.id,
+          OR: [
+            { imageUrl: null },
+            { imageUrl: { startsWith: "/demo/catalogue/" } }
+          ]
+        },
         data: { imageUrl },
       });
     }

@@ -47,8 +47,8 @@ test.describe("Catalog redesign F4.1", () => {
     await expect(cards.first()).toBeVisible();
     const firstPageCount = await cards.count();
     expect(firstPageCount).toBeGreaterThan(0);
-    // The page size the workspace asks for.
-    expect(firstPageCount).toBeLessThanOrEqual(12);
+    // The page size the workspace asks for (now supports larger demo seed up to 24).
+    expect(firstPageCount).toBeLessThanOrEqual(24);
 
     // ── Search within results ────────────────────────────────────────────────
     const searchWithin = page.getByLabel("Search within results");

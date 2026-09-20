@@ -16,6 +16,7 @@ import type { SeedProduct, SeedCustomer } from "./seedCatalogue";
 export const DEMO_EXTRA_CATALOGUE: SeedProduct[] = [
   {
     name: "Men's Polo T-Shirt",
+    imageUrl: "/products/men-s-polo-t-shirt.jpg",
     category: "Shirts",
     brand: "Amburax Basics",
     taxRateBp: 500,
@@ -27,6 +28,7 @@ export const DEMO_EXTRA_CATALOGUE: SeedProduct[] = [
   },
   {
     name: "Women's Top",
+    imageUrl: "/products/women-s-top.jpg",
     category: "Tops",
     brand: "Amburax Basics",
     taxRateBp: 500,
@@ -38,6 +40,7 @@ export const DEMO_EXTRA_CATALOGUE: SeedProduct[] = [
   },
   {
     name: "Women's Dress",
+    imageUrl: "/products/women-s-dress.jpg",
     category: "Dresses",
     brand: "Amburax Ethnic",
     taxRateBp: 500,
@@ -48,6 +51,7 @@ export const DEMO_EXTRA_CATALOGUE: SeedProduct[] = [
   },
   {
     name: "Regular Fit Jeans",
+    imageUrl: "/products/regular-fit-jeans.jpg",
     category: "Trousers",
     brand: "Amburax Denim",
     taxRateBp: 1200,
@@ -59,6 +63,7 @@ export const DEMO_EXTRA_CATALOGUE: SeedProduct[] = [
   },
   {
     name: "Chinos",
+    imageUrl: "/products/chinos.jpg",
     category: "Trousers",
     brand: "Amburax Denim",
     taxRateBp: 1200,
@@ -70,6 +75,7 @@ export const DEMO_EXTRA_CATALOGUE: SeedProduct[] = [
   },
   {
     name: "Formal Trousers",
+    imageUrl: "/products/formal-trousers.jpg",
     category: "Trousers",
     brand: "Amburax Basics",
     taxRateBp: 1200,
@@ -81,6 +87,7 @@ export const DEMO_EXTRA_CATALOGUE: SeedProduct[] = [
   },
   {
     name: "Kids T-Shirt",
+    imageUrl: "/products/kids-t-shirt.jpg",
     category: "Kids",
     brand: "Amburax Kids",
     taxRateBp: 500,
@@ -92,6 +99,7 @@ export const DEMO_EXTRA_CATALOGUE: SeedProduct[] = [
   },
   {
     name: "Kids Denim Shorts",
+    imageUrl: "/products/kids-denim-shorts.jpg",
     category: "Kids",
     brand: "Amburax Kids",
     taxRateBp: 500,
@@ -102,6 +110,7 @@ export const DEMO_EXTRA_CATALOGUE: SeedProduct[] = [
   },
   {
     name: "Hoodie",
+    imageUrl: "/products/hoodie.jpg",
     category: "Outerwear",
     brand: "Amburax Basics",
     taxRateBp: 1200,
@@ -113,6 +122,7 @@ export const DEMO_EXTRA_CATALOGUE: SeedProduct[] = [
   },
   {
     name: "Sweatshirt",
+    imageUrl: "/products/sweatshirt.jpg",
     category: "Outerwear",
     brand: "Amburax Basics",
     taxRateBp: 1200,
@@ -123,6 +133,7 @@ export const DEMO_EXTRA_CATALOGUE: SeedProduct[] = [
   },
   {
     name: "Jacket",
+    imageUrl: "/products/jacket.jpg",
     category: "Outerwear",
     brand: "Amburax Basics",
     taxRateBp: 1200,
@@ -134,6 +145,7 @@ export const DEMO_EXTRA_CATALOGUE: SeedProduct[] = [
   },
   {
     name: "Track Pants",
+    imageUrl: "/products/track-pants.jpg",
     category: "Activewear",
     brand: "Amburax Active",
     taxRateBp: 1200,
@@ -145,6 +157,7 @@ export const DEMO_EXTRA_CATALOGUE: SeedProduct[] = [
   },
   {
     name: "Leggings",
+    imageUrl: "/products/leggings.jpg",
     category: "Activewear",
     brand: "Amburax Active",
     taxRateBp: 500,
@@ -156,6 +169,7 @@ export const DEMO_EXTRA_CATALOGUE: SeedProduct[] = [
   },
   {
     name: "Scarf",
+    imageUrl: "/products/scarf.jpg",
     category: "Accessories",
     brand: "Amburax Basics",
     taxRateBp: 1800,
@@ -177,6 +191,7 @@ export const DEMO_EXTRA_CATALOGUE: SeedProduct[] = [
   },
   {
     name: "Socks (Pack of 3)",
+    imageUrl: "/products/socks-pack-of-3.jpg",
     category: "Accessories",
     brand: "Amburax Basics",
     taxRateBp: 1800,
@@ -184,6 +199,375 @@ export const DEMO_EXTRA_CATALOGUE: SeedProduct[] = [
       { sku: "SOCKS-AST-FS", barcode: "8901234500242", size: null, colour: "Assorted", priceMinor: 19900, mrpMinor: 24900, openingStock: 100 },
     ],
   },
+
+{
+    name: "Men's Casual Shirt",
+    imageUrl: "/products/men-s-casual-shirt.jpg",
+    category: "Shirts",
+    brand: "Amburax Basics",
+    taxRateBp: 500,
+    variants: [
+      { sku: "MCS-001", barcode: "8900000001001", size: "M", colour: "Blue", priceMinor: 89900, mrpMinor: 119900, openingStock: 24 },
+      { sku: "MCS-002", barcode: "8900000001002", size: "L", colour: "Navy", priceMinor: 89900, mrpMinor: 119900, openingStock: 12 },
+      { sku: "MCS-003", barcode: "8900000001003", size: "XL", colour: "Olive", priceMinor: 89900, mrpMinor: 119900, openingStock: 5 },
+    ],
+  },
+  {
+    name: "Men's Printed Shirt",
+    imageUrl: "/products/men-s-printed-shirt.jpg",
+    category: "Shirts",
+    brand: "Amburax Urban",
+    taxRateBp: 500,
+    variants: [
+      { sku: "MPS-001", barcode: "8900000001004", size: "M", colour: "White", priceMinor: 109900, mrpMinor: 149900, openingStock: 8 },
+      { sku: "MPS-002", barcode: "8900000001005", size: "L", colour: "Black", priceMinor: 109900, mrpMinor: 149900, openingStock: 0 },
+    ],
+  },
+  {
+    name: "Women's Kurti",
+    imageUrl: "/products/women-s-kurti.jpg",
+    category: "Ethnic",
+    brand: "Amburax Ethnic",
+    taxRateBp: 500,
+    variants: [
+      { sku: "WK-001", barcode: "8900000001006", size: "S", colour: "Green", priceMinor: 129900, mrpMinor: 179900, openingStock: 16 },
+      { sku: "WK-002", barcode: "8900000001007", size: "M", colour: "Red", priceMinor: 129900, mrpMinor: 179900, openingStock: 30 },
+    ],
+  },
+  {
+    name: "Kids T-Shirt",
+    category: "Kids",
+    brand: "Amburax Basics",
+    taxRateBp: 500,
+    variants: [
+      { sku: "KTS-001", barcode: "8900000001008", size: "S", colour: "Blue", priceMinor: 49900, mrpMinor: 69900, openingStock: 40 },
+      { sku: "KTS-002", barcode: "8900000001009", size: "M", colour: "White", priceMinor: 49900, mrpMinor: 69900, openingStock: 62 },
+    ],
+  },
+  {
+    name: "Men's Chino Pant",
+    imageUrl: "/products/men-s-chino-pant.jpg",
+    category: "Trousers",
+    brand: "Amburax Classic",
+    taxRateBp: 1200,
+    variants: [
+      { sku: "MCP-001", barcode: "8900000001010", size: "32", colour: "Beige", priceMinor: 149900, mrpMinor: 199900, openingStock: 15 },
+      { sku: "MCP-002", barcode: "8900000001011", size: "34", colour: "Olive", priceMinor: 149900, mrpMinor: 199900, openingStock: 8 },
+      { sku: "MCP-003", barcode: "8900000001012", size: "36", colour: "Brown", priceMinor: 149900, mrpMinor: 199900, openingStock: 0 },
+    ],
+  },
+  {
+    name: "Canvas Tote Bag",
+    category: "Accessories",
+    brand: "Amburax Studio",
+    taxRateBp: 1800,
+    variants: [
+      { sku: "CTB-001", barcode: "8900000001013", size: null, colour: "White", priceMinor: 69900, mrpMinor: 99900, openingStock: 48 },
+      { sku: "CTB-002", barcode: "8900000001014", size: null, colour: "Black", priceMinor: 69900, mrpMinor: 99900, openingStock: 24 },
+    ],
+  },
+  {
+    name: "Leather Belt",
+    imageUrl: "/products/leather-belt.jpg",
+    category: "Accessories",
+    brand: "Amburax Classic",
+    taxRateBp: 1800,
+    variants: [
+      { sku: "LB-001", barcode: "8900000001015", size: "M", colour: "Brown", priceMinor: 79900, mrpMinor: 109900, openingStock: 12 },
+      { sku: "LB-002", barcode: "8900000001016", size: "L", colour: "Black", priceMinor: 79900, mrpMinor: 109900, openingStock: 5 },
+    ],
+  },
+  {
+    name: "Printed Cotton Kurta",
+    imageUrl: "/products/printed-cotton-kurta.jpg",
+    category: "Ethnic",
+    brand: "Amburax Ethnic",
+    taxRateBp: 500,
+    variants: [
+      { sku: "PCK-001", barcode: "8900000001017", size: "M", colour: "Navy", priceMinor: 149900, mrpMinor: 249900, openingStock: 18 },
+      { sku: "PCK-002", barcode: "8900000001018", size: "L", colour: "Olive", priceMinor: 149900, mrpMinor: 249900, openingStock: 3 },
+    ],
+  },
+  {
+    name: "Slim Fit Denim Jeans",
+    imageUrl: "/products/slim-fit-denim-jeans.jpg",
+    category: "Trousers",
+    brand: "Amburax Denim",
+    taxRateBp: 1200,
+    variants: [
+      { sku: "SFD-001", barcode: "8900000001019", size: "30", colour: "Blue", priceMinor: 179900, mrpMinor: 249900, openingStock: 20 },
+      { sku: "SFD-002", barcode: "8900000001020", size: "32", colour: "Navy", priceMinor: 179900, mrpMinor: 249900, openingStock: 0 },
+      { sku: "SFD-003", barcode: "8900000001021", size: "34", colour: "Black", priceMinor: 179900, mrpMinor: 249900, openingStock: 8 },
+    ],
+  },
+  {
+    name: "Women's Jumpsuit",
+    imageUrl: "/products/women-s-jumpsuit.jpg",
+    category: "Dresses",
+    brand: "Amburax Studio",
+    taxRateBp: 1200,
+    variants: [
+      { sku: "WJS-001", barcode: "8900000001022", size: "S", colour: "Olive", priceMinor: 249900, mrpMinor: 349900, openingStock: 12 },
+      { sku: "WJS-002", barcode: "8900000001023", size: "M", colour: "Black", priceMinor: 249900, mrpMinor: 349900, openingStock: 5 },
+    ],
+  },
+  {
+    name: "Men's Graphic Tee",
+    imageUrl: "/products/men-s-graphic-tee.jpg",
+    category: "Shirts",
+    brand: "Amburax Urban",
+    taxRateBp: 500,
+    variants: [
+      { sku: "MGT-001", barcode: "8900000001024", size: "L", colour: "White", priceMinor: 59900, mrpMinor: 79900, openingStock: 40 },
+    ],
+  },
+  {
+    name: "Sports Leggings",
+    imageUrl: "/products/sports-leggings.jpg",
+    category: "Activewear",
+    brand: "Amburax Urban",
+    taxRateBp: 1200,
+    variants: [
+      { sku: "SLG-001", barcode: "8900000001025", size: "S", colour: "Black", priceMinor: 119900, mrpMinor: 149900, openingStock: 25 },
+    ],
+  },
+  {
+    name: "Winter Puffer Jacket",
+    imageUrl: "/products/winter-puffer-jacket.jpg",
+    category: "Outerwear",
+    brand: "Amburax Basics",
+    taxRateBp: 1200,
+    variants: [
+      { sku: "WPJ-001", barcode: "8900000001026", size: "L", colour: "Navy", priceMinor: 349900, mrpMinor: 499900, openingStock: 10 },
+    ],
+  },
+  {
+    name: "Kids Denim Overalls",
+    imageUrl: "/products/kids-denim-overalls.jpg",
+    category: "Kids",
+    brand: "Amburax Denim",
+    taxRateBp: 500,
+    variants: [
+      { sku: "KDO-001", barcode: "8900000001027", size: "M", colour: "Blue", priceMinor: 129900, mrpMinor: 179900, openingStock: 14 },
+    ],
+  },
+  {
+    name: "Formal Trousers",
+    category: "Trousers",
+    brand: "Amburax Classic",
+    taxRateBp: 1200,
+    variants: [
+      { sku: "FT-001", barcode: "8900000001028", size: "34", colour: "Black", priceMinor: 179900, mrpMinor: 249900, openingStock: 8 },
+    ],
+  },
+  {
+    name: "Cotton Silk Saree",
+    imageUrl: "/products/cotton-silk-saree.jpg",
+    category: "Ethnic",
+    brand: "Amburax Ethnic",
+    taxRateBp: 500,
+    variants: [
+      { sku: "CSS-001", barcode: "8900000001029", size: null, colour: "Red", priceMinor: 499900, mrpMinor: 699900, openingStock: 5 },
+    ],
+  },
+  {
+    name: "V-Neck Sweater",
+    imageUrl: "/products/v-neck-sweater.jpg",
+    category: "Outerwear",
+    brand: "Amburax Classic",
+    taxRateBp: 1200,
+    variants: [
+      { sku: "VNS-001", barcode: "8900000001030", size: "M", colour: "Navy", priceMinor: 149900, mrpMinor: 199900, openingStock: 18 },
+    ],
+  },
+  {
+    name: "Pleated Skirt",
+    imageUrl: "/products/pleated-skirt.jpg",
+    category: "Dresses",
+    brand: "Amburax Studio",
+    taxRateBp: 500,
+    variants: [
+      { sku: "PSK-001", barcode: "8900000001031", size: "S", colour: "White", priceMinor: 109900, mrpMinor: 149900, openingStock: 22 },
+    ],
+  },
+  {
+    name: "Workout Tank Top",
+    imageUrl: "/products/workout-tank-top.jpg",
+    category: "Activewear",
+    brand: "Amburax Urban",
+    taxRateBp: 500,
+    variants: [
+      { sku: "WTT-001", barcode: "8900000001032", size: "M", colour: "Green", priceMinor: 49900, mrpMinor: 69900, openingStock: 35 },
+    ],
+  },
+  {
+    name: "Fleece Joggers",
+    imageUrl: "/products/fleece-joggers.jpg",
+    category: "Activewear",
+    brand: "Amburax Basics",
+    taxRateBp: 500,
+    variants: [
+      { sku: "FJG-001", barcode: "8900000001033", size: "L", colour: "Black", priceMinor: 129900, mrpMinor: 179900, openingStock: 15 },
+    ],
+  }
+,
+{
+    name: "Summer Graphic Tee",
+    imageUrl: "/products/summer-graphic-tee.jpg",
+    category: "Shirts",
+    brand: "Amburax Urban",
+    taxRateBp: 500,
+    variants: [
+      { sku: "SGT-001", barcode: "8900000002001", size: "M", colour: "Yellow", priceMinor: 59900, mrpMinor: 79900, openingStock: 24 },
+    ],
+  },
+  {
+    name: "Relaxed Fit Chinos",
+    imageUrl: "/products/relaxed-fit-chinos.jpg",
+    category: "Trousers",
+    brand: "Amburax Classic",
+    taxRateBp: 1200,
+    variants: [
+      { sku: "RFC-001", barcode: "8900000002002", size: "32", colour: "Khaki", priceMinor: 169900, mrpMinor: 219900, openingStock: 15 },
+      { sku: "RFC-002", barcode: "8900000002003", size: "34", colour: "Khaki", priceMinor: 169900, mrpMinor: 219900, openingStock: 8 },
+    ],
+  },
+  {
+    name: "Vintage Denim Jacket",
+    imageUrl: "/products/vintage-denim-jacket.jpg",
+    category: "Outerwear",
+    brand: "Amburax Denim",
+    taxRateBp: 1200,
+    variants: [
+      { sku: "VDJ-001", barcode: "8900000002004", size: "M", colour: "Blue", priceMinor: 299900, mrpMinor: 399900, openingStock: 10 },
+      { sku: "VDJ-002", barcode: "8900000002005", size: "L", colour: "Blue", priceMinor: 299900, mrpMinor: 399900, openingStock: 0 },
+    ],
+  },
+  {
+    name: "Cotton Maxi Dress",
+    imageUrl: "/products/cotton-maxi-dress.jpg",
+    category: "Dresses",
+    brand: "Amburax Studio",
+    taxRateBp: 500,
+    variants: [
+      { sku: "CMD-001", barcode: "8900000002006", size: "S", colour: "Floral", priceMinor: 249900, mrpMinor: 299900, openingStock: 18 },
+      { sku: "CMD-002", barcode: "8900000002007", size: "M", colour: "Floral", priceMinor: 249900, mrpMinor: 299900, openingStock: 5 },
+    ],
+  },
+  {
+    name: "Kids Winter Beanie",
+    imageUrl: "/products/kids-winter-beanie.jpg",
+    category: "Kids",
+    brand: "Amburax Basics",
+    taxRateBp: 500,
+    variants: [
+      { sku: "KWB-001", barcode: "8900000002008", size: "S", colour: "Red", priceMinor: 39900, mrpMinor: 49900, openingStock: 30 },
+      { sku: "KWB-002", barcode: "8900000002009", size: "M", colour: "Navy", priceMinor: 39900, mrpMinor: 49900, openingStock: 20 },
+    ],
+  },
+  {
+    name: "Silk Blend Kurta",
+    imageUrl: "/products/silk-blend-kurta.jpg",
+    category: "Ethnic",
+    brand: "Amburax Ethnic",
+    taxRateBp: 1200,
+    variants: [
+      { sku: "SBK-001", barcode: "8900000002010", size: "L", colour: "Maroon", priceMinor: 199900, mrpMinor: 249900, openingStock: 12 },
+    ],
+  },
+  {
+    name: "Running Shorts",
+    imageUrl: "/products/running-shorts.jpg",
+    category: "Activewear",
+    brand: "Amburax Urban",
+    taxRateBp: 500,
+    variants: [
+      { sku: "RST-001", barcode: "8900000002011", size: "M", colour: "Black", priceMinor: 89900, mrpMinor: 119900, openingStock: 25 },
+      { sku: "RST-002", barcode: "8900000002012", size: "L", colour: "Grey", priceMinor: 89900, mrpMinor: 119900, openingStock: 15 },
+    ],
+  },
+  {
+    name: "Casual Crossbody Bag",
+    imageUrl: "/products/casual-crossbody-bag.jpg",
+    category: "Accessories",
+    brand: "Amburax Studio",
+    taxRateBp: 1800,
+    variants: [
+      { sku: "CCB-001", barcode: "8900000002013", size: null, colour: "Brown", priceMinor: 149900, mrpMinor: 199900, openingStock: 10 },
+    ],
+  },
+  {
+    name: "Linen Blend Shirt",
+    imageUrl: "/products/linen-blend-shirt.jpg",
+    category: "Shirts",
+    brand: "Amburax Classic",
+    taxRateBp: 500,
+    variants: [
+      { sku: "LBS-001", barcode: "8900000002014", size: "M", colour: "White", priceMinor: 129900, mrpMinor: 179900, openingStock: 20 },
+      { sku: "LBS-002", barcode: "8900000002015", size: "L", colour: "Beige", priceMinor: 129900, mrpMinor: 179900, openingStock: 15 },
+    ],
+  },
+  {
+    name: "Skinny Fit Jeans",
+    imageUrl: "/products/skinny-fit-jeans.jpg",
+    category: "Trousers",
+    brand: "Amburax Denim",
+    taxRateBp: 1200,
+    variants: [
+      { sku: "SFJ-001", barcode: "8900000002016", size: "30", colour: "Black", priceMinor: 189900, mrpMinor: 249900, openingStock: 12 },
+      { sku: "SFJ-002", barcode: "8900000002017", size: "32", colour: "Black", priceMinor: 189900, mrpMinor: 249900, openingStock: 8 },
+    ],
+  },
+  {
+    name: "Embroidered Kurti",
+    imageUrl: "/products/embroidered-kurti.jpg",
+    category: "Ethnic",
+    brand: "Amburax Ethnic",
+    taxRateBp: 500,
+    variants: [
+      { sku: "EK-001", barcode: "8900000002018", size: "M", colour: "Pink", priceMinor: 159900, mrpMinor: 209900, openingStock: 22 },
+    ],
+  },
+  {
+    name: "Performance Hoodie",
+    imageUrl: "/products/performance-hoodie.jpg",
+    category: "Activewear",
+    brand: "Amburax Urban",
+    taxRateBp: 1200,
+    variants: [
+      { sku: "PHD-001", barcode: "8900000002019", size: "L", colour: "Navy", priceMinor: 219900, mrpMinor: 279900, openingStock: 14 },
+    ],
+  },
+  {
+    name: "Kids Floral Frock",
+    imageUrl: "/products/kids-floral-frock.jpg",
+    category: "Kids",
+    brand: "Amburax Basics",
+    taxRateBp: 500,
+    variants: [
+      { sku: "KFF-001", barcode: "8900000002020", size: "4Y", colour: "Yellow", priceMinor: 89900, mrpMinor: 119900, openingStock: 25 },
+    ],
+  },
+  {
+    name: "Premium Leather Wallet",
+    imageUrl: "/products/premium-leather-wallet.jpg",
+    category: "Accessories",
+    brand: "Amburax Classic",
+    taxRateBp: 1800,
+    variants: [
+      { sku: "PLW-001", barcode: "8900000002021", size: null, colour: "Black", priceMinor: 119900, mrpMinor: 159900, openingStock: 18 },
+    ],
+  },
+  {
+    name: "Corduroy Overshirt",
+    imageUrl: "/products/corduroy-overshirt.jpg",
+    category: "Outerwear",
+    brand: "Amburax Denim",
+    taxRateBp: 1200,
+    variants: [
+      { sku: "COS-001", barcode: "8900000002022", size: "L", colour: "Brown", priceMinor: 249900, mrpMinor: 319900, openingStock: 10 },
+    ],
+  }
 ];
 
 /**
