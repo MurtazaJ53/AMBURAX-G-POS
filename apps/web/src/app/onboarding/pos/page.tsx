@@ -57,7 +57,7 @@ export default async function PosSetupPage() {
   // one that pressed Continue sits at TEAM_INVITED. Requiring only TEAM_INVITED here would
   // strand every tenant that skipped the team step.
   if (!tenant || (tenant.onboardingStep !== "STORE_CREATED" && tenant.onboardingStep !== "TEAM_INVITED")) {
-    redirect("/home");
+    redirect("/dashboard");
   }
 
   // Exactly one store exists during onboarding (A7 created it). Multi-store selection is
@@ -75,7 +75,7 @@ export default async function PosSetupPage() {
       membershipRole: membership?.role ?? null,
     })
   ) {
-    redirect("/home");
+    redirect("/dashboard");
   }
 
   // Suggestion only — the merchant can overwrite it, and the server still enforces

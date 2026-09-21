@@ -35,7 +35,7 @@ vi.mock("lucide-react", () => {
 
 vi.mock("@/test-component/nextNavigationStub.ts", () => ({
   useRouter: () => ({ push: vi.fn(), refresh: vi.fn() }),
-  usePathname: () => "/home",
+  usePathname: () => "/dashboard",
 }));
 
 import { KpiGrid } from "@/components/dashboard/KpiGrid";

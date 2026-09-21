@@ -1,6 +1,9 @@
+"use client";
 import Link from "next/link";
-import { X, Package, History } from "lucide-react";
+import { X, Package, ExternalLink } from "lucide-react";
 import { type StockLevel, type ProductVariant, type Product } from "@prisma/client";
+import { StatusPill, type Status } from "./InventoryUI";
+import { useState } from "react";
 
 type DetailStock = StockLevel & {
   variant: ProductVariant & {
@@ -19,97 +22,151 @@ export function InventoryDetailPanel({
 }) {
   const p = item.variant.product;
   const v = item.variant;
+  const [tab, setTab] = useState<"Overview" | "Variants" | "Stock History">("Overview");
+
+  const st: Status = item.quantity > 10 ? "In Stock" : item.quantity > 0 ? "Low Stock" : item.quantity < 0 ? "Negative" : "Out of Stock";
+
+  const currency = (value: number) => `Rs. ${(value / 100).toLocaleString('en-IN', { minimumFractionDigits: 2 })}`;
 
   return (
-    <aside className="flex w-full flex-col overflow-hidden rounded-lg border border-border bg-background-card shadow-sm xl:sticky xl:top-[82px] xl:self-start">
-      <div className="flex items-center justify-between border-b border-border p-4">
-        <h2 className="text-sm font-bold text-primary">Stock Details</h2>
+    <aside className="flex h-full min-h-0 w-full xl:w-[380px] shrink-0 flex-col overflow-hidden rounded-lg border border-border bg-background-card shadow-md">
+      <div className="flex items-start justify-between border-b border-border p-4 bg-slate-50">
+        <div>
+          <div className="text-[10px] font-bold uppercase tracking-wider text-secondary mb-1">Selected product</div>
+          <h2 className="text-sm font-bold text-primary">Product Details</h2>
+        </div>
         <Link
           href={closeHref}
-          className="rounded hover:bg-background-app p-1 text-secondary transition-colors"
+          className="rounded p-1 text-secondary transition-colors hover:bg-slate-200"
           aria-label="Close details"
         >
-          <X className="h-5 w-5" />
+          <X className="h-4 w-4" />
         </Link>
       </div>
 
-      <div className="flex-1 overflow-y-auto p-4">
-        <div className="flex gap-3">
-          <div className="h-20 w-16 shrink-0 overflow-hidden rounded-md bg-background-app">
-            { }
+      <div className="flex-1 overflow-y-auto min-h-0">
+        <div className="flex gap-4 p-4 border-b border-border">
+          <div className="h-20 w-16 shrink-0 overflow-hidden rounded-[5px] bg-slate-100 flex items-center justify-center">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
             {p.imageUrl ? (
               <img src={p.imageUrl} alt="" className="h-full w-full object-cover" />
             ) : (
-              <div className="flex h-full items-center justify-center text-tertiary">
-                <Package className="h-6 w-6" />
-              </div>
+              <Package className="h-6 w-6 text-slate-300" />
             )}
           </div>
-          <div className="min-w-0 pt-1">
-            <b className="text-sm text-primary">{p.name}</b>
-            {v.size || v.colour ? (
-              <p className="text-[10px] text-secondary mt-0.5">
-                {[v.size, v.colour].filter(Boolean).join(" / ")}
-              </p>
-            ) : null}
-            <p className="mt-1">
-              <span className="rounded bg-green-100 px-1.5 py-0.5 text-[10px] font-semibold text-green-700">
-                {p.isActive ? "Active" : "Inactive"}
-              </span>
-            </p>
-            <p className="mt-2 text-[10px] text-secondary font-mono">SKU: {v.sku}</p>
+          <div className="min-w-0 flex-1">
+            <h2 className="text-[15px] font-bold text-primary truncate leading-tight">{p.name}</h2>
+            <div className="text-[11px] text-secondary mt-1 font-mono truncate">
+              {v.sku} &bull; {p.brand || "No brand"}
+            </div>
+            <div className="mt-2 flex items-center gap-2">
+              <StatusPill status={st} />
+            </div>
           </div>
         </div>
 
-        <div className="mt-4 flex border-b border-border">
-          <button className="flex-1 border-b-2 border-primary py-2 text-[10px] font-medium text-primary">
-            Overview
-          </button>
+        <div className="flex border-b border-border px-2">
+          {(["Overview", "Variants", "Stock History"] as const).map((t) => (
+            <button
+              key={t}
+              onClick={() => setTab(t)}
+              className={`px-3 py-2.5 text-[11px] font-semibold transition-colors ${tab === t ? "border-b-2 border-primary text-primary" : "border-b-2 border-transparent text-secondary hover:text-primary"}`}
+            >
+              {t}
+            </button>
+          ))}
         </div>
 
-        <div className="grid grid-cols-2 gap-x-2 gap-y-4 py-4 text-[10px]">
-          <div>
-            <p className="text-secondary">Category</p>
-            <b className="mt-1 block text-primary">{p.category || "None"}</b>
-          </div>
-          <div>
-            <p className="text-secondary">Brand</p>
-            <b className="mt-1 block text-primary">{p.brand || "None"}</b>
-          </div>
-        </div>
+        <div className="p-4 text-[11px]">
+          {tab === "Overview" && (
+            <>
+              <div className="grid grid-cols-2 gap-y-4 gap-x-2">
+                <div>
+                  <label className="text-[10px] font-bold text-secondary block">Category</label>
+                  <strong className="text-primary">{p.category || "None"}</strong>
+                </div>
+                <div>
+                  <label className="text-[10px] font-bold text-secondary block">Brand</label>
+                  <strong className="text-primary">{p.brand || "None"}</strong>
+                </div>
+                <div>
+                  <label className="text-[10px] font-bold text-secondary block">HSN Code</label>
+                  <strong className="text-secondary font-medium">Not available</strong>
+                </div>
+                <div>
+                  <label className="text-[10px] font-bold text-secondary block">Sales Price</label>
+                  <strong className="text-primary font-mono">{currency(v.priceMinor)}</strong>
+                </div>
+                <div>
+                  <label className="text-[10px] font-bold text-secondary block">Cost Price</label>
+                  <strong className="text-secondary font-medium">Not connected</strong>
+                </div>
+                <div>
+                  <label className="text-[10px] font-bold text-secondary block">Tax</label>
+                  <strong className="text-secondary font-medium">Not connected</strong>
+                </div>
+              </div>
 
-        <div className="grid grid-cols-2 rounded-lg border border-border bg-background-app p-3">
-          <div>
-            <p className="text-secondary text-[10px]">Total Stock</p>
-            <b className="mt-1 block text-primary">{item.quantity}</b>
-          </div>
-          <div>
-            <p className="text-secondary text-[10px]">Available</p>
-            <b className="mt-1 block text-primary">{item.quantity}</b>
-          </div>
-        </div>
+              <div className="mt-6 grid grid-cols-3 gap-2 rounded-lg border border-border bg-slate-50 p-3 text-center">
+                <div>
+                  <label className="text-[10px] font-bold text-secondary block">Total Stock</label>
+                  <strong className="text-primary font-mono text-sm">{item.quantity}</strong>
+                </div>
+                <div>
+                  <label className="text-[10px] font-bold text-secondary block">Reserved</label>
+                  <strong className="text-secondary font-mono text-sm">&mdash;</strong>
+                </div>
+                <div>
+                  <label className="text-[10px] font-bold text-secondary block">Available</label>
+                  <strong className="text-primary font-mono text-sm">{item.quantity}</strong>
+                </div>
+              </div>
 
-        <div className="divide-y divide-border text-[10px] mt-4">
-          <div className="flex justify-between py-3">
-            <span className="text-secondary">Last Updated</span>
-            <b className="text-primary">{item.updatedAt.toLocaleString()}</b>
-          </div>
+              <div className="mt-6 space-y-3">
+                <div className="flex justify-between">
+                  <span className="text-secondary">Reorder level</span>
+                  <strong className="text-secondary font-medium">Not available</strong>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-secondary">Location</span>
+                  <strong className="text-secondary font-medium">Not available</strong>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-secondary">Last updated</span>
+                  <strong className="text-primary">{new Intl.DateTimeFormat('en-US', { timeZone: 'Asia/Kolkata', day: 'numeric', month: 'short', year: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true }).format(item.updatedAt)}</strong>
+                </div>
+              </div>
+            </>
+          )}
+
+          {tab === "Variants" && (
+            <div className="text-secondary py-4 text-center">
+              Variant grouping is not yet available in this view.
+            </div>
+          )}
+
+          {tab === "Stock History" && (
+            <div className="flex gap-3 py-4 items-start text-secondary">
+              <ExternalLink className="h-4 w-4 shrink-0 mt-0.5" />
+              <div>
+                <p>Click &quot;View Stock History&quot; below to see all stock movements for this variant.</p>
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
-      <div className="border-t border-border p-4 flex gap-2">
+      <div className="mt-auto border-t border-border p-4 bg-slate-50 flex gap-2 shrink-0">
         <Link
-          href={`/inventory/movements?search=${encodeURIComponent(v.sku)}`}
-          className="flex-1 inline-flex items-center justify-center gap-1.5 rounded-lg border border-border bg-background-card px-3 py-2 text-xs font-semibold text-primary transition-colors hover:bg-background-app focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-border-focus"
+          href={`/inventory/movements?q=${encodeURIComponent(v.sku)}`}
+          className="flex-1 flex items-center justify-center rounded-[4px] border border-slate-300 bg-white px-3 py-1.5 text-[11px] font-semibold text-primary hover:bg-slate-50 transition-colors shadow-sm"
         >
-          <History className="h-3.5 w-3.5" />
-          History
+          View Stock History
         </Link>
         {canManage && (
           <Link
             href={`/inventory/adjustments/new?sku=${encodeURIComponent(v.sku)}`}
-            className="flex-1 inline-flex items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-xs font-semibold text-white transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-border-focus"
-            style={{ background: "var(--color-primary)" }}
+            className="flex-1 flex items-center justify-center rounded-[4px] border border-transparent bg-primary px-3 py-1.5 text-[11px] font-semibold text-white hover:bg-slate-800 transition-colors shadow-sm"
           >
             Adjust Stock
           </Link>

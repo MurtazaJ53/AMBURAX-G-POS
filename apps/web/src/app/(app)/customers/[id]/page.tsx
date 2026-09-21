@@ -18,7 +18,7 @@ export default async function CustomerProfilePage(props: { params: Promise<{ id:
   const token = (await cookies()).get(env.SESSION_COOKIE_NAME)?.value;
   const resolved = await resolvePosContext(token);
   if (resolved.status === "unauthorized") redirect("/auth/login");
-  if (resolved.status === "no_store") redirect("/home");
+  if (resolved.status === "no_store") redirect("/dashboard");
   const auth = resolved.context;
 
   // Load customer detail, ensuring tenant isolation

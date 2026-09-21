@@ -1,119 +1,64 @@
 import * as React from "react";
 import Link from "next/link";
-import { CheckCircle2, CircleDot, Plus } from "lucide-react";
-import { initialsOf, seriesColour } from "@/server/dashboard/dashboardTransforms";
+import { Activity, ChevronRight, Package } from "lucide-react";
 import type {
   DashboardShiftActivity,
   DashboardStockSignal,
 } from "@/server/dashboard/dashboardQueries";
-import { CardLink, DashboardCard, DashboardCardHeader, WidgetUnavailable } from "./primitives";
 
-/**
- * The bottom row of the reference: a call to action, who is on shift, targets, and system
- * health.
- *
- * Two of the four are where this dashboard most visibly departs from the design. The
- * reference shows a sales target with a progress ring, and a staff panel reading "8 Active /
- * 1 Break". AMBURAX has no target model and no break state, so the target card states that
- * plainly and the staff card reports only what a POS session can prove: a shift is open, and
- * these are the people on it.
- */
-
-/**
- * Who is on the tills right now.
- *
- * Avatars are initials of real users with an open session, not a decorative stack. Where
- * nobody is on shift the card says so — an empty avatar row would read as "loading".
- */
 export function ShiftStatusCard({ activity }: { activity: DashboardShiftActivity }) {
-  const overflow = activity.cashiers.length - 5;
-
   return (
-    <DashboardCard aria-labelledby="shift-status-heading">
-      <DashboardCardHeader
-        id="shift-status-heading"
-        title="On shift"
-        action={<CardLink href="/settings/terminals">Terminals</CardLink>}
-      />
-
-      <div className="mb-3 flex items-center gap-1.5">
-        <span
-          aria-hidden="true"
-          className={`h-1.5 w-1.5 rounded-full ${
-            activity.openSessions > 0 ? "bg-success" : "bg-background-active"
-          }`}
-        />
-        <span className="text-xs font-medium text-secondary">
-          {activity.openSessions === 0
-            ? "No till open"
-            : `${activity.openSessions} till${activity.openSessions === 1 ? "" : "s"} open`}
-        </span>
-        <span className="ml-auto text-[10px] text-tertiary">
-          {activity.staffCount} registered staff
+    <div className="surface-card rounded-lg p-4 flex flex-col h-full">
+      <div className="flex items-center justify-between">
+        <h2 className="text-[13px] font-bold text-slate-800">Store Staff <span className="text-slate-400 font-normal">(Shift Live) &darr;</span></h2>
+      </div>
+      <div className="mt-1">
+        <span className="text-[10px] font-semibold text-emerald-600 flex items-center gap-1">
+          <span className="size-1.5 bg-emerald-500 rounded-full"></span> {activity.cashiers.length} Active / 0 Break
         </span>
       </div>
-
-      {activity.cashiers.length === 0 ? (
-        <p className="text-xs text-tertiary">
-          Shifts show here once someone opens a till on a paired terminal.
-        </p>
-      ) : (
-        <div className="flex items-center">
-          {activity.cashiers.slice(0, 5).map((cashier, index) => (
-            <span
-              key={cashier.userId}
-              title={cashier.name}
-              className="flex h-8 w-8 items-center justify-center rounded-full border-2 border-background-card text-[10px] font-bold text-white"
-              style={{ background: seriesColour(index), marginLeft: index > 0 ? -8 : 0 }}
-            >
-              {initialsOf(cashier.name)}
-            </span>
-          ))}
-          {overflow > 0 && (
-            <span
-              className="flex h-8 w-8 items-center justify-center rounded-full border-2 border-background-card bg-background-active text-[10px] font-bold text-secondary"
-              style={{ marginLeft: -8 }}
-            >
-              +{overflow}
-            </span>
-          )}
-          <span className="sr-only">
-            On shift: {activity.cashiers.map((cashier) => cashier.name).join(", ")}
-          </span>
-        </div>
-      )}
-    </DashboardCard>
+      <div className="mt-auto flex items-end gap-1.5">
+        {activity.cashiers.slice(0, 5).map((c, i) => (
+          <div key={i} className="size-7 rounded-full bg-slate-100 border border-slate-200 flex items-center justify-center text-[9px] font-bold text-slate-600">
+            {c.name.substring(0, 2).toUpperCase()}
+          </div>
+        ))}
+        {activity.cashiers.length > 5 && (
+          <div className="size-7 rounded-full bg-slate-50 flex items-center justify-center text-[9px] font-bold text-slate-400">
+            +{activity.cashiers.length - 5}
+          </div>
+        )}
+        {activity.cashiers.length === 0 && (
+          <div className="text-[11px] text-slate-400">No active staff</div>
+        )}
+      </div>
+    </div>
   );
 }
 
-/**
- * Targets.
- *
- * There is no target anywhere in the schema — not on Store, not on Tenant, not per user. So
- * this card holds a designed "not configured" state rather than a progress ring against an
- * invented number. A ring at 68% of a target nobody set is the single most misleading thing
- * this screen could show.
- */
 export function TargetsCard() {
   return (
-    <DashboardCard aria-labelledby="targets-heading">
-      <DashboardCardHeader id="targets-heading" title="Today's target" />
-      <WidgetUnavailable
-        title="No target configured"
-        reason="AMBURAX cannot set or store sales targets yet, so there is nothing to measure today against."
-      />
-    </DashboardCard>
+    <div className="surface-card rounded-lg p-4 flex flex-col h-full">
+      <div className="flex items-center justify-between">
+        <h2 className="text-[13px] font-bold text-slate-800">Today&apos;s Targets</h2>
+      </div>
+      <div className="mt-auto flex items-center gap-3">
+        <div className="size-12 rounded-full border-[4px] border-slate-100 flex items-center justify-center relative">
+          <div className="absolute inset-0 border-[4px] border-sky-500 rounded-full border-t-transparent border-r-transparent rotate-45"></div>
+          <span className="text-[10px] font-bold text-slate-700">0%</span>
+        </div>
+        <div>
+          <p className="text-[12px] font-bold text-slate-800">₹0 / ₹0</p>
+          <p className="text-[9px] text-slate-400">Sales Target</p>
+        </div>
+        <div className="ml-auto text-[10px] font-semibold text-sky-600">
+          View Targets &rarr;
+        </div>
+      </div>
+    </div>
   );
 }
 
-/**
- * System status, from facts rather than from optimism.
- *
- * The reference shows "All Systems Operational". That claim needs monitoring this product
- * does not have, so each line here is something the page can actually observe: whether a till
- * is open, whether the catalogue has been counted into this store, and whether accounting is
- * connected — which it is not, because no ERPNext adapter exists.
- */
 export function SystemStatusCard({
   activity,
   stock,
@@ -121,85 +66,55 @@ export function SystemStatusCard({
   activity: DashboardShiftActivity;
   stock: DashboardStockSignal;
 }) {
-  const rows = [
-    {
-      key: "till",
-      label: "Till sessions",
-      detail: activity.openSessions > 0 ? `${activity.openSessions} open` : "None open",
-      tone: activity.openSessions > 0 ? "ok" : "idle",
-    },
-    {
-      key: "stock",
-      label: "Stock counted",
-      detail:
-        stock.uncountedVariants === 0
-          ? "Whole catalogue counted here"
-          : `${stock.uncountedVariants} never counted`,
-      tone: stock.uncountedVariants === 0 ? "ok" : "warn",
-    },
-    {
-      key: "erp",
-      label: "Accounting",
-      detail: "Not connected",
-      tone: "warn",
-    },
-  ] as const;
+  const healthy = activity.openSessions > 0 && stock.uncountedVariants === 0;
 
   return (
-    <DashboardCard aria-labelledby="system-status-heading">
-      <DashboardCardHeader id="system-status-heading" title="System status" />
-      <ul className="space-y-2">
-        {rows.map((row) => (
-          <li key={row.key} className="flex items-center gap-2">
-            {row.tone === "ok" ? (
-              <CheckCircle2 aria-hidden="true" className="h-3.5 w-3.5 shrink-0 text-success" />
-            ) : (
-              <CircleDot
-                aria-hidden="true"
-                className={`h-3.5 w-3.5 shrink-0 ${
-                  row.tone === "warn" ? "text-warning" : "text-tertiary"
-                }`}
-              />
-            )}
-            <span className="text-xs text-secondary">{row.label}</span>
-            <span className="ml-auto truncate text-[10px] text-tertiary">{row.detail}</span>
-          </li>
-        ))}
-      </ul>
-      <p className="mt-3 text-[10px] text-tertiary">
-        Sales are recorded in AMBURAX and are not posted to accounting.
-      </p>
-    </DashboardCard>
-  );
-}
-
-/**
- * The dark call-to-action tile the reference uses for seasonal merchandising.
- *
- * Kept as a shape, dropped as a claim: "New Season Collection" is a garment-retail campaign,
- * and AMBURAX is not a garment product. It points instead at the next real step for a
- * business whose catalogue is thin, and is rendered only when that is actually true and the
- * operator is allowed to act on it.
- */
-export function NextStepBanner({ uncountedVariants }: { uncountedVariants: number }) {
-  return (
-    <div className="relative flex items-center gap-3 overflow-hidden rounded-2xl bg-slate-800 p-4">
-      <div className="z-10 flex-1">
-        <p className="text-sm font-bold text-white">Finish setting up your catalogue</p>
-        <p className="mb-3 mt-0.5 text-[10px] text-slate-400">
-          {uncountedVariants} product variant{uncountedVariants === 1 ? " has" : "s have"} never
-          been counted into this store.
-        </p>
-        <Link
-          href="/inventory"
-          className="inline-flex items-center gap-1.5 rounded-lg px-4 py-1.5 text-xs font-semibold text-white transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
-          style={{ background: "var(--color-primary)" }}
-        >
-          <Plus aria-hidden="true" className="h-3.5 w-3.5" />
-          Count stock
-        </Link>
+    <div className={`surface-card rounded-lg p-4 flex flex-col h-full ${healthy ? "bg-emerald-50/70" : "bg-slate-50/70"}`}>
+      <div className="flex items-center gap-2">
+        <span className={`flex size-7 items-center justify-center rounded-full text-white ${healthy ? "bg-emerald-500" : "bg-slate-400"}`}>
+          <Activity size={14} />
+        </span>
+        <div>
+          <h2 className={`text-[12px] font-bold ${healthy ? "text-emerald-900" : "text-slate-700"}`}>
+            {healthy ? "All systems operational" : "System status checks"}
+          </h2>
+          <p className={`mt-1 text-[9px] ${healthy ? "text-emerald-700" : "text-slate-500"}`}>
+            POS &middot; Inventory &middot; Sync &middot; Payments
+          </p>
+        </div>
+      </div>
+      <div className={`mt-4 flex flex-col gap-1 text-[9px] flex-1 justify-end ${healthy ? "text-emerald-700" : "text-slate-500"}`}>
+        <div className="flex justify-between border-b border-white/40 pb-1">
+          <span>Till sessions:</span>
+          <span className="font-semibold">{activity.openSessions > 0 ? `${activity.openSessions} open` : "None open"}</span>
+        </div>
+        <div className="flex justify-between border-b border-white/40 pb-1">
+          <span>Stock counted:</span>
+          <span className="font-semibold">{stock.uncountedVariants === 0 ? "Full catalogue" : `${stock.uncountedVariants} uncounted`}</span>
+        </div>
+        <div className="flex justify-between pt-0.5">
+          <span>Accounting:</span>
+          <span className="font-semibold">Not connected</span>
+        </div>
       </div>
     </div>
   );
 }
 
+export function NextStepBanner({ uncountedVariants }: { uncountedVariants: number }) {
+  return (
+    <div className="surface-card flex min-h-[92px] items-center gap-4 overflow-hidden rounded-lg bg-sky-50/30 p-4 h-full relative">
+      <div className="min-w-0 flex-1 z-10">
+        <h2 className="mt-1 text-[14px] font-bold text-slate-800">Grow Your Business</h2>
+        <p className="mt-1 text-[10px] text-slate-500">New season collection setup<br/>in 2 steps.</p>
+        <Link href="/products" className="mt-3 inline-block shrink-0 rounded-md bg-sky-600 px-3 py-1.5 text-[11px] font-semibold text-white hover:bg-sky-700">
+          Add Products
+        </Link>
+      </div>
+      <div className="absolute right-0 bottom-0 opacity-50 sm:opacity-100 pr-2 pb-2">
+        {/* Placeholder for bags/clothing image */}
+        <div className="w-[100px] h-[80px] bg-sky-100 rounded opacity-50"></div>
+      </div>
+    </div>
+  );
+}

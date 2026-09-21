@@ -37,7 +37,7 @@ export interface NavSection {
 export const NAVIGATION: NavSection[] = [
   {
     items: [
-      { id: "dashboard", label: "Dashboard", href: "/home", icon: LayoutDashboard, status: "built" },
+      { id: "dashboard", label: "Dashboard", href: "/dashboard", icon: LayoutDashboard, status: "built" },
       { id: "pos", label: "POS", href: "/pos", icon: MonitorSmartphone, status: "built", capabilities: ["RETAIL"] },
       { id: "sales", label: "Sales", href: "/sales", icon: Tag, status: "built" },
       { id: "inventory", label: "Inventory", href: "/inventory", icon: Package, status: "built" },

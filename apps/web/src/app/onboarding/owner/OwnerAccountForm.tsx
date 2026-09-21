@@ -67,6 +67,28 @@ export function OwnerAccountForm() {
     if (phase.kind !== "form") return;
     setError(null);
 
+    const normalizedName = name.trim();
+    const normalizedEmail = email.trim();
+
+    if (!normalizedName) {
+      setError({ kind: "validation", message: "Please enter your name." });
+      return;
+    }
+    if (!normalizedEmail) {
+      setError({ kind: "validation", message: "Please enter your email address." });
+      return;
+    }
+    
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(normalizedEmail)) {
+      setError({ kind: "validation", message: "Please enter a valid email address." });
+      return;
+    }
+
+    if (!password) {
+      setError({ kind: "validation", message: "Please enter a password." });
+      return;
+    }
     if (password !== confirmPassword) {
       setError({ kind: "validation", message: "Passwords do not match." });
       return;
@@ -79,8 +101,8 @@ export function OwnerAccountForm() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           onboardingToken: phase.onboardingToken,
-          name: name.trim(),
-          email: email.trim(),
+          name: normalizedName,
+          email: normalizedEmail,
           password,
           confirmPassword,
         }),

@@ -99,8 +99,25 @@ export function LoginForm() {
     if (submitting) return;
     setError(null);
 
-    if (!email || !password) {
-      setError({ kind: "validation", message: "Enter your email and password." });
+    const normalizedEmail = email.trim();
+
+    if (!normalizedEmail && !password) {
+      setError({ kind: "validation", message: "Please enter your email and password." });
+      return;
+    }
+    if (!normalizedEmail) {
+      setError({ kind: "validation", message: "Please enter your email address." });
+      return;
+    }
+    if (!password) {
+      setError({ kind: "validation", message: "Please enter your password." });
+      return;
+    }
+    
+    // Basic format check without being overly restrictive (let backend do deep validation)
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(normalizedEmail)) {
+      setError({ kind: "validation", message: "Please enter a valid email address." });
       return;
     }
 
@@ -109,13 +126,13 @@ export function LoginForm() {
       const res = await fetch("/api/v1/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password, remember }),
+        body: JSON.stringify({ email: normalizedEmail, password, remember }),
       });
 
       const data = await res.json();
 
       if (res.ok && data.status === "ok") {
-        router.push("/home");
+        router.push("/dashboard");
         router.refresh();
         return;
       }
@@ -197,7 +214,6 @@ export function LoginForm() {
           </span>
           <input
             id="email"
-            name="email"
             type="email"
             autoComplete="email"
             required
@@ -220,7 +236,6 @@ export function LoginForm() {
           </span>
           <input
             id="password"
-            name="password"
             type={showPassword ? "text" : "password"}
             autoComplete="current-password"
             required

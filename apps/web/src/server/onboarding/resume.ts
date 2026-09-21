@@ -3,13 +3,13 @@ import { db } from "@/server/db";
 /**
  * Where an owner with unfinished onboarding belongs. Closes audit finding P1-5.
  *
- * The defect this fixes: every onboarding page redirects to `/home` when its step doesn't
- * match, and `/auth/login`, `/auth/verify` and `/` all land on `/home` too — so an owner
+ * The defect this fixes: every onboarding page redirects to `/dashboard` when its step doesn't
+ * match, and `/auth/login`, `/auth/verify` and `/` all land on `/dashboard` too — so an owner
  * who closed the tab at A7 and signed back in was dropped on a placeholder with no route
  * back into setup. The mapping below already existed but nothing imported it, so the dead
  * end was still live.
  *
- * `/home` is the single wiring point on purpose. Every authenticated entry path funnels
+ * `/dashboard` is the single wiring point on purpose. Every authenticated entry path funnels
  * through it, so one server-side guard there covers sign-in, MFA completion, the root
  * redirect, a bookmark and a refresh — without a client ever deciding where onboarding
  * stands.
@@ -62,7 +62,7 @@ export interface OnboardingResumeDecision {
  * 1. **Only a tenant OWNER is ever resumed.** A STAFF user admitted by A11 belongs to a
  *    tenant that may still be mid-onboarding, but onboarding is not their task and every
  *    onboarding page would reject them anyway. Sending them there would be a guaranteed
- *    bounce straight back to `/home`.
+ *    bounce straight back to `/dashboard`.
  *
  * 2. **A missing Store stops the resume instead of following it.** `/onboarding/pos`
  *    redirects to `/onboarding/store` when no Store row exists, and `/onboarding/store`
@@ -73,7 +73,7 @@ export interface OnboardingResumeDecision {
  *
  *    POS_CONFIGURED is exempt: A10 detects the same corruption itself and renders a
  *    terminal "something doesn't look right" screen, so routing there is safe and gives
- *    the user a better message than `/home` can.
+ *    the user a better message than `/dashboard` can.
  */
 export function resolveOnboardingResume(params: {
   tenantRole: "OWNER" | "STAFF";

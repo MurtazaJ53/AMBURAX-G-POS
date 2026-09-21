@@ -20,6 +20,9 @@ const mockTx = {
     updateMany: vi.fn(),
     findUniqueOrThrow: vi.fn(),
   },
+  onboardingSession: {
+    deleteMany: vi.fn(),
+  },
   user: { create: vi.fn() },
 };
 

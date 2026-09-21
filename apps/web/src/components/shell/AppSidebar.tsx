@@ -3,82 +3,23 @@
 import * as React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Store, X } from "lucide-react";
-import { NAVIGATION, type NavItem } from "./navigation";
+import { Store, X, Cloud } from "lucide-react";
+import { NAVIGATION } from "./navigation";
 import { cn } from "@/lib/utils";
-
-/**
- * The workspace sidebar.
- *
- * Rebuilt to the design reference's proportions — a 13rem rail, a branded header block, an
- * active-store card, dense 12px navigation rows and a soft-blue active state — while keeping
- * the F2 navigation architecture untouched underneath. The rows are still generated from
- * `NAVIGATION` metadata and still filtered by tenant capability; only their appearance
- * changed.
- *
- * Every piece of identity here is passed in from the resolved session. The reference shows a
- * fixed "ATELIER RETAIL / Indiranagar Store / #01", and none of those strings exist in this
- * file: a tenant that renamed itself yesterday sees the new name today.
- */
 
 export interface AppSidebarProps {
   tenantCapabilities: string[];
-  /** The business, as it named itself. */
   tenantName?: string;
   storeName?: string;
   storeCode?: string;
-  /** Whether a till is currently open in this store. Drives the live dot, honestly. */
   tillOpen?: boolean;
   isMobileOpen?: boolean;
   onMobileClose?: () => void;
 }
 
 function isActive(pathname: string, href: string): boolean {
-  if (href === "/home") return pathname === "/home";
+  if (href === "/dashboard") return pathname === "/dashboard";
   return pathname === href || pathname.startsWith(href + "/");
-}
-
-function NavRow({
-  item,
-  active,
-  onClick,
-}: {
-  item: NavItem;
-  active: boolean;
-  onClick?: () => void;
-}) {
-  const planned = item.status === "planned";
-  const Icon = item.icon;
-
-  return (
-    <Link
-      href={item.href}
-      onClick={onClick}
-      aria-current={active ? "page" : undefined}
-      className={cn(
-        "group mb-0.5 flex items-center justify-between gap-2.5 rounded-lg px-3 py-2 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-border-focus",
-        active
-          ? "bg-primary-subtle font-semibold"
-          : planned
-            ? "text-tertiary hover:bg-background-hover hover:text-secondary"
-            : "text-secondary hover:bg-background-hover hover:text-primary",
-      )}
-      style={active ? { color: "var(--color-primary)" } : undefined}
-    >
-      <span className="flex min-w-0 items-center gap-2.5">
-        <Icon
-          className={cn("h-4 w-4 shrink-0", !active && "text-tertiary")}
-          style={active ? { color: "var(--color-primary)" } : undefined}
-        />
-        <span className="truncate">{item.label}</span>
-      </span>
-      {planned && item.phase && (
-        <span className="shrink-0 rounded bg-background-subtle px-1.5 py-0.5 text-[10px] font-medium text-tertiary">
-          {item.phase.replace("Phase ", "P")}
-        </span>
-      )}
-    </Link>
-  );
 }
 
 export function AppSidebar({
@@ -92,9 +33,6 @@ export function AppSidebar({
 }: AppSidebarProps) {
   const pathname = usePathname();
 
-  // Capability filtering is UX, not authorization: a hidden module is still refused by the
-  // server if someone types its URL. It exists so a wholesale-only business is not asked to
-  // scroll past a till it does not own.
   const filteredNav = React.useMemo(() => {
     return NAVIGATION.map((section) => ({
       ...section,
@@ -106,116 +44,96 @@ export function AppSidebar({
   }, [tenantCapabilities]);
 
   const SidebarContent = (
-    <div className="flex h-full flex-col border-r border-border bg-background-card">
-      <div className="flex items-center justify-between border-b border-border px-4 py-3.5">
-        <div className="flex min-w-0 items-center gap-2">
-          <span
-            aria-hidden="true"
-            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-sm font-bold text-white"
-            style={{ background: "var(--color-primary)" }}
-          >
-            A
-          </span>
-          <span className="min-w-0">
-            <span className="block truncate text-xs font-bold leading-none tracking-tight text-primary">
-              AMBURAX
-            </span>
-            <span className="mt-0.5 block truncate text-[10px] text-tertiary">
-              {tenantName ?? "Business platform"}
-            </span>
-          </span>
+    <aside className={cn(
+      "fixed inset-y-0 left-0 z-40 flex w-[238px] flex-col border-r border-slate-200 bg-white text-slate-700 shadow-xl shadow-slate-900/5 transition-transform duration-200 lg:translate-x-0",
+      isMobileOpen ? "translate-x-0" : "-translate-x-full"
+    )}>
+      <div className="relative flex h-[68px] items-center justify-between border-b border-slate-200 px-5">
+        <div>
+          <div className="flex items-center gap-2 text-[15px] font-bold tracking-[.14em] text-slate-900">
+            <span className="flex size-5 items-center justify-center rounded bg-sky-600 text-[12px] font-bold text-white">A</span>
+            AMBURAX
+          </div>
+          <div className="mt-1 pl-7 text-[9px] tracking-[.08em] text-slate-400">
+            {tenantName || 'OPERATIONS OS'} &middot; V1.0
+          </div>
         </div>
-        {onMobileClose && (
-          <button
-            onClick={onMobileClose}
-            className="rounded p-1 text-secondary hover:bg-background-hover lg:hidden"
-            aria-label="Close sidebar"
-          >
-            <X className="h-5 w-5" />
-          </button>
-        )}
+        <button type="button" className="rounded p-1 text-slate-500 hover:bg-slate-100 lg:hidden" onClick={onMobileClose} aria-label="Close navigation">
+          <X size={17} />
+        </button>
       </div>
 
-      {storeName && (
-        <div className="mx-3 mb-2 mt-3 rounded-xl border border-border bg-background-subtle px-3 py-2">
-          <p className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-tertiary">
-            Active store
-          </p>
-          <div className="flex items-center justify-between gap-2">
-            <p className="truncate text-xs font-semibold text-primary">{storeName}</p>
-            {storeCode && <span className="shrink-0 text-[10px] text-tertiary">#{storeCode}</span>}
-          </div>
-          <div className="mt-0.5 flex items-center gap-1">
-            {/* Reflects a real open PosSession. The reference shows a permanent green "Live";
-                a dot that is always on is decoration, not status. */}
-            <span
-              aria-hidden="true"
-              className={cn(
-                "inline-block h-1.5 w-1.5 rounded-full",
-                tillOpen ? "bg-success" : "bg-background-active",
-              )}
-            />
-            <span
-              className={cn("text-[10px] font-medium", tillOpen ? "text-success" : "text-tertiary")}
-            >
-              {tillOpen ? "Till open" : "No till open"}
-            </span>
+      <div className="relative mx-4 mt-4 rounded-lg border border-slate-200 bg-slate-50 p-3">
+        <div className="flex items-center gap-2">
+          <span className="flex size-7 items-center justify-center rounded-md bg-sky-50 text-sky-700">
+            <Store size={15} />
+          </span>
+          <div className="min-w-0">
+            <p className="truncate text-[11px] font-semibold text-slate-800">{storeName}</p>
+            <p className="mt-0.5 text-[9px] text-slate-400">{storeCode ? `Store #${storeCode}` : 'No Store'}</p>
           </div>
         </div>
-      )}
+        <div className="mt-3 flex items-center justify-between border-t border-slate-200 pt-2 text-[9px]">
+          <span className={cn("flex items-center gap-1.5", tillOpen ? "text-emerald-700" : "text-slate-500")}>
+            <i className={cn("size-1.5 rounded-full", tillOpen ? "bg-emerald-500" : "bg-slate-300")} /> {tillOpen ? 'Live' : 'Offline'}
+          </span>
+          <span className="text-slate-400">Asia/Kolkata</span>
+        </div>
+      </div>
 
-      <nav aria-label="Main" className="min-h-0 flex-1 space-y-4 overflow-y-auto px-2 py-1">
-        {filteredNav.map((section) => (
-          <div key={section.title ?? "primary"}>
-            {section.title && (
-              <p className="px-3 pb-1.5 pt-2 text-[10px] font-semibold uppercase tracking-wider text-tertiary">
-                {section.title}
-              </p>
-            )}
-            <div className="flex flex-col">
-              {section.items.map((item) => (
-                <NavRow
-                  key={item.href}
-                  item={item}
-                  active={isActive(pathname, item.href)}
+      <nav className="relative mt-5 flex-1 overflow-y-auto px-3 pb-4">
+        {filteredNav.map((group) => (
+          <div key={group.title || 'group'} className="mb-5">
+            <p className="mb-2 px-3 text-[9px] font-semibold uppercase tracking-[.14em] text-slate-400">{group.title}</p>
+            {group.items.map((item) => {
+              const active = isActive(pathname, item.href);
+              const Icon = item.icon;
+              return (
+                <Link
+                  key={item.label}
+                  href={item.href}
                   onClick={onMobileClose}
-                />
-              ))}
-            </div>
+                  className={cn(
+                    "group mb-1 flex items-center gap-3 rounded-md px-3 py-2 text-[11px] font-medium transition-colors",
+                    active ? "bg-sky-50 text-sky-700" : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
+                  )}
+                >
+                  <Icon size={15} strokeWidth={1.8} />
+                  <span>{item.label}</span>
+                  {active && <span className="ml-auto size-1.5 rounded-full bg-sky-600" />}
+                </Link>
+              );
+            })}
           </div>
         ))}
       </nav>
 
-      <div className="flex items-center gap-2 border-t border-border px-4 py-2.5">
-        <Store aria-hidden="true" className="h-3 w-3 text-tertiary" />
-        <span className="text-[10px] text-tertiary">
-          {storeCode ? `Store #${storeCode}` : "No store"}
-        </span>
-        <span className="ml-auto text-[10px] text-tertiary">
-          {tenantCapabilities.length} module{tenantCapabilities.length === 1 ? "" : "s"}
-        </span>
+      <div className="relative border-t border-slate-100 p-4 pb-3">
+        <div className="rounded-lg bg-sky-50/50 p-3 pb-0 relative overflow-hidden">
+          <div className="relative z-10">
+            <div className="mb-1 text-[11px] font-bold text-sky-800">
+              Grow Your Business
+            </div>
+            <p className="text-[10px] leading-snug text-slate-500">New season collection setup<br/>in 2 steps</p>
+            <Link href="/products" className="mt-2.5 mb-3 inline-block rounded border border-sky-600 bg-sky-600 px-3 py-1.5 text-[10px] font-bold text-white hover:bg-sky-700">
+              Add Products
+            </Link>
+          </div>
+          <div className="absolute right-[-10px] bottom-0 opacity-80 h-[50px] w-[60px] bg-sky-100 rounded"></div>
+        </div>
+        <div className="mt-3.5 flex items-center justify-between text-[11px] text-slate-600 font-medium">
+          <span className="flex items-center gap-1.5"><Cloud size={14} className="text-slate-400" /> Cloud Sync</span>
+          <span className="text-[9px] text-slate-400 font-normal">Just now</span>
+        </div>
       </div>
-    </div>
+    </aside>
   );
 
   return (
     <>
-      <aside className="hidden lg:fixed lg:inset-y-0 lg:z-40 lg:flex lg:w-52 lg:flex-col">
-        {SidebarContent}
-      </aside>
-
+      {SidebarContent}
       {isMobileOpen && (
-        <div
-          className="relative z-50 lg:hidden"
-          role="dialog"
-          aria-modal="true"
-          aria-label="Navigation"
-        >
-          <div className="fixed inset-0 bg-black/50 transition-opacity" onClick={onMobileClose} />
-          <div className="fixed inset-y-0 left-0 flex w-60 max-w-[80vw]">
-            <div className="w-full">{SidebarContent}</div>
-          </div>
-        </div>
+        <div className="fixed inset-0 z-30 bg-black/50 lg:hidden" onClick={onMobileClose} />
       )}
     </>
   );

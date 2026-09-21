@@ -1,41 +1,47 @@
 export type Status = "In Stock" | "Low Stock" | "Out of Stock" | "Negative";
 
 export function StatusPill({ status }: { status: Status }) {
-  let style = "bg-slate-100 text-slate-700";
-  if (status === "In Stock") style = "bg-green-100 text-green-700";
-  if (status === "Low Stock") style = "bg-amber-100 text-amber-700";
-  if (status === "Out of Stock") style = "bg-red-100 text-red-700";
-  if (status === "Negative") style = "bg-red-200 text-red-900";
+  let style = "bg-slate-100 text-slate-700 border-slate-300";
+  if (status === "In Stock") style = "bg-emerald-50 text-emerald-800 border-emerald-200";
+  if (status === "Low Stock") style = "bg-amber-50 text-amber-800 border-amber-200";
+  if (status === "Out of Stock" || status === "Negative") style = "bg-red-50 text-red-800 border-red-200";
 
   return (
     <span
-      className={`inline-flex whitespace-nowrap rounded px-2 py-1 text-[11px] font-semibold ${style}`}
+      className={`inline-flex items-center whitespace-nowrap h-5 px-1.5 rounded-[3px] border text-[10px] uppercase font-bold tracking-tight font-mono ${style}`}
     >
       {status}
     </span>
   );
 }
 
-export function Metric({
+export function KpiCard({
   icon: Icon,
   label,
   value,
-  tone,
+  note,
+  muted,
 }: {
   icon: any;
   label: string;
   value: string;
-  tone: string;
+  note: string;
+  muted?: boolean;
 }) {
   return (
-    <div className="flex min-w-[178px] flex-1 items-center gap-3 rounded-lg border border-border bg-background-card p-3 shadow-sm">
-      <div className={`grid h-11 w-11 shrink-0 place-items-center rounded-lg ${tone}`}>
-        <Icon className="h-5 w-5" />
+    <article className="flex flex-col justify-between min-h-[104px] p-3.5 border border-border rounded-md bg-background-card shadow-sm">
+      <div className="flex items-start justify-between gap-2">
+        <span className="text-[11px] font-bold text-primary">{label}</span>
+        <span className="grid place-items-center h-[22px] w-[22px] rounded text-blue-600 bg-blue-50 shrink-0">
+          <Icon size={14} />
+        </span>
       </div>
-      <div className="min-w-0">
-        <p className="text-xs text-secondary">{label}</p>
-        <p className="text-xl font-bold text-primary">{value}</p>
+      <div className={`mt-3 mb-1 ${muted ? 'text-[13px] text-secondary font-sans font-medium' : 'text-[23px] font-mono tracking-tight text-primary font-bold'}`}>
+        {value}
       </div>
-    </div>
+      <div className="text-[10px] text-secondary">
+        {note}
+      </div>
+    </article>
   );
 }

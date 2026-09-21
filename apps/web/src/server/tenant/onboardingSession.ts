@@ -14,7 +14,7 @@ export async function createOnboardingSession(params: {
   userAgent: string | null;
 }): Promise<{ token: string; expiresAt: Date }> {
   const token = generateOpaqueToken();
-  const expiresAt = new Date(Date.now() + env.ONBOARDING_SESSION_TTL_HOURS * 60 * 60 * 1000);
+  const expiresAt = new Date(Date.now() + env.ONBOARDING_SESSION_TTL_MINUTES * 60 * 1000);
 
   await db.onboardingSession.create({
     data: {

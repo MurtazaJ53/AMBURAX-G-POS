@@ -38,7 +38,7 @@ export default async function PosPage() {
   // A tenant with no store has not finished onboarding. /home owns that decision, so send
   // the user there rather than duplicating the resume logic in a second place.
   if (resolved.status === "no_store") {
-    redirect("/home");
+    redirect("/dashboard");
   }
 
   const context = resolved.context;

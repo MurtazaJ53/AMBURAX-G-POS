@@ -60,7 +60,7 @@ export default async function BillPage({ params }: { params: Promise<{ id: strin
   }
 
   if (resolved.status === "unauthorized") redirect("/auth/login");
-  if (resolved.status === "no_store") redirect("/home");
+  if (resolved.status === "no_store") redirect("/dashboard");
 
   let sale: SaleDetail | null;
   try {

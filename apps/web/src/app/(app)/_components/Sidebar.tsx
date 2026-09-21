@@ -17,7 +17,7 @@ import { NAVIGATION, type NavItem } from "./navigation";
  */
 
 function isActive(pathname: string, href: string): boolean {
-  if (href === "/home") return pathname === "/home";
+  if (href === "/dashboard") return pathname === "/dashboard";
   return pathname === href || pathname.startsWith(`${href}/`);
 }
 

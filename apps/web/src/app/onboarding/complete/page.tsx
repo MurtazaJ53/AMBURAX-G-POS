@@ -35,11 +35,11 @@ export default async function OnboardingCompletePage() {
   // Finishing the tenant's setup is an owner action, consistent with A8's and A9's step
   // transitions. A STAFF user created by A11 has a workspace to go to, not a setup to end.
   if (session.user.tenantRole !== "OWNER") {
-    redirect("/home");
+    redirect("/dashboard");
   }
 
   if (!result || result.status === "unauthorized" || result.status === "forbidden") {
-    redirect("/home");
+    redirect("/dashboard");
   }
 
   if (result.status === "inconsistent") {
@@ -64,7 +64,7 @@ export default async function OnboardingCompletePage() {
   // they have not done. A tenant already at COMPLETE stays — revisiting the summary is
   // legitimate, and redirecting away would make the screen unreachable after finishing.
   if (!readiness.onboardingComplete && !readiness.canComplete) {
-    redirect("/home");
+    redirect("/dashboard");
   }
 
   return (

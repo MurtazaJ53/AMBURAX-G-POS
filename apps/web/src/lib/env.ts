@@ -40,7 +40,7 @@ const schema = z.object({
   // Long-lived by design: a business owner may not finish A5-A10 in one sitting.
   // Unlike a login session, this grants no access to the application — only to
   // continuing this one tenant's setup.
-  ONBOARDING_SESSION_TTL_HOURS: z.coerce.number().int().positive().default(48),
+  ONBOARDING_SESSION_TTL_MINUTES: z.coerce.number().int().positive().default(30),
   // Owner setup is a one-time-per-tenant action; this guards the endpoint against
   // scripted abuse, not against a legitimate owner's own retries.
   OWNER_SETUP_MAX_PER_WINDOW: z.coerce.number().int().positive().default(10),
@@ -96,7 +96,7 @@ export const env = schema.parse({
   RESET_CONSUME_MAX_PER_WINDOW: process.env.RESET_CONSUME_MAX_PER_WINDOW,
   DEV_RESET_LINK_ECHO: process.env.NODE_ENV === "production" ? "false" : process.env.DEV_RESET_LINK_ECHO,
   TENANT_REGISTRATION_MAX_PER_WINDOW: process.env.TENANT_REGISTRATION_MAX_PER_WINDOW,
-  ONBOARDING_SESSION_TTL_HOURS: process.env.ONBOARDING_SESSION_TTL_HOURS,
+  ONBOARDING_SESSION_TTL_MINUTES: process.env.ONBOARDING_SESSION_TTL_MINUTES,
   OWNER_SETUP_MAX_PER_WINDOW: process.env.OWNER_SETUP_MAX_PER_WINDOW,
   STORE_SETUP_MAX_PER_WINDOW: process.env.STORE_SETUP_MAX_PER_WINDOW,
   INVITATION_TTL_HOURS: process.env.INVITATION_TTL_HOURS,

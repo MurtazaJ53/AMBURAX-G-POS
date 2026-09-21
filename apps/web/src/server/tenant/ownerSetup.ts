@@ -112,6 +112,11 @@ export async function createOwnerAccount(input: CreateOwnerInput): Promise<Creat
 
       const tenant = await tx.tenant.findUniqueOrThrow({ where: { id: session.tenantId } });
 
+      // Invalidate the onboarding session now that owner setup is complete.
+      await tx.onboardingSession.deleteMany({
+        where: { tenantId: session.tenantId }
+      });
+
       return { user, tenant };
     });
 

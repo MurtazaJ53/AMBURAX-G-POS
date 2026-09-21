@@ -55,7 +55,7 @@ export default async function TillPage() {
 
   if (resolved.status === "unauthorized") redirect("/auth/login");
   // A tenant with no store has not finished onboarding; /home owns that decision.
-  if (resolved.status === "no_store") redirect("/home");
+  if (resolved.status === "no_store") redirect("/dashboard");
 
   const context = resolved.context;
 

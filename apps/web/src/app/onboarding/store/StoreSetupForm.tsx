@@ -127,7 +127,7 @@ export function StoreSetupForm() {
           {phase.reason}
         </div>
         <Link
-          href="/home"
+          href="/dashboard"
           className="block w-full rounded-lg bg-brand-600 px-4 py-2.5 text-center text-sm font-semibold text-white shadow-sm transition hover:bg-brand-700"
         >
           Go to your workspace

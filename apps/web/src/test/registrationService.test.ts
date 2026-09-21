@@ -107,7 +107,7 @@ describe("registerBusiness", () => {
     expect(result.status).toBe("ok");
     expect(mockTx.tenantCapability.createMany).toHaveBeenCalledTimes(1);
     expect(mockTx.tenantCapability.createMany).toHaveBeenCalledWith({
-      data: [{ tenantId: "tenant-1", capability: "RETAIL", enabled: true }],
+      data: [{ tenantId: "tenant-1", capability: "RETAIL", enabled: true, id: expect.any(String) }],
       skipDuplicates: true,
     });
   });
@@ -119,7 +119,7 @@ describe("registerBusiness", () => {
   it("grants RETAIL even to a tenant that registered as a wholesaler", async () => {
     await registerBusiness(baseInput({ businessType: "WHOLESALE" }));
     expect(mockTx.tenantCapability.createMany).toHaveBeenCalledWith({
-      data: [{ tenantId: "tenant-1", capability: "RETAIL", enabled: true }],
+      data: [{ tenantId: "tenant-1", capability: "RETAIL", enabled: true, id: expect.any(String) }],
       skipDuplicates: true,
     });
   });

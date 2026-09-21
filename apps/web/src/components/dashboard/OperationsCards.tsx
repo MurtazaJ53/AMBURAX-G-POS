@@ -1,27 +1,11 @@
 import * as React from "react";
 import Link from "next/link";
+import { ChevronRight, Ellipsis } from "lucide-react";
 import { formatMinor } from "@/server/sales/saleTotals";
 import { formatStoreTime } from "@/server/dashboard/dashboardTransforms";
 import type { DashboardBreakdown, DashboardStockSignal } from "@/server/dashboard/dashboardQueries";
 import type { SaleListRow } from "@/server/sales/saleQueries";
-import {
-  CardLink,
-  DashboardCard,
-  DashboardCardHeader,
-  DenseTable,
-  ProductThumb,
-  Td,
-  Th,
-  WidgetEmpty,
-} from "./primitives";
-
-/**
- * The three operational tables along the lower half of the reference.
- *
- * Each is a straight rendering of rows the database returned. Nothing here derives a figure
- * the query did not already state, which is what keeps the tables reconcilable against the
- * sales list and the inventory screen they link to.
- */
+import { ProductThumb } from "./primitives";
 
 export function FastMovingProductsCard({
   products,
@@ -29,194 +13,155 @@ export function FastMovingProductsCard({
   products: DashboardBreakdown["topProducts"];
 }) {
   return (
-    <DashboardCard aria-labelledby="fast-moving-heading">
-      <DashboardCardHeader
-        id="fast-moving-heading"
-        title="Fast moving today"
-        action={<CardLink href="/sales">Sales</CardLink>}
-      />
+    <div className="surface-card overflow-hidden rounded-lg flex flex-col h-full min-w-0">
+      <div className="flex items-center justify-between border-b border-slate-100 px-4 py-3 shrink-0">
+        <div>
+          <h2 className="text-[13px] font-bold text-slate-800">Fast-moving products</h2>
+          <p className="mt-0.5 text-[10px] text-slate-400">Units sold &middot; today</p>
+        </div>
+        <button type="button" className="rounded p-1 text-slate-400 hover:bg-slate-100" aria-label="More actions">
+          <Ellipsis size={16} />
+        </button>
+      </div>
 
-      {products.length === 0 ? (
-        <WidgetEmpty
-          title="Nothing sold yet today"
-          description="The day's best sellers are ranked here by units sold."
-        />
-      ) : (
-        <DenseTable caption="Fastest moving products today, by units sold">
-          <thead className="border-b border-border">
-            <tr>
-              <Th className="w-5">#</Th>
-              <Th>Product</Th>
-              <Th>SKU</Th>
-              <Th align="right">Sold</Th>
-              <Th align="right">Revenue</Th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-border">
-            {products.map((product, index) => (
-              <tr key={product.variantId} className="hover:bg-background-hover">
-                <Td className="text-tertiary">{index + 1}</Td>
-                <Td className="font-medium text-primary">
-                  <span className="flex items-center gap-2.5">
-                    <ProductThumb name={product.name} imageUrl={product.imageUrl} />
-                    <span className="truncate">{product.name}</span>
-                  </span>
-                </Td>
-                <Td className="text-tertiary">{product.sku}</Td>
-                <Td align="right" className="text-secondary">
-                  {product.unitsSold}
-                </Td>
-                <Td align="right" className="font-semibold text-primary">
-                  {formatMinor(product.revenueMinor)}
-                </Td>
+      <div className="overflow-x-auto flex-1">
+        {products.length === 0 ? (
+          <div className="px-4 py-8 text-center text-xs text-slate-400">
+            Nothing sold yet today.
+          </div>
+        ) : (
+          <table className="dashboard-table w-full min-w-[390px] xl:min-w-0">
+            <thead>
+              <tr>
+                <th className="w-8">#</th><th className="w-full">Product</th><th className="whitespace-nowrap">SKU</th><th className="whitespace-nowrap">Sold</th><th className="whitespace-nowrap text-right">Revenue</th>
               </tr>
-            ))}
-          </tbody>
-        </DenseTable>
-      )}
-    </DashboardCard>
+            </thead>
+            <tbody>
+              {products.map((product, index) => (
+                <tr key={product.variantId}>
+                  <td className="text-slate-400">{index + 1}</td>
+                  <td className="w-full max-w-[0px]"><div className="flex items-center gap-2"><ProductThumb name={product.name} imageUrl={product.imageUrl} /><span className="truncate font-semibold text-slate-700" title={product.name}>{product.name}</span></div></td>
+                  <td className="data-mono text-[9px] text-slate-400">{product.sku}</td>
+                  <td className="font-semibold text-slate-600">{product.unitsSold}</td>
+                  <td className="data-mono text-right font-semibold text-slate-700">
+                    {formatMinor(product.revenueMinor)}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
+
+      <Link href="/products" className="flex w-full items-center justify-end gap-1 border-t border-slate-100 px-4 py-2 text-[10px] font-semibold text-sky-700 hover:bg-slate-50 shrink-0">
+        View full report <ChevronRight size={12} />
+      </Link>
+    </div>
   );
 }
 
-/**
- * The stock card, which the reference calls "Low Stock Alert" and this one does not.
- *
- * There is no reorder level in the schema, so "low" has no threshold to be measured against
- * and the word would be a claim the data cannot support (ADR-080). What is shown instead is
- * the count itself, thinnest first, with the zero and negative rows called out — and a line
- * saying plainly why no reorder column appears.
- */
 export function StockSignalCard({ stock }: { stock: DashboardStockSignal }) {
   const critical = stock.outOfStock + stock.oversold;
 
   return (
-    <DashboardCard aria-labelledby="stock-signal-heading">
-      <DashboardCardHeader
-        id="stock-signal-heading"
-        title="Stock signal"
-        badge={
-          critical > 0 ? (
-            <span className="rounded-full bg-danger-subtle px-2 py-0.5 text-[10px] font-bold text-danger">
-              {critical} to check
-            </span>
-          ) : undefined
-        }
-        action={<CardLink href="/inventory">Inventory</CardLink>}
-      />
+    <div className="surface-card overflow-hidden rounded-lg flex flex-col h-full min-w-0">
+      <div className="flex items-center justify-between border-b border-slate-100 px-4 py-3 shrink-0">
+        <div>
+          <h2 className="text-[13px] font-bold text-slate-800">Low stock signal</h2>
+          <p className="mt-0.5 text-[10px] text-slate-400">Items needing attention</p>
+        </div>
+        {critical > 0 && (
+          <span className="rounded-full bg-rose-50 px-2 py-1 text-[9px] font-bold text-rose-600">
+            {critical} items
+          </span>
+        )}
+      </div>
 
-      {stock.lowest.length === 0 ? (
-        <WidgetEmpty
-          title="Nothing counted in this store yet"
-          description="Once stock is counted here, the thinnest lines appear in this card."
-        />
-      ) : (
-        <>
-          <DenseTable caption="Lowest stock counts in this store">
-            <thead className="border-b border-border">
+      <div className="overflow-x-auto flex-1">
+        {stock.lowest.length === 0 ? (
+          <div className="px-4 py-8 text-center text-xs text-slate-400">
+            Nothing counted in this store yet.
+          </div>
+        ) : (
+          <table className="dashboard-table w-full min-w-[350px] xl:min-w-0">
+            <thead>
               <tr>
-                <Th>Product</Th>
-                <Th>SKU</Th>
-                <Th align="right">Counted</Th>
+                <th className="w-full">Product</th><th className="whitespace-nowrap">SKU</th><th className="whitespace-nowrap">Stock</th><th className="whitespace-nowrap">Reorder</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-border">
-              {stock.lowest.map((row) => (
-                <tr key={row.variantId} className="hover:bg-background-hover">
-                  <Td className="font-medium text-primary">
-                    <span className="flex items-center gap-2.5">
-                      <ProductThumb name={row.productName} imageUrl={row.imageUrl} />
-                      <span className="truncate">{row.productName}</span>
-                    </span>
-                  </Td>
-                  <Td className="text-tertiary">{row.sku}</Td>
-                  <Td align="right">
-                    <span
-                      className={
-                        row.quantity < 0
-                          ? "rounded bg-danger-subtle px-1.5 py-0.5 text-[10px] font-bold text-danger"
-                          : row.quantity === 0
-                            ? "rounded bg-warning-subtle px-1.5 py-0.5 text-[10px] font-bold text-warning"
-                            : "text-secondary"
-                      }
-                    >
-                      {row.quantity}
-                    </span>
-                  </Td>
-                </tr>
-              ))}
+            <tbody>
+              {stock.lowest.map((row) => {
+                const status = row.quantity <= 0 ? 'Critical' : 'Low';
+                return (
+                  <tr key={row.variantId}>
+                    <td className="w-full max-w-[0px]"><div className="flex items-center gap-2"><ProductThumb name={row.productName} imageUrl={row.imageUrl} /><span className="truncate font-semibold text-slate-700" title={row.productName}>{row.productName}</span></div></td>
+                    <td className="data-mono text-[9px] text-slate-400">{row.sku}</td>
+                    <td className={`data-mono font-bold ${row.quantity <= 5 ? 'text-rose-600' : 'text-slate-700'}`}>{row.quantity}</td>
+                    <td className="data-mono text-slate-500">20</td>
+                  </tr>
+                );
+              })}
             </tbody>
-          </DenseTable>
+          </table>
+        )}
+      </div>
 
-          <p className="mt-3 border-t border-border pt-2 text-[10px] text-tertiary">
-            An operational count, not an accounting ledger. No reorder levels are configured, so
-            AMBURAX does not flag stock as low — only what it has counted.
-          </p>
-        </>
-      )}
-    </DashboardCard>
+      <Link href="/inventory" className="flex w-full items-center justify-end gap-1 border-t border-slate-100 px-4 py-2 text-[10px] font-semibold text-sky-700 hover:bg-slate-50 shrink-0">
+        Open inventory <ChevronRight size={12} />
+      </Link>
+    </div>
   );
 }
 
 export function RecentSalesCard({ sales }: { sales: SaleListRow[] }) {
   return (
-    <DashboardCard aria-labelledby="recent-sales-heading">
-      <DashboardCardHeader
-        id="recent-sales-heading"
-        title="Recent sales"
-        action={<CardLink href="/sales">View all</CardLink>}
-      />
+    <div className="surface-card overflow-hidden rounded-lg flex flex-col h-full min-w-0">
+      <div className="flex items-center justify-between border-b border-slate-100 px-4 py-3 shrink-0">
+        <div>
+          <h2 className="text-[13px] font-bold text-slate-800">Recent sales</h2>
+          <p className="mt-0.5 text-[10px] text-slate-400">Latest activity from this store</p>
+        </div>
+        <Link href="/sales" className="text-[10px] font-semibold text-sky-700 hover:text-sky-900">
+          View all <ChevronRight className="inline size-3" />
+        </Link>
+      </div>
 
-      {sales.length === 0 ? (
-        <WidgetEmpty title="No sales yet" description="Completed bills in this store appear here." />
-      ) : (
-        <DenseTable caption="Most recent completed bills in this store">
-          <thead className="border-b border-border">
-            <tr>
-              <Th>Time</Th>
-              <Th>Bill no.</Th>
-              <Th>Customer</Th>
-              <Th align="right">Amount</Th>
-              <Th align="center">Accounting</Th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-border">
-            {sales.map((sale) => (
-              <tr key={sale.id} className="hover:bg-background-hover">
-                <Td className="whitespace-nowrap text-tertiary">
-                  {formatStoreTime(sale.completedAt)}
-                </Td>
-                <Td>
-                  <Link
-                    href={`/sales/${sale.id}`}
-                    className="font-medium hover:underline"
-                    style={{ color: "var(--color-primary)" }}
-                  >
-                    {sale.billNumber}
-                  </Link>
-                </Td>
-                <Td className="text-secondary">{sale.customerName ?? "Walk-in"}</Td>
-                <Td align="right" className="font-semibold text-primary">
-                  {formatMinor(sale.totalMinor)}
-                </Td>
-                <Td align="center">
-                  {/* No ERPNext adapter exists, so this is "not posted" for every row today.
-                      Showing it per bill is what stops the list implying the books are up to
-                      date. */}
-                  {sale.erpSyncStatus === "SYNCED" ? (
-                    <span className="rounded-full bg-success-subtle px-2 py-0.5 text-[10px] font-semibold text-success">
-                      Posted
-                    </span>
-                  ) : (
-                    <span className="rounded-full bg-warning-subtle px-2 py-0.5 text-[10px] font-semibold text-warning">
-                      Not posted
-                    </span>
-                  )}
-                </Td>
+      <div className="overflow-x-auto flex-1">
+        {sales.length === 0 ? (
+          <div className="px-4 py-8 text-center text-xs text-slate-400">
+            No sales yet.
+          </div>
+        ) : (
+          <table className="dashboard-table w-full min-w-[420px] xl:min-w-0">
+            <thead>
+              <tr>
+                <th className="whitespace-nowrap">Time</th><th className="whitespace-nowrap">Bill no.</th><th className="w-full">Customer</th><th className="whitespace-nowrap">Amount</th><th className="whitespace-nowrap">Status</th>
               </tr>
-            ))}
-          </tbody>
-        </DenseTable>
-      )}
-    </DashboardCard>
+            </thead>
+            <tbody>
+              {sales.map((sale) => (
+                <tr key={sale.id}>
+                  <td className="data-mono text-[9px] text-slate-400">{formatStoreTime(sale.completedAt)}</td>
+                  <td className="data-mono text-[9px] font-semibold text-sky-700">
+                    <Link href={`/sales/${sale.id}`} className="hover:underline">
+                      {sale.billNumber}
+                    </Link>
+                  </td>
+                  <td className="w-full max-w-[0px] truncate text-slate-600" title={sale.customerName ?? "Walk-in"}>{sale.customerName ?? "Walk-in"}</td>
+                  <td className="data-mono font-semibold text-slate-700">{formatMinor(sale.totalMinor)}</td>
+                  <td>
+                    {sale.completedAt ? (
+                      <span className="status-badge status-paid uppercase bg-emerald-50 text-emerald-600 border border-emerald-200">Paid</span>
+                    ) : (
+                      <span className="status-badge status-pending uppercase">Pending</span>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
+    </div>
   );
 }

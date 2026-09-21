@@ -65,7 +65,7 @@ export function OnboardingCompleteView({ readiness: initial }: Props) {
       // and the merchant should go to their workspace, not see a failure.
       if (res.ok && (data.status === "ok" || data.status === "already_complete")) {
         setReadiness(data.readiness as OnboardingReadiness);
-        router.push("/home");
+        router.push("/dashboard");
         router.refresh();
         return;
       }
@@ -131,7 +131,7 @@ export function OnboardingCompleteView({ readiness: initial }: Props) {
       <div className="mt-8 space-y-3">
         {readiness.onboardingComplete ? (
           <Link
-            href="/home"
+            href="/dashboard"
             className="block w-full rounded-lg bg-brand-600 px-4 py-2.5 text-center text-sm font-semibold text-white shadow-sm transition hover:bg-brand-700"
           >
             Go to your workspace

@@ -36,11 +36,11 @@ export default async function StoreSetupPage() {
   // returning owner past this step, or a non-owner staff member (once A8 exists), lands
   // on /home instead of a form that would just reject their submission anyway.
   if (session.user.tenantRole !== "OWNER") {
-    redirect("/home");
+    redirect("/dashboard");
   }
 
   if (!tenant || tenant.onboardingStep !== "OWNER_CREATED") {
-    redirect("/home");
+    redirect("/dashboard");
   }
 
   return (

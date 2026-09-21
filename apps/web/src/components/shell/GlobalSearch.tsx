@@ -38,16 +38,18 @@ export function GlobalSearch() {
 
   return (
     <>
-      <button
-        onClick={() => setOpen(true)}
-        className="flex items-center justify-center sm:justify-start gap-2 w-10 h-10 sm:h-auto sm:w-full sm:max-w-sm rounded-md sm:border sm:border-border sm:bg-background-app sm:px-3 sm:py-1.5 text-sm text-tertiary transition-colors hover:bg-background-hover sm:hover:bg-transparent sm:hover:border-border-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
-        aria-label="Search"
-      >
-        <Search className="h-5 w-5 sm:h-4 sm:w-4 shrink-0" />
-        <span className="hidden sm:inline-block flex-1 text-left truncate">Search products, customers, orders...</span>
-        <kbd className="pointer-events-none hidden h-5 select-none items-center gap-1 rounded border border-border bg-background-subtle px-1.5 font-mono text-[10px] font-medium opacity-100 sm:flex">
-          <span className="text-xs">&#8984;</span>K
+      <div className="relative hidden min-w-0 max-w-[420px] flex-1 md:block" onClick={() => setOpen(true)} role="button" tabIndex={0} onKeyDown={(e) => e.key === 'Enter' && setOpen(true)}>
+        <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-slate-400" />
+        <div className="flex h-9 w-full items-center rounded-md border border-slate-200 bg-slate-50 pl-9 pr-10 text-[11px] text-slate-400 cursor-text transition hover:border-sky-400 hover:bg-white">
+          Search by product name, SKU, barcode, customer...
+        </div>
+        <kbd className="absolute right-2 top-1/2 -translate-y-1/2 rounded border border-slate-200 bg-white px-1.5 py-0.5 text-[9px] text-slate-400">
+          ⌘ K
         </kbd>
+      </div>
+
+      <button onClick={() => setOpen(true)} className="md:hidden flex h-9 w-9 items-center justify-center rounded-md text-slate-500 hover:bg-slate-100">
+        <Search size={18} />
       </button>
 
       <Dialog open={open} onOpenChange={setOpen}>

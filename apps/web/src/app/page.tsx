@@ -7,5 +7,5 @@ export default async function RootPage() {
   const token = (await cookies()).get(env.SESSION_COOKIE_NAME)?.value;
   const session = token ? await resolveSession(token) : null;
 
-  redirect(session ? "/home" : "/auth/login");
+  redirect(session ? "/dashboard" : "/auth/login");
 }

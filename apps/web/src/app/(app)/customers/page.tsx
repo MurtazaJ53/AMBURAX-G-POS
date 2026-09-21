@@ -51,7 +51,7 @@ export default async function CustomersPage({
   }
 
   if (resolved.status === "unauthorized") redirect("/auth/login");
-  if (resolved.status === "no_store") redirect("/home");
+  if (resolved.status === "no_store") redirect("/dashboard");
   const context = resolved.context;
 
   let result: CustomerPage;

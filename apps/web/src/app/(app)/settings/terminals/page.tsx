@@ -18,7 +18,7 @@ export default async function TerminalsPage() {
   }
 
   if (resolved.status === "unauthorized") redirect("/auth/login");
-  if (resolved.status === "no_store") redirect("/home");
+  if (resolved.status === "no_store") redirect("/dashboard");
 
   return (
     <div className="mx-auto max-w-5xl p-6 lg:p-8">

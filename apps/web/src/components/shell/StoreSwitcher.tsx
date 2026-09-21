@@ -18,23 +18,21 @@ interface StoreSwitcherProps {
 export function StoreSwitcher({ storeName, storeCode }: StoreSwitcherProps) {
   return (
     <DropdownMenu>
-      <DropdownMenuTrigger className="flex items-center gap-2 rounded-md hover:bg-background-hover p-1.5 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary">
-        <div className="flex h-7 w-7 items-center justify-center rounded bg-background-subtle border border-border text-secondary">
-          <Store className="h-4 w-4" />
-        </div>
-        <div className="hidden md:block text-left">
-          <p className="truncate text-sm font-medium text-primary leading-tight">{storeName}</p>
-          <p className="text-[10px] text-tertiary leading-tight">#{storeCode}</p>
-        </div>
-        <ChevronDown className="h-4 w-4 text-tertiary hidden md:block" />
+      <DropdownMenuTrigger className="hidden h-9 items-center gap-2 rounded-md border border-slate-200 bg-white px-3 text-left text-[10px] md:flex focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-100">
+        <Store size={14} className="text-sky-600" />
+        <span className="min-w-0">
+          <b className="block max-w-[116px] truncate font-semibold text-slate-700">{storeName}</b>
+          <small className="text-[9px] text-slate-400">Store #{storeCode}</small>
+        </span>
+        <ChevronDown size={13} className="text-slate-400" />
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start" className="w-60">
         <DropdownMenuLabel className="text-xs text-tertiary uppercase tracking-wider">
           Active Store
         </DropdownMenuLabel>
-        <DropdownMenuItem className="flex flex-col items-start gap-1 p-2 bg-background-subtle">
-          <span className="text-sm font-medium text-primary">{storeName}</span>
-          <span className="text-xs text-secondary">#{storeCode}</span>
+        <DropdownMenuItem className="flex flex-col items-start gap-1 p-2 bg-slate-50">
+          <span className="text-sm font-medium text-slate-800">{storeName}</span>
+          <span className="text-xs text-slate-500">#{storeCode}</span>
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>

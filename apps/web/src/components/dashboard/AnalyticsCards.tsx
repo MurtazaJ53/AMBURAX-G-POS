@@ -1,25 +1,9 @@
 import * as React from "react";
-import { DonutChart } from "@/components/charts/DonutChart";
+import Link from "next/link";
+import { ChevronRight } from "lucide-react";
 import { formatMinor } from "@/server/sales/saleTotals";
 import { seriesColour, type ShareRow } from "@/server/dashboard/dashboardTransforms";
-import { CardLink, DashboardCard, DashboardCardHeader, ShareBar, WidgetEmpty } from "./primitives";
 
-/**
- * The two ranking cards that sit beside the trend: what sold, and how it was paid for.
- *
- * They share a file because they share a shape — a ranked list of shares over today's
- * takings — and keeping them together is what stops one of them growing a slightly different
- * idea of how a percentage is rendered.
- */
-
-/**
- * Category mix.
- *
- * The percentages are shares of *categorised* revenue, and the card says so whenever any
- * revenue was uncategorised. This matters more than it looks: a shop with two categorised
- * products and forty uncategorised ones would otherwise read "Shirts 100%", which is true of
- * the denominator and wildly false about the business.
- */
 export function CategorySalesCard({
   categories,
   uncategorisedMinor,
@@ -28,64 +12,59 @@ export function CategorySalesCard({
   uncategorisedMinor: number;
 }) {
   return (
-    <DashboardCard aria-labelledby="category-sales-heading">
-      <DashboardCardHeader
-        id="category-sales-heading"
-        title="Top categories"
-        action={<CardLink href="/products">Products</CardLink>}
-      />
+    <div className="surface-card overflow-hidden rounded-lg">
+      <div className="flex items-center justify-between gap-3 px-4 pt-4 pb-2">
+        <h2 className="text-[13px] font-bold tracking-[-0.01em] text-slate-800">Top categories</h2>
+        <Link href="/products" className="text-[10px] font-semibold text-sky-700 hover:text-sky-900">
+          Products <ChevronRight className="inline size-3" />
+        </Link>
+      </div>
 
       {categories.length === 0 ? (
-        <WidgetEmpty
-          title="No categorised sales today"
-          description={
-            uncategorisedMinor > 0
+        <div className="px-4 pb-4 pt-2">
+          <p className="text-[11px] text-slate-500">
+            {uncategorisedMinor > 0
               ? "Today's sales are all on products with no category set."
-              : "Sales grouped by product category will appear here."
-          }
-        />
+              : "Sales grouped by product category will appear here."}
+          </p>
+        </div>
       ) : (
-        <>
-          <ul className="space-y-3">
-            {categories.map((category, index) => (
-              <li key={category.key}>
-                <div className="mb-1 flex items-center justify-between gap-2">
-                  <span className="truncate text-xs font-medium text-secondary">
-                    {category.label}
-                  </span>
-                  <span className="flex shrink-0 items-center gap-2">
-                    <span className="text-xs font-semibold text-primary">
-                      {formatMinor(category.amountMinor)}
-                    </span>
-                    <span className="text-[10px] text-tertiary">
-                      {category.sharePct === null ? "—" : `${category.sharePct}%`}
-                    </span>
-                  </span>
-                </div>
-                <ShareBar pct={category.sharePct ?? 0} colour={seriesColour(index)} />
-              </li>
-            ))}
-          </ul>
+        <div className="space-y-3 px-4 pb-4 pt-2">
+          {categories.map((category, index) => (
+            <div key={category.key}>
+              <div className="mb-1 flex items-center justify-between gap-2 text-[10px]">
+                <span className="truncate font-semibold text-slate-700">{category.label}</span>
+                <span className="shrink-0 text-slate-500">
+                  {formatMinor(category.amountMinor)} <b className="ml-1 text-slate-400">{category.sharePct ?? 0}%</b>
+                </span>
+              </div>
+              <div className="h-1.5 overflow-hidden rounded-full bg-slate-100">
+                <div className="h-full rounded-full transition-all" style={{ width: `${category.sharePct ?? 0}%`, background: seriesColour(index) }} />
+              </div>
+            </div>
+          ))}
 
           {uncategorisedMinor > 0 && (
-            <p className="mt-3 text-[10px] text-tertiary">
+            <p className="mt-3 text-[10px] text-slate-400">
               Shares are of categorised sales only. {formatMinor(uncategorisedMinor)} sold today
               sits on products with no category.
             </p>
           )}
-        </>
+        </div>
       )}
-    </DashboardCard>
+    </div>
   );
 }
 
-/**
- * Payment split.
- *
- * Only the tenders the schema actually has — cash, UPI and card. The design reference also
- * shows a wallet slice; there is no wallet method in `PaymentMethod`, so inventing one would
- * mean drawing a segment that can never be non-zero.
- */
+function paymentGradient(payments: { sharePct: number | null; colour: string }[]) {
+  let cursor = 0;
+  return `conic-gradient(${payments.map((payment) => {
+    const start = cursor;
+    cursor += payment.sharePct ?? 0;
+    return `${payment.colour} ${start}% ${cursor}%`;
+  }).join(', ')})`;
+}
+
 export function PaymentMethodsCard({
   rows,
   totalMinor,
@@ -101,43 +80,38 @@ export function PaymentMethodsCard({
   }));
 
   return (
-    <DashboardCard aria-labelledby="payment-methods-heading">
-      <DashboardCardHeader id="payment-methods-heading" title="Payment methods" />
+    <div className="surface-card overflow-hidden rounded-lg">
+      <div className="flex items-center justify-between gap-3 px-4 pt-4 pb-2">
+        <h2 className="text-[13px] font-bold tracking-[-0.01em] text-slate-800">Payment methods</h2>
+      </div>
 
       {rows.length === 0 || totalMinor === 0 ? (
-        <WidgetEmpty
-          title="Nothing settled yet today"
-          description="The split across cash, UPI and card appears once bills are paid."
-        />
+        <div className="px-4 pb-4 pt-2">
+          <p className="text-[11px] text-slate-500">
+            The split across cash, UPI and card appears once bills are paid.
+          </p>
+        </div>
       ) : (
-        <>
-          <div className="flex justify-center">
-            <DonutChart
-              slices={slices}
-              centreLabel={formatMinor(totalMinor)}
-              centreCaption="Settled today"
-            />
+        <div className="flex items-center gap-4 px-4 pb-4 pt-2">
+          <div className="relative size-[112px] shrink-0 rounded-full" style={{ background: paymentGradient(slices) }}>
+            <div className="absolute inset-[13px] flex flex-col items-center justify-center rounded-full bg-white">
+              <strong className="data-mono text-[13px] font-bold text-slate-800">{formatMinor(totalMinor)}</strong>
+              <span className="text-[8px] text-slate-400">Total sales</span>
+            </div>
           </div>
-          {/* Capped and centred: in the reference this card is a 220px column, and when the
-              grid gives it the full width instead the legend would otherwise stretch its
-              label and percentage to opposite edges. */}
-          <ul className="mx-auto mt-3 grid w-full max-w-[16rem] grid-cols-2 gap-x-3 gap-y-1.5">
-            {rows.map((row, index) => (
-              <li key={row.key} className="flex items-center gap-1.5 text-[11px] text-secondary">
-                <span
-                  aria-hidden="true"
-                  className="h-2 w-2 shrink-0 rounded-full"
-                  style={{ background: seriesColour(index) }}
-                />
-                <span className="truncate">{row.label}</span>
-                <span className="ml-auto shrink-0 text-tertiary">
-                  {row.sharePct === null ? "—" : `${row.sharePct}%`}
+          <div className="min-w-0 space-y-2 flex-1">
+            {slices.map((payment) => (
+              <div key={payment.label} className="flex items-center justify-between gap-4 text-[10px]">
+                <span className="flex items-center gap-1.5 text-slate-500">
+                  <i className="size-1.5 rounded-full" style={{ background: payment.colour }} />
+                  {payment.label}
                 </span>
-              </li>
+                <b className="text-slate-700">{payment.sharePct}%</b>
+              </div>
             ))}
-          </ul>
-        </>
+          </div>
+        </div>
       )}
-    </DashboardCard>
+    </div>
   );
 }

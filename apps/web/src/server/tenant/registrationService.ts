@@ -88,9 +88,11 @@ export async function registerBusiness(input: RegisterBusinessInput): Promise<Re
   for (let attempt = 1; attempt <= MAX_SLUG_ATTEMPTS; attempt++) {
     try {
       const result = await db.$transaction(async (tx) => {
+        const crypto = require("node:crypto");
         const slug = generateTenantSlug(input.businessName);
         const tenant = await tx.tenant.create({
           data: {
+            id: crypto.randomUUID(),
             name: input.businessName,
             slug,
             businessType: input.businessType,
@@ -110,7 +112,7 @@ export async function registerBusiness(input: RegisterBusinessInput): Promise<Re
         await seedDefaultCapabilities(tx, tenant.id);
 
         const token = generateOpaqueToken();
-        const expiresAt = new Date(Date.now() + env.ONBOARDING_SESSION_TTL_HOURS * 60 * 60 * 1000);
+        const expiresAt = new Date(Date.now() + env.ONBOARDING_SESSION_TTL_MINUTES * 60 * 1000);
         await tx.onboardingSession.create({
           data: {
             tenantId: tenant.id,

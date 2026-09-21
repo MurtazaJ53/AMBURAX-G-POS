@@ -22,8 +22,15 @@ export function ForgotPasswordForm() {
     e.preventDefault();
     setError(null);
 
-    if (!email.trim()) {
+    const normalizedEmail = email.trim();
+    if (!normalizedEmail) {
       setError({ kind: "validation", message: "Enter your email address." });
+      return;
+    }
+    
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(normalizedEmail)) {
+      setError({ kind: "validation", message: "Please enter a valid email address." });
       return;
     }
 
@@ -32,7 +39,7 @@ export function ForgotPasswordForm() {
       const res = await fetch("/api/v1/auth/password/reset-request", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email }),
+        body: JSON.stringify({ email: normalizedEmail }),
       });
       const data = await res.json();
 

@@ -87,7 +87,7 @@ export default async function ProductsPage(props: { searchParams: Promise<Search
     <div className="flex min-h-0 flex-1 flex-col">
       <div className="shrink-0 border-b border-border bg-background-card px-4 py-3 sm:px-5">
         <nav aria-label="Breadcrumb" className="mb-1 text-xs text-tertiary">
-          <Link href="/home" className="hover:underline">
+          <Link href="/dashboard" className="hover:underline">
             Products
           </Link>
           <span aria-hidden="true"> / </span>

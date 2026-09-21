@@ -13,7 +13,7 @@ export default async function VerifyPage() {
   const token = (await cookies()).get(env.SESSION_COOKIE_NAME)?.value;
   const session = token ? await resolveSession(token) : null;
   if (session) {
-    redirect("/home");
+    redirect("/dashboard");
   }
 
   return (

@@ -186,8 +186,14 @@ export async function seedDefaultCapabilities(
   tx: Prisma.TransactionClient,
   tenantId: string,
 ): Promise<void> {
+  const crypto = require("node:crypto");
   await tx.tenantCapability.createMany({
-    data: DEFAULT_CAPABILITIES.map((capability) => ({ tenantId, capability, enabled: true })),
+    data: DEFAULT_CAPABILITIES.map((capability) => ({ 
+      id: crypto.randomUUID(),
+      tenantId, 
+      capability, 
+      enabled: true 
+    })),
     skipDuplicates: true,
   });
 }

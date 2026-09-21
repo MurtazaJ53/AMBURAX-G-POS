@@ -44,9 +44,8 @@ export function AppShell({
         onMobileClose={() => setIsMobileOpen(false)}
       />
 
-      {/* 13rem, matching the rail. The reference's sidebar is 208px and the content starts
-          hard against it. */}
-      <div className="flex min-w-0 flex-1 flex-col transition-[padding] lg:pl-52">
+      {/* 244px, matching the reference's rail. */}
+      <div className="flex min-w-0 flex-1 flex-col transition-[padding] lg:pl-[238px]">
         <AppHeader
           storeName={storeName}
           storeCode={storeCode}

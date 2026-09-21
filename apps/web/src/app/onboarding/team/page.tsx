@@ -40,11 +40,11 @@ export default async function TeamInvitationPage() {
     redirect("/auth/login");
   }
   if (session.user.tenantRole !== "OWNER") {
-    redirect("/home");
+    redirect("/dashboard");
   }
 
   if (!tenant || tenant.onboardingStep !== "STORE_CREATED") {
-    redirect("/home");
+    redirect("/dashboard");
   }
 
   // Exactly one store exists at this point in onboarding (A7 created it, multi-store

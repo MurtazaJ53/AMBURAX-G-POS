@@ -10,7 +10,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuLabel,
 } from "@/components/ui/dropdown-menu";
-import { LogOut, User, Settings as SettingsIcon } from "lucide-react";
+import { ChevronDown, LogOut, User, Settings as SettingsIcon } from "lucide-react";
 
 interface UserMenuProps {
   userName: string;
@@ -28,28 +28,27 @@ export function UserMenu({ userName, roleLabel }: UserMenuProps) {
     router.refresh();
   }
 
-  const initials = userName.slice(0, 2).toUpperCase();
+  const initials = userName.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase() || userName.slice(0, 2).toUpperCase();
 
   return (
     <DropdownMenu>
-      <DropdownMenuTrigger className="flex items-center gap-2 rounded-md hover:bg-background-hover p-1 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary">
+      <DropdownMenuTrigger className="flex items-center gap-2 rounded-md p-1 hover:bg-slate-100 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-100">
         <span
           aria-hidden="true"
-          className="flex h-8 w-8 items-center justify-center rounded-full bg-background-subtle text-xs font-semibold text-secondary border border-border"
+          className="flex size-8 items-center justify-center rounded-full bg-slate-800 text-[10px] font-bold text-white"
         >
           {initials}
         </span>
-        <span className="hidden min-w-0 sm:block text-left">
-          <span className="block truncate text-sm font-medium text-primary">
-            {userName}
-          </span>
-          <span className="block text-[10px] text-tertiary">{roleLabel}</span>
+        <span className="hidden text-left lg:block">
+          <b className="block text-[10px] text-slate-700">{userName}</b>
+          <small className="text-[9px] text-slate-400 leading-none">{roleLabel}</small>
         </span>
+        <ChevronDown className="hidden size-3 text-slate-400 lg:block" />
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-56">
         <DropdownMenuLabel>
-          <span className="block text-sm font-medium text-primary">{userName}</span>
-          <span className="block text-xs text-tertiary font-normal">{roleLabel}</span>
+          <span className="block text-sm font-medium text-slate-800">{userName}</span>
+          <span className="block text-xs text-slate-500 font-normal">{roleLabel}</span>
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
         <DropdownMenuItem disabled>
@@ -61,7 +60,7 @@ export function UserMenu({ userName, roleLabel }: UserMenuProps) {
           <span>Account Settings</span>
         </DropdownMenuItem>
         <DropdownMenuSeparator />
-        <DropdownMenuItem onClick={handleSignOut} disabled={signingOut} className="text-danger focus:bg-danger-subtle focus:text-danger">
+        <DropdownMenuItem onClick={handleSignOut} disabled={signingOut} className="text-rose-600 focus:bg-rose-50 focus:text-rose-700">
           <LogOut className="mr-2 h-4 w-4" />
           <span>{signingOut ? "Signing out..." : "Sign out"}</span>
         </DropdownMenuItem>

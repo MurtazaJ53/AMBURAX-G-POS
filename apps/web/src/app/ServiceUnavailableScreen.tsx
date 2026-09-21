@@ -2,7 +2,7 @@
  * Shared "the datastore didn't answer" screen for authenticated server components.
  *
  * Found at A9 by smoke-testing every page with the database deliberately unreachable:
- * `/home`, `/onboarding/store`, `/onboarding/team` and `/onboarding/pos` all returned a
+ * `/dashboard`, `/onboarding/store`, `/onboarding/team` and `/onboarding/pos` all returned a
  * raw HTTP 500, while every API route and the public `/invite/[token]` page degraded
  * politely. A brief connection blip is an operational event, not a crash, and the merchant
  * should be told to try again rather than shown Next's generic error page.

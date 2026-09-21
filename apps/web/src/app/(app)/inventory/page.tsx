@@ -5,9 +5,9 @@ import { env } from "@/lib/env";
 import { resolvePosContext } from "@/server/sales/posContext";
 import { canManageInventory } from "@/server/inventory/inventoryRoles";
 import { getInventoryOverview, listStockLevels, listStoreStockMovements } from "@/server/inventory/inventoryQueries";
-import { Plus, ArrowDownToLine, ArrowUpFromLine, UserRound, Box, ShoppingCart, TriangleAlert, PackageOpen, SlidersHorizontal, Search, Grid2X2, Boxes, MoreHorizontal, ChevronLeft, ChevronRight, ChevronDown, Package } from "lucide-react";
+import { Package, Boxes, ShoppingBag, CircleHelp } from "lucide-react";
 
-import { StatusPill, Metric } from "@/components/inventory/InventoryUI";
+import { StatusPill, KpiCard } from "@/components/inventory/InventoryUI";
 import { InventoryDetailPanel } from "@/components/inventory/InventoryDetailPanel";
 import { InventoryToolbar } from "@/components/inventory/InventoryToolbar";
 import { InventoryAnalytics } from "@/components/inventory/InventoryAnalytics";
@@ -44,7 +44,7 @@ export default async function InventoryPage(props: { searchParams: Promise<{ [ke
 
   const selectedItem = selectedSku ? items.find((i) => i.variant.sku === selectedSku) : undefined;
 
-  const createFilterHref = (key: string, value: string) => {
+  const createSelectHref = (sku: string | undefined) => {
     const p = new URLSearchParams();
     if (search) p.set("q", search);
     if (status) p.set("status", status);
@@ -52,67 +52,75 @@ export default async function InventoryPage(props: { searchParams: Promise<{ [ke
     if (brand) p.set("brand", brand);
     if (view !== "table") p.set("view", view);
     
-    if (value === "") p.delete(key);
-    else p.set(key, value);
-    
-    return `/inventory?${p.toString()}`;
-  };
-
-  const createSelectHref = (sku?: string) => {
-    const p = new URLSearchParams();
-    if (search) p.set("q", search);
-    if (status) p.set("status", status);
-    if (category) p.set("category", category);
-    if (brand) p.set("brand", brand);
-    if (view !== "table") p.set("view", view);
     if (sku) p.set("selected", sku);
     return `/inventory?${p.toString()}`;
   };
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col overflow-y-auto p-4 sm:p-5 bg-background text-foreground">
-      <div className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-4">
-        <div className="min-w-0">
+    <div className="flex-1 p-6 overflow-x-hidden">
+      <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
+        <div>
+          <div className="text-[10px] font-bold uppercase tracking-wider text-secondary mb-1">Workspace / Inventory</div>
           <h1 className="text-2xl font-bold text-primary">Inventory</h1>
-          <p className="mt-1 text-sm text-secondary">
-            Track your stock, variants and keep your store always ready
-          </p>
+          <p className="text-sm text-secondary mt-1">Track your stock, variants and keep your store always ready</p>
         </div>
-        <div className="hidden shrink-0 gap-2 md:flex">
-          <button disabled className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-2 text-xs font-semibold opacity-50">
-            <ArrowUpFromLine className="h-4 w-4" /> Import
+        <div className="flex items-center gap-2">
+          <button disabled className="hidden sm:inline-flex h-8 items-center justify-center rounded-[4px] border border-slate-300 bg-white px-3 text-[11px] font-semibold text-primary opacity-50 cursor-not-allowed shadow-sm">
+            Import
           </button>
-          <button disabled className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-2 text-xs font-semibold opacity-50">
-            <ArrowDownToLine className="h-4 w-4" /> Export
+          <button disabled className="hidden sm:inline-flex h-8 items-center justify-center rounded-[4px] border border-slate-300 bg-white px-3 text-[11px] font-semibold text-primary opacity-50 cursor-not-allowed shadow-sm">
+            Export
           </button>
-          {canManage && (
-            <Link
-              href="/inventory/receipts/new"
-              className="inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-semibold text-white transition-colors hover:opacity-90"
-              style={{ background: "var(--color-primary)" }}
-            >
-              <Plus className="h-4 w-4" /> Receive Stock
+          {canManage ? (
+            <Link href="/products/new" className="inline-flex h-8 items-center justify-center rounded-[4px] bg-blue-600 px-3 text-[11px] font-semibold text-white shadow-sm hover:bg-blue-700 transition-colors">
+              Add Product
             </Link>
+          ) : (
+            <button disabled className="inline-flex h-8 items-center justify-center rounded-[4px] bg-blue-600 px-3 text-[11px] font-semibold text-white opacity-50 cursor-not-allowed shadow-sm">
+              Add Product
+            </button>
           )}
         </div>
       </div>
 
-      <div className="mt-3 overflow-x-auto border-b border-border">
-        <div className="flex min-w-max">
-          <div className="border-b-2 border-primary px-4 py-3 text-xs font-medium text-primary">
+      <div className="mt-6 border-b border-border">
+        <div className="flex items-center gap-1 overflow-x-auto scrollbar-hide">
+          <div className="border-b-2 border-primary px-3 py-2 text-[11px] font-semibold text-primary whitespace-nowrap">
             Stock Overview
           </div>
-          <Link href="/inventory/movements" className="border-b-2 border-transparent px-4 py-3 text-xs font-medium text-secondary hover:text-primary transition-colors">
-            Movements History
+          <Link href="/products" className="border-b-2 border-transparent px-3 py-2 text-[11px] font-semibold text-secondary hover:text-primary transition-colors whitespace-nowrap">
+            Products
           </Link>
+          <span className="border-b-2 border-transparent px-3 py-2 text-[11px] font-semibold text-tertiary whitespace-nowrap cursor-not-allowed" title="Not available">
+            Variants
+          </span>
+          <span className="border-b-2 border-transparent px-3 py-2 text-[11px] font-semibold text-tertiary whitespace-nowrap cursor-not-allowed" title="Not available">
+            Categories
+          </span>
+          <span className="border-b-2 border-transparent px-3 py-2 text-[11px] font-semibold text-tertiary whitespace-nowrap cursor-not-allowed" title="Not available">
+            Brands
+          </span>
+          <Link href="/inventory/adjustments/new" className="border-b-2 border-transparent px-3 py-2 text-[11px] font-semibold text-secondary hover:text-primary transition-colors whitespace-nowrap">
+            Stock Adjustments
+          </Link>
+          <Link href="/inventory/receipts/new" className="border-b-2 border-transparent px-3 py-2 text-[11px] font-semibold text-secondary hover:text-primary transition-colors whitespace-nowrap">
+            Stock Take
+          </Link>
+          <span className="border-b-2 border-transparent px-3 py-2 text-[11px] font-semibold text-tertiary whitespace-nowrap cursor-not-allowed" title="Not available">
+            Low Stock
+          </span>
+          <span className="border-b-2 border-transparent px-3 py-2 text-[11px] font-semibold text-tertiary whitespace-nowrap cursor-not-allowed" title="Not available">
+            Expiring / Aging
+          </span>
         </div>
       </div>
 
-      <div className="mt-4 flex gap-3 overflow-x-auto pb-1">
-        <Metric icon={Box} label="Total Variants" value={String(overview.totalItems)} tone="bg-blue-100 text-blue-700" />
-        <Metric icon={ShoppingCart} label="Total Units" value={String(overview.totalUnits)} tone="bg-emerald-100 text-emerald-700" />
-        <Metric icon={TriangleAlert} label="Low Stock Variants" value={String(overview.lowStock)} tone="bg-amber-100 text-amber-700" />
-        <Metric icon={PackageOpen} label="Out of Stock" value={String(overview.outOfStock)} tone="bg-red-100 text-red-700" />
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 mt-5 mb-5">
+        <KpiCard icon={Package} label="Total Products" value={String(overview.totalItems)} note="Across this store" />
+        <KpiCard icon={Boxes} label="Total Stock (Units)" value={String(overview.totalUnits)} note="Current on-hand units" />
+        <KpiCard icon={ShoppingBag} label="Stock Value" value="Not connected" note="Valuation unavailable" muted={true} />
+        <KpiCard icon={CircleHelp} label="Low Stock Items" value={String(overview.lowStock)} note="Across this store" />
+        <KpiCard icon={Package} label="Out of Stock" value={String(overview.outOfStock)} note="Across this store" />
       </div>
 
       <InventoryToolbar 
@@ -123,30 +131,22 @@ export default async function InventoryPage(props: { searchParams: Promise<{ [ke
         view={view}
       />
 
-      <div className="mt-4 flex justify-end">
-        <div className="inline-flex rounded-md border border-border bg-background-card p-1">
-          <Link href={createFilterHref("view", "table")} className={`inline-flex items-center gap-1.5 rounded-sm px-3 py-1.5 text-xs font-medium ${view === "table" ? "bg-primary text-white" : "text-secondary hover:text-primary"}`}>
-            <Grid2X2 className="h-4 w-4" /> Table
-          </Link>
-          <Link href={createFilterHref("view", "grid")} className={`inline-flex items-center gap-1.5 rounded-sm px-3 py-1.5 text-xs font-medium ${view === "grid" ? "bg-primary text-white" : "text-secondary hover:text-primary"}`}>
-            <Boxes className="h-4 w-4" /> Grid
-          </Link>
-        </div>
-      </div>
-
-      <div className={`mt-4 grid min-w-0 gap-4 ${selectedItem ? "xl:grid-cols-[minmax(0,1fr)_310px]" : "grid-cols-1"}`}>
+      <div className={`grid min-w-0 min-h-0 gap-4 h-[calc(100dvh-340px)] min-h-[450px] ${selectedItem ? "xl:grid-cols-[minmax(0,1fr)_380px]" : "grid-cols-1"}`}>
         {view === "table" ? (
-          <div className="min-w-0 overflow-hidden rounded-lg border border-border bg-background-card shadow-sm">
-            <div className="overflow-x-auto">
-              <table className="w-full min-w-[800px] border-collapse text-left text-[11px]">
-                <thead className="bg-slate-50 dark:bg-slate-900 text-[10px] text-secondary">
+          <div className="flex flex-col min-w-0 min-h-0 overflow-hidden rounded-lg border border-border bg-background-card shadow-sm">
+            <div className="flex-1 overflow-x-auto overflow-y-auto relative">
+              <table className="w-full min-w-[1000px] border-collapse text-left text-[12px]">
+                <thead className="bg-slate-50 text-[10px] uppercase tracking-wider text-secondary sticky top-0 z-10 shadow-[0_1px_0_0_var(--border)]">
                   <tr>
-                    <th className="border-b border-border px-4 py-2 font-semibold">Product</th>
-                    <th className="border-b border-border px-4 py-2 font-semibold">SKU</th>
-                    <th className="border-b border-border px-4 py-2 font-semibold">Category</th>
-                    <th className="border-b border-border px-4 py-2 font-semibold">Brand</th>
-                    <th className="border-b border-border px-4 py-2 text-right font-semibold">Stock &darr;</th>
-                    <th className="border-b border-border px-4 py-2 font-semibold">Status</th>
+                    <th className="px-4 py-2 font-semibold">Product</th>
+                    <th className="px-4 py-2 font-semibold">SKU</th>
+                    <th className="px-4 py-2 font-semibold">Category</th>
+                    <th className="px-4 py-2 font-semibold">Brand</th>
+                    <th className="px-4 py-2 font-semibold text-right">Variants</th>
+                    <th className="px-4 py-2 text-right font-semibold">Stock &darr;</th>
+                    <th className="px-4 py-2 text-right font-semibold">Reserved</th>
+                    <th className="px-4 py-2 text-right font-semibold">Available</th>
+                    <th className="px-4 py-2 font-semibold">Status</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -155,39 +155,42 @@ export default async function InventoryPage(props: { searchParams: Promise<{ [ke
                     return (
                       <tr 
                         key={p.variant.sku} 
-                        className={`border-b border-border last:border-0 hover:bg-slate-50 dark:hover:bg-slate-800/50 ${selectedSku === p.variant.sku ? "bg-slate-50 dark:bg-slate-800/50" : ""}`}
+                        className={`h-9 border-b border-slate-100 last:border-0 hover:bg-slate-50 transition-colors ${selectedSku === p.variant.sku ? "bg-slate-50" : ""}`}
                       >
-                        <td className="px-4 py-2">
-                          <Link href={createSelectHref(p.variant.sku)} className="flex items-center gap-2 group block">
-                            <div className="h-9 w-9 shrink-0 overflow-hidden rounded-md bg-background-app flex items-center justify-center">
-                              { }
+                        <td className="px-4 py-1.5 min-w-0">
+                          <Link href={createSelectHref(p.variant.sku)} className="flex items-center gap-2 group">
+                            <div className="h-7 w-7 shrink-0 overflow-hidden rounded-[3px] bg-background-app flex items-center justify-center">
+                              {/* eslint-disable-next-line @next/next/no-img-element */}
                               {p.variant.product.imageUrl ? (
                                 <img src={p.variant.product.imageUrl} alt="" className="h-full w-full object-cover" />
                               ) : (
-                                <Package className="h-4 w-4 text-tertiary" />
+                                <Package className="h-3.5 w-3.5 text-tertiary" />
                               )}
                             </div>
-                            <div>
-                              <b className="text-primary group-hover:underline">{p.variant.product.name}</b>
+                            <div className="min-w-0">
+                              <b className="text-primary truncate block group-hover:underline">{p.variant.product.name}</b>
                               {p.variant.size || p.variant.colour ? (
-                                <p className="text-[10px] text-secondary">
+                                <p className="text-[10px] text-secondary truncate">
                                   {[p.variant.size, p.variant.colour].filter(Boolean).join(" / ")}
                                 </p>
                               ) : null}
                             </div>
                           </Link>
                         </td>
-                        <td className="px-4 py-2 text-secondary font-mono">{p.variant.sku}</td>
-                        <td className="px-4 py-2 text-primary">{p.variant.product.category || "—"}</td>
-                        <td className="px-4 py-2 text-primary">{p.variant.product.brand || "—"}</td>
-                        <td className="px-4 py-2 text-right font-semibold text-primary">{p.quantity}</td>
-                        <td className="px-4 py-2"><StatusPill status={st} /></td>
+                        <td className="px-4 py-1.5 text-secondary font-mono text-[11px] truncate">{p.variant.sku}</td>
+                        <td className="px-4 py-1.5 text-primary truncate">{p.variant.product.category || "—"}</td>
+                        <td className="px-4 py-1.5 text-primary truncate">{p.variant.product.brand || "—"}</td>
+                        <td className="px-4 py-1.5 text-right font-mono text-[11px] text-tertiary">&mdash;</td>
+                        <td className="px-4 py-1.5 text-right font-mono text-[13px] font-bold text-primary">{p.quantity}</td>
+                        <td className="px-4 py-1.5 text-right font-mono text-[11px] text-tertiary">&mdash;</td>
+                        <td className="px-4 py-1.5 text-right font-mono text-[11px] text-tertiary">{p.quantity}</td>
+                        <td className="px-4 py-1.5 w-[140px]"><StatusPill status={st} /></td>
                       </tr>
                     );
                   })}
                   {items.length === 0 && (
                     <tr>
-                      <td colSpan={6} className="p-12 text-center text-sm text-secondary">
+                      <td colSpan={9} className="p-12 text-center text-sm text-secondary">
                         No products match your filters.
                       </td>
                     </tr>
@@ -196,8 +199,8 @@ export default async function InventoryPage(props: { searchParams: Promise<{ [ke
               </table>
             </div>
             {total > 0 && (
-              <div className="flex items-center border-t border-border px-4 py-3 text-[10px] text-secondary bg-slate-50 dark:bg-slate-900">
-                <span>Showing 1–{items.length} of {total} products</span>
+              <div className="flex items-center border-t border-border px-4 py-3 text-[10px] text-secondary bg-slate-50">
+                <span>Showing 1&mdash;{items.length} of {total} products</span>
               </div>
             )}
           </div>
@@ -212,7 +215,7 @@ export default async function InventoryPage(props: { searchParams: Promise<{ [ke
                   className={`rounded-lg border bg-background-card p-3 text-left shadow-sm hover:border-primary transition-colors ${selectedSku === p.variant.sku ? "border-primary ring-1 ring-primary" : "border-border"}`}
                 >
                   <div className="h-32 w-full rounded-md bg-background-app mb-3 flex items-center justify-center overflow-hidden">
-                    { }
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
                     {p.variant.product.imageUrl ? (
                       <img src={p.variant.product.imageUrl} alt="" className="h-full w-full object-cover" />
                     ) : (
@@ -220,9 +223,9 @@ export default async function InventoryPage(props: { searchParams: Promise<{ [ke
                     )}
                   </div>
                   <b className="block text-sm text-primary truncate">{p.variant.product.name}</b>
-                  <span className="text-xs text-secondary truncate block font-mono">{p.variant.sku}</span>
+                  <span className="text-[11px] text-secondary truncate block font-mono">{p.variant.sku}</span>
                   <div className="mt-2 flex items-center justify-between">
-                    <span className="text-sm font-bold text-primary">{p.quantity} units</span>
+                    <span className="text-[12px] font-bold text-primary font-mono">{p.quantity} <span className="font-sans font-medium text-[10px] text-secondary">units</span></span>
                     <StatusPill status={st} />
                   </div>
                 </Link>

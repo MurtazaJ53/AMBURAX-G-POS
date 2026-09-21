@@ -79,7 +79,7 @@ export default async function SalesPage({
   }
 
   if (resolved.status === "unauthorized") redirect("/auth/login");
-  if (resolved.status === "no_store") redirect("/home");
+  if (resolved.status === "no_store") redirect("/dashboard");
   const context = resolved.context;
 
   const filters = { tenantId: context.tenantId, storeId: context.storeId, query, method, from, to };

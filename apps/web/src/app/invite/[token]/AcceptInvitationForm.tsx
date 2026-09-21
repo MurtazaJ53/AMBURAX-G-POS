@@ -53,7 +53,7 @@ export function AcceptInvitationForm({ token, email, accountExists, signedInAs }
       if (res.ok && data.status === "ok") {
         // Navigating away is also how the token leaves the address bar and history entry —
         // it's consumed and useless by now, and no /invite route exists to scrub to.
-        router.push("/home");
+        router.push("/dashboard");
         router.refresh();
         return;
       }
@@ -90,7 +90,7 @@ export function AcceptInvitationForm({ token, email, accountExists, signedInAs }
           <span className="font-medium">{signedInAs}</span>. Sign out and open this link again.
         </div>
         <Link
-          href="/home"
+          href="/dashboard"
           className="block w-full rounded-lg border border-slate-300 px-4 py-2.5 text-center text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
         >
           Go to your workspace
