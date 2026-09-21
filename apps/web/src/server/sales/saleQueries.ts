@@ -112,6 +112,8 @@ export interface SalesFilters {
   query?: string;
   /** Tender filter. Matches a sale carrying at least one payment of this method. */
   method?: "CASH" | "UPI" | "CARD";
+  /** Status filter. */
+  status?: "COMPLETED" | "VOIDED";
   /** Inclusive start of the range. */
   from?: Date;
   /** Exclusive end of the range. */
@@ -124,6 +126,7 @@ function buildSalesWhere(params: { tenantId: string; storeId?: string } & SalesF
   return {
     tenantId: params.tenantId,
     ...(params.storeId ? { storeId: params.storeId } : {}),
+    ...(params.status ? { status: params.status } : {}),
     ...(params.method ? { payments: { some: { method: params.method } } } : {}),
     ...(params.from || params.to
       ? {
@@ -333,4 +336,62 @@ export async function getSaleDetail(params: {
     })),
     payments: sale.payments,
   };
+}
+
+export interface SalesAnalytics {
+  trend: { label: string; amountMinor: number }[];
+  paymentMix: { method: string; amountMinor: number }[];
+  typeMix: { status: string; count: number }[];
+}
+
+export async function getSalesAnalytics(
+  params: { tenantId: string; storeId?: string } & SalesFilters,
+): Promise<SalesAnalytics> {
+  const where = buildSalesWhere(params);
+
+  // 1. Payment Mix
+  const paymentsGroup = await db.salePayment.groupBy({
+    by: ["method"],
+    where: {
+      status: "CONFIRMED",
+      sale: where,
+    },
+    _sum: { amountMinor: true },
+  });
+  const paymentMix = paymentsGroup.map(g => ({
+    method: g.method,
+    amountMinor: g._sum.amountMinor ?? 0,
+  }));
+
+  // 2. Type Mix
+  const typesGroup = await db.sale.groupBy({
+    by: ["status"],
+    where,
+    _count: { _all: true },
+  });
+  const typeMix = typesGroup.map(g => ({
+    status: g.status,
+    count: g._count._all,
+  }));
+
+  // 3. Trend (fetch completedAt and totalMinor for in-memory grouping)
+  const sales = await db.sale.findMany({
+    where: { ...where, status: "COMPLETED" },
+    select: { completedAt: true, totalMinor: true },
+    orderBy: { completedAt: "asc" },
+  });
+
+  const daily = new Map<string, number>();
+  for (const s of sales) {
+    const d = new Date(s.completedAt);
+    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+    daily.set(key, (daily.get(key) ?? 0) + s.totalMinor);
+  }
+
+  const trend = Array.from(daily.entries()).map(([label, amountMinor]) => ({
+    label,
+    amountMinor,
+  }));
+
+  return { trend, paymentMix, typeMix };
 }
