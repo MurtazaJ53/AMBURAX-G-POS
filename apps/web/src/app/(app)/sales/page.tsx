@@ -81,18 +81,13 @@ export default async function SalesPage({
   const carried = { q: query || undefined, method, status, from: sp.from, to: sp.to };
 
   return (
-    <div className="px-4 py-4 sm:px-6">
+    <div className="w-full px-4 py-4 sm:px-6">
       {/* Custom Header matching the reference density */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-4">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-2">
         <div>
           <h1 className="text-xl font-bold text-slate-900 tracking-tight">Sales & Transaction History</h1>
-          <p className="text-[13px] text-slate-500 mt-1">View, search and manage all your sales, returns and transactions in {context.storeName}</p>
+          <p className="text-[13px] text-slate-500 mt-1">View, search and manage all your sales, returns and transactions</p>
         </div>
-        {context.canSell && (
-          <LinkButton href="/pos" className="mt-3 sm:mt-0 shadow-sm whitespace-nowrap">
-            + New Sale
-          </LinkButton>
-        )}
       </div>
 
       <SalesWorkspace

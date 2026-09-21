@@ -106,143 +106,140 @@ export function SalesWorkspace({ page, summary, analytics, carriedParams }: Prop
       {/* 1. KPIs */}
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
         {/* KPI 1: Sales */}
-        <div className="bg-white rounded-lg border border-slate-200 shadow-sm p-3.5 flex items-start gap-3">
-          <div className="w-10 h-10 rounded-lg bg-blue-50 text-blue-500 flex items-center justify-center shrink-0">
-            <ShoppingCart size={20} />
+        <div className="bg-white rounded-lg border border-slate-200 shadow-sm p-3 flex items-start gap-3">
+          <div className="w-9 h-9 rounded-md bg-blue-50 text-blue-500 flex items-center justify-center shrink-0">
+            <ShoppingCart size={18} />
           </div>
           <div>
             <p className="text-[11px] font-medium text-slate-500 uppercase tracking-wide">Total Sales</p>
             <div className="flex items-baseline gap-2 mt-0.5">
-              <span className="text-xl font-bold text-slate-900">{formatMinor(summary.totalMinor)}</span>
+              <span className="text-[18px] font-bold text-slate-900 leading-tight">{formatMinor(summary.totalMinor)}</span>
             </div>
-            <p className="text-[11px] text-slate-400 mt-0.5">Unavailable</p>
           </div>
         </div>
 
         {/* KPI 2: Bills */}
-        <div className="bg-white rounded-lg border border-slate-200 shadow-sm p-3.5 flex items-start gap-3">
-          <div className="w-10 h-10 rounded-lg bg-violet-50 text-violet-500 flex items-center justify-center shrink-0">
-            <Receipt size={20} />
+        <div className="bg-white rounded-lg border border-slate-200 shadow-sm p-3 flex items-start gap-3">
+          <div className="w-9 h-9 rounded-md bg-violet-50 text-violet-500 flex items-center justify-center shrink-0">
+            <Receipt size={18} />
           </div>
           <div>
             <p className="text-[11px] font-medium text-slate-500 uppercase tracking-wide">Total Bills</p>
             <div className="flex items-baseline gap-2 mt-0.5">
-              <span className="text-xl font-bold text-slate-900">{summary.billCount}</span>
+              <span className="text-[18px] font-bold text-slate-900 leading-tight">{summary.billCount}</span>
             </div>
-            <p className="text-[11px] text-slate-400 mt-0.5">Unavailable</p>
           </div>
         </div>
 
         {/* KPI 3: Returns */}
-        <div className="bg-white rounded-lg border border-slate-200 shadow-sm p-3.5 flex items-start gap-3 opacity-70">
-          <div className="w-10 h-10 rounded-lg bg-rose-50 text-rose-500 flex items-center justify-center shrink-0">
-            <RotateCcw size={20} />
+        <div className="bg-white rounded-lg border border-slate-200 shadow-sm p-3 flex items-start gap-3 opacity-70">
+          <div className="w-9 h-9 rounded-md bg-rose-50 text-rose-500 flex items-center justify-center shrink-0">
+            <RotateCcw size={18} />
           </div>
           <div>
             <p className="text-[11px] font-medium text-slate-500 uppercase tracking-wide">Returns / Exchanges</p>
             <div className="flex items-baseline gap-2 mt-0.5">
-              <span className="text-xl font-bold text-slate-900">—</span>
+              <span className="text-[18px] font-bold text-slate-900 leading-tight">—</span>
             </div>
-            <p className="text-[11px] text-slate-400 mt-0.5">Unavailable</p>
+            <p className="text-[10px] text-slate-400 mt-0.5">Unavailable</p>
           </div>
         </div>
 
         {/* KPI 4: Avg Bill */}
-        <div className="bg-white rounded-lg border border-slate-200 shadow-sm p-3.5 flex items-start gap-3">
-          <div className="w-10 h-10 rounded-lg bg-emerald-50 text-emerald-500 flex items-center justify-center shrink-0">
-            <WalletCards size={20} />
+        <div className="bg-white rounded-lg border border-slate-200 shadow-sm p-3 flex items-start gap-3">
+          <div className="w-9 h-9 rounded-md bg-emerald-50 text-emerald-500 flex items-center justify-center shrink-0">
+            <WalletCards size={18} />
           </div>
           <div>
             <p className="text-[11px] font-medium text-slate-500 uppercase tracking-wide">Avg. Bill Value</p>
             <div className="flex items-baseline gap-2 mt-0.5">
-              <span className="text-xl font-bold text-slate-900">{summary.averageBillMinor === null ? "—" : formatMinor(summary.averageBillMinor)}</span>
+              <span className="text-[18px] font-bold text-slate-900 leading-tight">{summary.averageBillMinor === null ? "—" : formatMinor(summary.averageBillMinor)}</span>
             </div>
-            <p className="text-[11px] text-slate-400 mt-0.5">Unavailable</p>
           </div>
         </div>
       </div>
 
       {/* 2. Filter Bar */}
-      <div className="flex flex-wrap items-center justify-between gap-2.5 bg-white px-3 py-2 rounded-lg border border-slate-200 shadow-sm text-sm">
-        <div className="flex flex-wrap items-center gap-2.5 w-full lg:w-auto">
-          {/* Date Picker (Pseudo) */}
-          <div className="flex items-center gap-1.5 border border-slate-200 rounded px-2.5 py-1.5 focus-within:ring-1 focus-within:ring-blue-500 bg-white">
-            <CalendarDays size={14} className="text-blue-500" />
-            <div className="text-[12px] font-medium text-slate-700 whitespace-nowrap px-1">{displayDateRange}</div>
-            <input
-              type="date"
-              className="bg-transparent text-slate-700 outline-none text-[12px] w-5 h-5 opacity-0 absolute"
-              value={from}
-              onChange={(e) => updateFilters({ from: e.target.value })}
-              aria-label="From Date"
-            />
-            <span className="text-slate-300">-</span>
-            <input
-              type="date"
-              className="bg-transparent text-slate-700 outline-none text-[12px] w-5 h-5 opacity-0 absolute ml-8"
-              value={to}
-              onChange={(e) => updateFilters({ to: e.target.value })}
-              aria-label="To Date"
-            />
-            <button className="ml-1 text-slate-400 hover:text-slate-600" onClick={() => updateFilters({ from: undefined, to: undefined })} title="Clear Dates">
-              <X size={14} />
-            </button>
-          </div>
-
-          {/* Payment Mode */}
-          <select
-            className="rounded border border-slate-200 bg-white px-2.5 py-1.5 text-[12px] text-slate-700 outline-none focus:ring-1 focus:ring-blue-500"
-            value={method}
-            onChange={(e) => updateFilters({ method: e.target.value === "all" ? undefined : e.target.value })}
-          >
-            <option value="all">All Payment Modes</option>
-            <option value="CASH">Cash</option>
-            <option value="UPI">UPI</option>
-            <option value="CARD">Card</option>
-          </select>
-
-          {/* Transaction Type */}
-          <select
-            className="rounded border border-slate-200 bg-white px-2.5 py-1.5 text-[12px] text-slate-700 outline-none focus:ring-1 focus:ring-blue-500"
-            value={statusTab}
-            onChange={(e) => updateFilters({ status: e.target.value === "all" ? undefined : e.target.value })}
-          >
-            <option value="all">All Transaction Types</option>
-            <option value="COMPLETED">Completed</option>
-            <option value="VOIDED">Voided</option>
-          </select>
-        </div>
-
-        <div className="flex items-center gap-3 w-full lg:w-auto flex-1 lg:flex-none justify-end">
-          {/* Search */}
-          <div className="relative flex-1 lg:w-64 max-w-sm">
-            <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
-            <input
-              type="text"
-              className="w-full rounded border border-slate-200 py-1.5 pl-8 pr-8 text-[12px] text-slate-700 outline-none focus:ring-1 focus:ring-blue-500 placeholder:text-slate-400"
-              placeholder="Search by bill no, customer, product..."
-              value={q}
-              onChange={(e) => updateFilters({ q: e.target.value })}
-            />
-            <div className="absolute right-1.5 top-1/2 -translate-y-1/2 rounded border border-slate-200 bg-slate-50 px-1 py-0.5 text-[9px] font-medium text-slate-400">
-              ⌘K
-            </div>
-          </div>
-
-          <button className="flex items-center gap-1 text-[12px] font-medium text-blue-600 hover:text-blue-700 whitespace-nowrap">
-            <Filter size={14} />
-            More Filters
+      <div className="flex flex-row items-center gap-2 bg-white px-3 py-2 rounded-lg border border-slate-200 shadow-sm text-sm overflow-x-auto whitespace-nowrap">
+        {/* Date Picker (Pseudo) */}
+        <div className="flex items-center gap-1.5 border border-slate-200 rounded px-2.5 py-1.5 focus-within:ring-1 focus-within:ring-blue-500 bg-white shrink-0">
+          <CalendarDays size={14} className="text-blue-500" />
+          <div className="text-[12px] font-medium text-slate-700 px-1">{displayDateRange}</div>
+          <input
+            type="date"
+            className="bg-transparent text-slate-700 outline-none text-[12px] w-5 h-5 opacity-0 absolute"
+            value={from}
+            onChange={(e) => updateFilters({ from: e.target.value })}
+            aria-label="From Date"
+          />
+          <span className="text-slate-300">-</span>
+          <input
+            type="date"
+            className="bg-transparent text-slate-700 outline-none text-[12px] w-5 h-5 opacity-0 absolute ml-8"
+            value={to}
+            onChange={(e) => updateFilters({ to: e.target.value })}
+            aria-label="To Date"
+          />
+          <button className="ml-1 text-slate-400 hover:text-slate-600" onClick={() => updateFilters({ from: undefined, to: undefined })} title="Clear Dates">
+            <X size={14} />
           </button>
-          
-          {(q || method || from || to || statusTab !== "all") && (
-            <button
-              onClick={() => router.push(pathname)}
-              className="text-[12px] font-medium text-slate-500 hover:text-slate-700 hover:underline whitespace-nowrap"
-            >
-              Reset
-            </button>
-          )}
         </div>
+
+        {/* Store */}
+        <select
+          className="rounded border border-slate-200 bg-white px-2.5 py-1.5 text-[12px] text-slate-700 outline-none focus:ring-1 focus:ring-blue-500 shrink-0"
+        >
+          <option value="all">All Stores</option>
+        </select>
+
+        {/* Payment Mode */}
+        <select
+          className="rounded border border-slate-200 bg-white px-2.5 py-1.5 text-[12px] text-slate-700 outline-none focus:ring-1 focus:ring-blue-500 shrink-0"
+          value={method}
+          onChange={(e) => updateFilters({ method: e.target.value === "all" ? undefined : e.target.value })}
+        >
+          <option value="all">All Payment Modes</option>
+          <option value="CASH">Cash</option>
+          <option value="UPI">UPI</option>
+          <option value="CARD">Card</option>
+        </select>
+
+        {/* Transaction Type */}
+        <select
+          className="rounded border border-slate-200 bg-white px-2.5 py-1.5 text-[12px] text-slate-700 outline-none focus:ring-1 focus:ring-blue-500 shrink-0"
+          value={statusTab === "all" ? "all" : statusTab}
+          onChange={(e) => updateFilters({ status: e.target.value === "all" ? undefined : e.target.value })}
+        >
+          <option value="all">All Types</option>
+          <option value="COMPLETED">Completed</option>
+          <option value="VOIDED">Voided</option>
+        </select>
+
+        {/* Search */}
+        <div className="flex-1 relative min-w-[200px]">
+          <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
+          <input
+            type="text"
+            placeholder="Search bills, customers..."
+            className="w-full rounded border border-slate-200 pl-8 pr-3 py-1.5 text-[12px] outline-none focus:ring-1 focus:ring-blue-500"
+            value={q}
+            onChange={(e) => updateFilters({ q: e.target.value })}
+          />
+        </div>
+
+        {/* More Filters & Reset */}
+        <button className="flex items-center gap-1.5 px-3 py-1.5 border border-slate-200 rounded text-[12px] font-medium text-slate-600 hover:bg-slate-50 shrink-0">
+          <Filter size={14} />
+          More Filters
+        </button>
+        {(q || method || from || to || statusTab !== "all") && (
+          <button
+            onClick={() => updateFilters({ q: undefined, method: undefined, from: undefined, to: undefined, status: undefined })}
+            className="text-[12px] font-medium text-blue-600 hover:text-blue-700 shrink-0"
+          >
+            Reset
+          </button>
+        )}
       </div>
 
       {/* 3. Tabs */}
@@ -263,15 +260,15 @@ export function SalesWorkspace({ page, summary, analytics, carriedParams }: Prop
           ))}
           {/* Mock tabs from reference just for visual layout density matching, but rendered distinctly as unsupported */}
           <div className="flex gap-4 items-center opacity-50 ml-4 pointer-events-none">
-            <span className="text-[12px] font-medium text-slate-400">Returns (0)</span>
-            <span className="text-[12px] font-medium text-slate-400">Exchanges (0)</span>
-            <span className="text-[12px] font-medium text-slate-400">Drafts (0)</span>
+            <span className="text-[12px] font-medium text-slate-400">Returns</span>
+            <span className="text-[12px] font-medium text-slate-400">Exchanges</span>
+            <span className="text-[12px] font-medium text-slate-400">Drafts</span>
           </div>
         </nav>
       </div>
 
       {/* 4. Main Workspace Split (Table + Inspector) */}
-      <div className="flex flex-col lg:flex-row gap-4 items-stretch h-[calc(100vh-280px)] min-h-[400px]">
+      <div className="flex flex-col lg:flex-row gap-4 items-stretch h-[360px]">
         
         {/* Left: Table */}
         <div className="flex-1 w-full min-w-0 bg-white rounded-xl shadow-sm border border-slate-200 flex flex-col">
@@ -281,22 +278,22 @@ export function SalesWorkspace({ page, summary, analytics, carriedParams }: Prop
             </div>
           ) : (
             <div className="flex-1 flex flex-col overflow-hidden">
-              <div className="overflow-x-auto flex-1">
-                <table className="w-full text-left border-collapse">
+              <div className="overflow-x-auto overflow-y-auto flex-1">
+                <table className="w-full text-left border-collapse whitespace-nowrap">
                   <thead className="bg-slate-50 border-b border-slate-200 text-[10px] uppercase tracking-wider text-slate-500 sticky top-0 z-10">
                     <tr>
-                      <th className="w-10 px-3 py-2 text-center font-semibold">
+                      <th className="w-10 px-3 py-1.5 text-center font-semibold">
                         <input type="checkbox" disabled className="rounded border-slate-300 text-blue-600" />
                       </th>
-                      <th className="px-3 py-2 font-semibold">#</th>
-                      <th className="px-3 py-2 font-semibold">Date & Time</th>
-                      <th className="px-3 py-2 font-semibold">Bill No.</th>
-                      <th className="px-3 py-2 font-semibold">Customer</th>
-                      <th className="px-3 py-2 font-semibold text-center">Items</th>
-                      <th className="px-3 py-2 font-semibold text-right">Amount</th>
-                      <th className="px-3 py-2 font-semibold">Payment Mode</th>
-                      <th className="px-3 py-2 font-semibold">Status</th>
-                      <th className="px-3 py-2 font-semibold text-right">Action</th>
+                      <th className="px-3 py-1.5 font-semibold">#</th>
+                      <th className="px-3 py-1.5 font-semibold">Date & Time</th>
+                      <th className="px-3 py-1.5 font-semibold">Bill No.</th>
+                      <th className="px-3 py-1.5 font-semibold">Customer</th>
+                      <th className="px-3 py-1.5 font-semibold text-center">Items</th>
+                      <th className="px-3 py-1.5 font-semibold text-right">Amount</th>
+                      <th className="px-3 py-1.5 font-semibold">Payment Mode</th>
+                      <th className="px-3 py-1.5 font-semibold">Status</th>
+                      <th className="px-3 py-1.5 font-semibold text-right">Action</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 text-[12px]">
@@ -308,28 +305,28 @@ export function SalesWorkspace({ page, summary, analytics, carriedParams }: Prop
                           selectedSale?.id === row.id ? "bg-blue-50/60" : "hover:bg-slate-50"
                         }`}
                       >
-                        <td className="px-3 py-1.5 text-center">
+                        <td className="px-3 py-1 text-center">
                           <input type="checkbox" disabled className="rounded border-slate-300 text-blue-600 opacity-50" />
                         </td>
-                        <td className="px-3 py-1.5 text-slate-500 font-medium">
+                        <td className="px-3 py-1 text-slate-500 font-medium">
                           {((page.page - 1) * 20) + index + 1}
                         </td>
-                        <td className="px-3 py-1.5 text-slate-700 whitespace-nowrap">
+                        <td className="px-3 py-1 text-slate-700">
                           {formatDateTime(row.completedAt)}
                         </td>
-                        <td className="px-3 py-1.5 font-medium text-blue-600">{row.billNumber}</td>
-                        <td className="px-3 py-1.5 text-slate-700">{row.customerName ?? "Walk-in Customer"}</td>
-                        <td className="px-3 py-1.5 text-slate-700 font-medium text-center">{row.itemsCount}</td>
-                        <td className="px-3 py-1.5 font-medium text-slate-900 text-right">{formatMinor(row.totalMinor)}</td>
-                        <td className="px-3 py-1.5 text-slate-600">{row.paymentMethod ?? "—"}</td>
-                        <td className="px-3 py-1.5">
+                        <td className="px-3 py-1 font-medium text-blue-600 truncate max-w-[100px]">{row.billNumber}</td>
+                        <td className="px-3 py-1 text-slate-700 truncate max-w-[120px]">{row.customerName ?? "Walk-in Customer"}</td>
+                        <td className="px-3 py-1 text-slate-700 font-medium text-center">{row.itemsCount}</td>
+                        <td className="px-3 py-1 font-medium text-slate-900 text-right">{formatMinor(row.totalMinor)}</td>
+                        <td className="px-3 py-1 text-slate-600">{row.paymentMethod ?? "—"}</td>
+                        <td className="px-3 py-1">
                           {row.status === "VOIDED" ? (
-                            <span className="inline-flex items-center rounded-md bg-rose-50 px-2 py-0.5 text-[10px] font-medium text-rose-700 ring-1 ring-inset ring-rose-600/20">Voided</span>
+                            <span className="inline-flex items-center rounded-md bg-rose-50 px-1.5 py-0.5 text-[9px] font-medium text-rose-700 ring-1 ring-inset ring-rose-600/20">Voided</span>
                           ) : (
-                            <span className="inline-flex items-center rounded-md bg-emerald-50 px-2 py-0.5 text-[10px] font-medium text-emerald-700 ring-1 ring-inset ring-emerald-600/20">Paid</span>
+                            <span className="inline-flex items-center rounded-md bg-emerald-50 px-1.5 py-0.5 text-[9px] font-medium text-emerald-700 ring-1 ring-inset ring-emerald-600/20">Paid</span>
                           )}
                         </td>
-                        <td className="px-3 py-1.5 text-right font-medium text-blue-600 hover:text-blue-800">
+                        <td className="px-3 py-1 text-right font-medium text-blue-600 hover:text-blue-800">
                           View
                         </td>
                       </tr>
@@ -337,7 +334,7 @@ export function SalesWorkspace({ page, summary, analytics, carriedParams }: Prop
                   </tbody>
                 </table>
               </div>
-              <div className="border-t border-slate-200 bg-slate-50 px-3 py-2 text-[11px] text-slate-500 flex items-center justify-between shrink-0">
+              <div className="border-t border-slate-200 bg-slate-50 px-3 py-1.5 text-[11px] text-slate-500 flex items-center justify-between shrink-0">
                 <div>
                   Showing {Math.min((page.page - 1) * 20 + 1, page.total)}–{Math.min(page.page * 20, page.total)} of {page.total} transactions
                 </div>
@@ -355,7 +352,7 @@ export function SalesWorkspace({ page, summary, analytics, carriedParams }: Prop
         </div>
 
         {/* Right: Inspector Slide-over */}
-        <div className="w-full lg:w-[320px] shrink-0 h-full flex flex-col relative overflow-hidden bg-white shadow-sm border border-slate-200 rounded-xl">
+        <div className="w-full lg:w-[320px] shrink-0 h-full flex flex-col overflow-hidden bg-white shadow-sm border border-slate-200 rounded-xl">
           {selectedSale ? (
             <>
               {/* Inspector Header */}
@@ -507,14 +504,14 @@ export function SalesWorkspace({ page, summary, analytics, carriedParams }: Prop
       {/* 5. Analytics Row */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         {/* Trend */}
-        <div className="bg-white p-4 flex flex-col shadow-sm border border-slate-200 rounded-xl h-[240px]">
-          <div className="flex justify-between items-start mb-4">
+        <div className="bg-white p-4 flex flex-col shadow-sm border border-slate-200 rounded-xl h-[240px] min-w-0 overflow-hidden">
+          <div className="flex justify-between items-start mb-4 shrink-0">
             <h3 className="text-[14px] font-bold text-slate-800 tracking-tight">Sales Trend</h3>
             <select className="text-[10px] font-medium text-slate-500 bg-slate-50 border border-slate-200 rounded px-1.5 py-1 outline-none">
               <option>Last 7 Days</option>
             </select>
           </div>
-          <div className="flex-1 flex items-end gap-1.5 px-1 pb-1">
+          <div className="flex-1 flex items-end gap-1.5 px-1 pb-1 w-full min-w-0 max-w-full overflow-hidden">
             {analytics.trend.length === 0 ? (
               <div className="w-full text-center text-[12px] text-slate-400 self-center">No trend data</div>
             ) : (
@@ -522,7 +519,7 @@ export function SalesWorkspace({ page, summary, analytics, carriedParams }: Prop
                 const max = Math.max(...analytics.trend.map((x) => x.amountMinor), 1);
                 const pct = (t.amountMinor / max) * 100;
                 return (
-                  <div key={i} className="flex-1 flex flex-col items-center justify-end group relative h-full">
+                  <div key={i} className="flex-1 flex flex-col items-center justify-end group relative h-full min-w-0">
                     <div
                       className="w-full bg-blue-500 hover:bg-blue-600 rounded-sm transition-all relative"
                       style={{ height: `${Math.max(pct, 4)}%` }}
@@ -533,7 +530,7 @@ export function SalesWorkspace({ page, summary, analytics, carriedParams }: Prop
                         <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-slate-900" />
                       </div>
                     </div>
-                    <span className="text-[9px] text-slate-400 mt-1.5 font-medium">{t.label.split(" ")[0]}</span>
+                    <span className="text-[9px] text-slate-400 mt-1.5 font-medium truncate w-full text-center">{t.label.split(" ")[0]}</span>
                   </div>
                 );
               })
@@ -662,3 +659,4 @@ export function SalesWorkspace({ page, summary, analytics, carriedParams }: Prop
     </div>
   );
 }
+

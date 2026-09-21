@@ -379,23 +379,43 @@ export async function getSalesAnalytics(
   }));
 
   // 3. Trend (fetch completedAt and totalMinor for in-memory grouping)
+  const now = new Date();
+  const trendStartDate = params.from || new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() - 6));
+  const trendEndDate = params.to || new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + 1));
+
   const sales = await db.sale.findMany({
-    where: { ...where, status: "COMPLETED" },
+    where: { 
+      ...where, 
+      status: "COMPLETED",
+      completedAt: { gte: trendStartDate, lt: trendEndDate }
+    },
     select: { completedAt: true, totalMinor: true },
     orderBy: { completedAt: "asc" },
   });
 
   const daily = new Map<string, number>();
+  
+  // Pre-fill all days in the range
+  let current = new Date(trendStartDate);
+  while (current < trendEndDate) {
+    const key = `${current.getUTCFullYear()}-${String(current.getUTCMonth() + 1).padStart(2, "0")}-${String(current.getUTCDate()).padStart(2, "0")}`;
+    daily.set(key, 0);
+    current.setUTCDate(current.getUTCDate() + 1);
+  }
+
   for (const s of sales) {
     const d = new Date(s.completedAt);
     const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-    daily.set(key, (daily.get(key) ?? 0) + s.totalMinor);
+    if (daily.has(key)) {
+      daily.set(key, daily.get(key)! + s.totalMinor);
+    }
   }
 
-  const trend = Array.from(daily.entries()).map(([label, amountMinor]) => ({
-    label,
-    amountMinor,
-  }));
+  const trend = Array.from(daily.entries()).map(([dateStr, amountMinor]) => {
+    const d = new Date(dateStr);
+    const label = d.toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" });
+    return { label, amountMinor };
+  });
 
   return { trend, paymentMix, typeMix };
 }
