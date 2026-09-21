@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import { fetchSaleDetailAction } from "../actions";
@@ -51,12 +51,25 @@ export function SalesWorkspace({ page, summary, analytics, carriedParams }: Prop
   const [detail, setDetail] = useState<SaleDetail | null>(null);
   const [loadingDetail, setLoadingDetail] = useState(false);
 
+  // Auto-select first transaction on mount if one isn't selected and we have rows
+  useEffect(() => {
+    if (!selectedSale && page.rows && page.rows.length > 0) {
+      const firstRow = page.rows[0];
+      if (firstRow) handleRowClick(firstRow);
+    }
+  }, [page.rows]);
+
   // Filters State
   const q = searchParams.get("q") ?? "";
   const method = searchParams.get("method") ?? "";
   const from = searchParams.get("from") ?? "";
   const to = searchParams.get("to") ?? "";
   const statusTab = searchParams.get("status") ?? "all";
+
+  let displayDateRange = "All Time";
+  if (from && to) displayDateRange = `${from} - ${to}`;
+  else if (from) displayDateRange = `From ${from}`;
+  else if (to) displayDateRange = `Until ${to}`;
 
   const updateFilters = (updates: Record<string, string | undefined>) => {
     const params = new URLSearchParams(searchParams.toString());
@@ -152,9 +165,10 @@ export function SalesWorkspace({ page, summary, analytics, carriedParams }: Prop
           {/* Date Picker (Pseudo) */}
           <div className="flex items-center gap-1.5 border border-slate-200 rounded px-2.5 py-1.5 focus-within:ring-1 focus-within:ring-blue-500 bg-white">
             <CalendarDays size={14} className="text-blue-500" />
+            <div className="text-[12px] font-medium text-slate-700 whitespace-nowrap px-1">{displayDateRange}</div>
             <input
               type="date"
-              className="bg-transparent text-slate-700 outline-none text-[12px] w-[95px]"
+              className="bg-transparent text-slate-700 outline-none text-[12px] w-5 h-5 opacity-0 absolute"
               value={from}
               onChange={(e) => updateFilters({ from: e.target.value })}
               aria-label="From Date"
@@ -162,7 +176,7 @@ export function SalesWorkspace({ page, summary, analytics, carriedParams }: Prop
             <span className="text-slate-300">-</span>
             <input
               type="date"
-              className="bg-transparent text-slate-700 outline-none text-[12px] w-[95px]"
+              className="bg-transparent text-slate-700 outline-none text-[12px] w-5 h-5 opacity-0 absolute ml-8"
               value={to}
               onChange={(e) => updateFilters({ to: e.target.value })}
               aria-label="To Date"
@@ -254,7 +268,7 @@ export function SalesWorkspace({ page, summary, analytics, carriedParams }: Prop
       </div>
 
       {/* 4. Main Workspace Split (Table + Inspector) */}
-      <div className="flex flex-col lg:flex-row gap-4 items-stretch h-full">
+      <div className="flex flex-col lg:flex-row gap-4 items-stretch h-[calc(100vh-280px)] min-h-[400px]">
         
         {/* Left: Table */}
         <div className="flex-1 w-full min-w-0 bg-white rounded-xl shadow-sm border border-slate-200 flex flex-col">
@@ -275,6 +289,7 @@ export function SalesWorkspace({ page, summary, analytics, carriedParams }: Prop
                       <th className="px-3 py-2 font-semibold">Date & Time</th>
                       <th className="px-3 py-2 font-semibold">Bill No.</th>
                       <th className="px-3 py-2 font-semibold">Customer</th>
+                      <th className="px-3 py-2 font-semibold text-center">Items</th>
                       <th className="px-3 py-2 font-semibold text-right">Amount</th>
                       <th className="px-3 py-2 font-semibold">Payment Mode</th>
                       <th className="px-3 py-2 font-semibold">Status</th>
@@ -301,6 +316,7 @@ export function SalesWorkspace({ page, summary, analytics, carriedParams }: Prop
                         </td>
                         <td className="px-3 py-1.5 font-medium text-blue-600">{row.billNumber}</td>
                         <td className="px-3 py-1.5 text-slate-700">{row.customerName ?? "Walk-in Customer"}</td>
+                        <td className="px-3 py-1.5 text-slate-700 font-medium text-center">{row.itemsCount}</td>
                         <td className="px-3 py-1.5 font-medium text-slate-900 text-right">{formatMinor(row.totalMinor)}</td>
                         <td className="px-3 py-1.5 text-slate-600">{row.paymentMethod ?? "—"}</td>
                         <td className="px-3 py-1.5">
@@ -336,7 +352,7 @@ export function SalesWorkspace({ page, summary, analytics, carriedParams }: Prop
         </div>
 
         {/* Right: Inspector Slide-over */}
-        <div className="w-full lg:w-[360px] shrink-0 lg:h-[500px] flex flex-col relative overflow-hidden bg-white shadow-sm border border-slate-200 rounded-xl">
+        <div className="w-full lg:w-[320px] shrink-0 h-full flex flex-col relative overflow-hidden bg-white shadow-sm border border-slate-200 rounded-xl">
           {selectedSale ? (
             <>
               {/* Inspector Header */}
@@ -412,15 +428,15 @@ export function SalesWorkspace({ page, summary, analytics, carriedParams }: Prop
                     <div className="bg-slate-100/50 rounded-lg p-3 space-y-2 border border-slate-100">
                       <div className="flex justify-between text-[12px] text-slate-600">
                         <span>Subtotal</span>
-                        <span className="font-medium text-slate-800">{formatMinor(detail.totalMinor)}</span>
+                        <span className="font-medium text-slate-800">—</span>
                       </div>
                       <div className="flex justify-between text-[12px] text-slate-600">
                         <span>Discount</span>
-                        <span className="font-medium text-emerald-600">-</span>
+                        <span className="font-medium text-slate-800">—</span>
                       </div>
                       <div className="flex justify-between text-[12px] text-slate-600">
                         <span>GST</span>
-                        <span className="font-medium text-slate-800">-</span>
+                        <span className="font-medium text-slate-800">—</span>
                       </div>
                       <div className="border-t border-slate-200 my-1.5 pt-1.5 flex justify-between font-bold text-[14px] text-slate-900">
                         <span>Total</span>
@@ -622,6 +638,7 @@ export function SalesWorkspace({ page, summary, analytics, carriedParams }: Prop
                 <span className="font-semibold text-slate-400">Returns</span>
                 <div className="flex items-center gap-2">
                   <span className="font-bold text-slate-400">—</span>
+                  <span className="text-slate-400 font-medium text-[10px]">Unavailable</span>
                 </div>
               </div>
               <div className="h-1.5 w-full bg-slate-50 rounded-full" />
@@ -631,6 +648,7 @@ export function SalesWorkspace({ page, summary, analytics, carriedParams }: Prop
                 <span className="font-semibold text-slate-400">Exchanges</span>
                 <div className="flex items-center gap-2">
                   <span className="font-bold text-slate-400">—</span>
+                  <span className="text-slate-400 font-medium text-[10px]">Unavailable</span>
                 </div>
               </div>
               <div className="h-1.5 w-full bg-slate-50 rounded-full" />

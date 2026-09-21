@@ -295,6 +295,7 @@ test("recent sales link to the bill and report accounting state per row", () => 
           customerName: null,
           cashierName: "Priya Nair",
           storeName: "Indiranagar",
+          itemsCount: 1,
         },
       ]}
     />,

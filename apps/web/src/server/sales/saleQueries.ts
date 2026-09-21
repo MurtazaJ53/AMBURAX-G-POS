@@ -24,6 +24,7 @@ export interface SaleListRow {
   customerName: string | null;
   cashierName: string;
   storeName: string;
+  itemsCount: number;
 }
 
 /** Shared by the capped list and the paginated workspace, so the two cannot drift. */
@@ -38,6 +39,7 @@ const SALE_LIST_SELECT = {
   cashier: { select: { name: true } },
   store: { select: { name: true } },
   payments: { select: { status: true, method: true }, take: 1 },
+  _count: { select: { items: true } },
 } as const;
 
 function toListRow(s: {
@@ -51,6 +53,7 @@ function toListRow(s: {
   cashier: { name: string };
   store: { name: string };
   payments: { status: string; method: string }[];
+  _count: { items: number };
 }): SaleListRow {
   return {
     id: s.id,
@@ -64,6 +67,7 @@ function toListRow(s: {
     customerName: s.customer?.name ?? null,
     cashierName: s.cashier.name,
     storeName: s.store.name,
+    itemsCount: s._count.items,
   };
 }
 
