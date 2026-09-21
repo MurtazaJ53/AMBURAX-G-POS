@@ -13,7 +13,7 @@ import {
   type SalesSummary,
   type SalesAnalytics,
 } from "@/server/sales/saleQueries";
-import { PageHeader, LinkButton } from "../_components/ui";
+import { LinkButton } from "../_components/ui";
 import { SalesWorkspace } from "./_components/SalesWorkspace";
 
 const PAYMENT_METHODS = ["CASH", "UPI", "CARD"] as const;
@@ -81,12 +81,20 @@ export default async function SalesPage({
   const carried = { q: query || undefined, method, status, from: sp.from, to: sp.to };
 
   return (
-    <div className="px-4 py-6 sm:px-6">
-      <PageHeader
-        title="Sales & Transaction History"
-        subtitle={`View, search and manage all your sales and transactions in ${context.storeName}`}
-        actions={context.canSell ? <LinkButton href="/pos">New Sale</LinkButton> : undefined}
-      />
+    <div className="px-4 py-4 sm:px-6">
+      {/* Custom Header matching the reference density */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-4">
+        <div>
+          <h1 className="text-xl font-bold text-slate-900 tracking-tight">Sales & Transaction History</h1>
+          <p className="text-[13px] text-slate-500 mt-1">View, search and manage all your sales, returns and transactions in {context.storeName}</p>
+        </div>
+        {context.canSell && (
+          <LinkButton href="/pos" className="mt-3 sm:mt-0 shadow-sm whitespace-nowrap">
+            + New Sale
+          </LinkButton>
+        )}
+      </div>
+
       <SalesWorkspace
         page={result}
         summary={summary}
