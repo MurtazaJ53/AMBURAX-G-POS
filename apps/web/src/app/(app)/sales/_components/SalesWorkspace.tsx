@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import { fetchSaleDetailAction } from "../actions";
@@ -51,13 +51,30 @@ export function SalesWorkspace({ page, summary, analytics, carriedParams }: Prop
   const [detail, setDetail] = useState<SaleDetail | null>(null);
   const [loadingDetail, setLoadingDetail] = useState(false);
 
+  const handleRowClick = useCallback(async (row: SaleListRow) => {
+    setSelectedSale(row);
+    setLoadingDetail(true);
+    setDetail(null);
+    try {
+      const data = await fetchSaleDetailAction(row.id);
+      setDetail(data);
+    } catch (err) {
+      console.error("Failed to fetch detail", err);
+    } finally {
+      setLoadingDetail(false);
+    }
+  }, []);
+
   // Auto-select first transaction on mount if one isn't selected and we have rows
   useEffect(() => {
     if (!selectedSale && page.rows && page.rows.length > 0) {
       const firstRow = page.rows[0];
-      if (firstRow) handleRowClick(firstRow);
+      if (firstRow) {
+        // eslint-disable-next-line react-hooks/set-state-in-effect
+        handleRowClick(firstRow);
+      }
     }
-  }, [page.rows]);
+  }, [page.rows, selectedSale, handleRowClick]);
 
   // Filters State
   const q = searchParams.get("q") ?? "";
@@ -84,20 +101,6 @@ export function SalesWorkspace({ page, summary, analytics, carriedParams }: Prop
     router.push(`${pathname}?${params.toString()}`);
   };
 
-  const handleRowClick = async (row: SaleListRow) => {
-    setSelectedSale(row);
-    setLoadingDetail(true);
-    setDetail(null);
-    try {
-      const data = await fetchSaleDetailAction(row.id);
-      setDetail(data);
-    } catch (err) {
-      console.error("Failed to fetch detail", err);
-    } finally {
-      setLoadingDetail(false);
-    }
-  };
-
   return (
     <div className="space-y-4">
       {/* 1. KPIs */}
@@ -112,7 +115,7 @@ export function SalesWorkspace({ page, summary, analytics, carriedParams }: Prop
             <div className="flex items-baseline gap-2 mt-0.5">
               <span className="text-xl font-bold text-slate-900">{formatMinor(summary.totalMinor)}</span>
             </div>
-            <p className="text-[11px] text-slate-400 mt-0.5">vs previous period</p>
+            <p className="text-[11px] text-slate-400 mt-0.5">Unavailable</p>
           </div>
         </div>
 
@@ -126,7 +129,7 @@ export function SalesWorkspace({ page, summary, analytics, carriedParams }: Prop
             <div className="flex items-baseline gap-2 mt-0.5">
               <span className="text-xl font-bold text-slate-900">{summary.billCount}</span>
             </div>
-            <p className="text-[11px] text-slate-400 mt-0.5">vs previous period</p>
+            <p className="text-[11px] text-slate-400 mt-0.5">Unavailable</p>
           </div>
         </div>
 
@@ -154,7 +157,7 @@ export function SalesWorkspace({ page, summary, analytics, carriedParams }: Prop
             <div className="flex items-baseline gap-2 mt-0.5">
               <span className="text-xl font-bold text-slate-900">{summary.averageBillMinor === null ? "—" : formatMinor(summary.averageBillMinor)}</span>
             </div>
-            <p className="text-[11px] text-slate-400 mt-0.5">vs previous period</p>
+            <p className="text-[11px] text-slate-400 mt-0.5">Unavailable</p>
           </div>
         </div>
       </div>
