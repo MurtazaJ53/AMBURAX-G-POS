@@ -9,8 +9,8 @@ const path = require('path');
   console.log("Navigating to login...");
   await page.goto('http://localhost:3000/auth/login');
   
-  await page.fill('input[name="email"]', 'owner@demo.amburax.test');
-  await page.fill('input[name="password"]', 'Passw0rd!123');
+  await page.fill('input[type="email"]', 'owner@demo.amburax.test');
+  await page.fill('input[type="password"]', 'Passw0rd!123');
   await page.click('button[type="submit"]');
 
   console.log("Waiting for dashboard...");
@@ -20,6 +20,22 @@ const path = require('path');
   await page.goto('http://localhost:3000/pos');
   // wait for it to load
   await page.waitForTimeout(3000);
+
+  // Add items
+  console.log("Adding items...");
+  try {
+     const products = await page.$$('.grid.grid-cols-2 button, .grid.grid-cols-3 button, .grid.grid-cols-6 button');
+     if (products.length >= 3) {
+       await products[0].click();
+       await page.waitForTimeout(300);
+       await products[1].click();
+       await page.waitForTimeout(300);
+       await products[2].click();
+       await page.waitForTimeout(500);
+     }
+  } catch (e) {
+     console.log("Could not add items");
+  }
 
   const viewports = [
     { width: 1536, height: 1024, name: '1536px' },
