@@ -15,6 +15,7 @@ import {
 } from "@/server/sales/saleQueries";
 import { LinkButton } from "../_components/ui";
 import { SalesWorkspace } from "./_components/SalesWorkspace";
+import { Download } from "lucide-react";
 
 const PAYMENT_METHODS = ["CASH", "UPI", "CARD"] as const;
 type PaymentMethod = (typeof PAYMENT_METHODS)[number];
@@ -81,12 +82,17 @@ export default async function SalesPage({
   const carried = { q: query || undefined, method, status, from: sp.from, to: sp.to };
 
   return (
-    <div className="w-full px-4 py-4 sm:px-6">
+    <div className="flex w-full flex-col p-5 max-w-[1600px] mx-auto">
       {/* Custom Header matching the reference density */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-2">
+      <div className="mb-5 flex flex-col sm:flex-row sm:items-center sm:justify-between shrink-0">
         <div>
-          <h1 className="text-xl font-bold text-slate-900 tracking-tight">Sales & Transaction History</h1>
-          <p className="text-[13px] text-slate-500 mt-1">View, search and manage all your sales, returns and transactions</p>
+          <h1 className="text-[25px] font-bold text-slate-900 leading-tight tracking-tight">Sales & Transaction History</h1>
+          <p className="text-[14.5px] text-slate-500 mt-0.5">View, search and manage all your sales, returns and transactions</p>
+        </div>
+        <div className="mt-3 sm:mt-0">
+          <Link href="/sales/export" className="inline-flex items-center justify-center rounded h-8 px-3 text-[12px] font-medium bg-white text-slate-600 shadow-sm border border-slate-200 hover:bg-slate-50">
+             <Download size={14} className="mr-1.5" /> Export
+          </Link>
         </div>
       </div>
 

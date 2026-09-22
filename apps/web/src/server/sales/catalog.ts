@@ -66,7 +66,7 @@ export async function searchCatalog(params: {
       colour: true,
       priceMinor: true,
       taxRateBp: true,
-      product: { select: { name: true } },
+      product: { select: { name: true, imageUrl: true } },
       // Store-scoped so one store's count never appears on another's screen.
       stockLevels: { where: { storeId: params.storeId }, select: { quantity: true } },
     },

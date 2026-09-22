@@ -245,6 +245,7 @@ export interface SaleDetail {
     taxMinor: number;
     lineDiscountMinor: number;
     lineTotalMinor: number;
+    imageUrl: string | null;
   }[];
   payments: {
     method: string;
@@ -293,6 +294,7 @@ export async function getSaleDetail(params: {
           taxMinor: true,
           lineDiscountMinor: true,
           lineTotalMinor: true,
+          variant: { select: { product: { select: { imageUrl: true } } } },
         },
       },
       payments: {
@@ -337,6 +339,7 @@ export async function getSaleDetail(params: {
       taxMinor: i.taxMinor,
       lineDiscountMinor: i.lineDiscountMinor,
       lineTotalMinor: i.lineTotalMinor,
+      imageUrl: i.variant?.product?.imageUrl ?? null,
     })),
     payments: sale.payments,
   };
