@@ -6,9 +6,12 @@
  * has to be audited, updated and shipped forever. The ones taken from the supplied design are
  * lifted verbatim, so the stroke weights and geometry match it rather than approximate it.
  *
- * Stroke colours are literal here because they are part of the artwork, not the theme: the design
- * tokens in src/design/tokens.css are scoped to `[data-amburax]` surfaces and this route is not
- * one of them.
+ * Every glyph inherits `currentColor` and draws at 1.8 stroke. Both were literals before, and
+ * both were why the screen could not hold a colour decision: the field icons were pinned to
+ * #94a3b8 — 2.5:1 on white, below AA — so raising the surrounding text to an accessible grey left
+ * the icons behind at the old value, and three glyphs drew at stroke 2 beside eight at 1.8, which
+ * reads as two icon families on one screen. Colour now comes from the element the icon sits in,
+ * so a glyph cannot disagree with its own label.
  *
  * Everything here is `aria-hidden`. Each icon sits beside its own visible label, so announcing it
  * would make a screen reader say the same thing twice.
@@ -20,7 +23,7 @@ export const IconEnvelope = () => (
     height="18"
     viewBox="0 0 24 24"
     fill="none"
-    stroke="#94a3b8"
+    stroke="currentColor"
     strokeWidth="1.8"
     strokeLinecap="round"
     strokeLinejoin="round"
@@ -37,7 +40,7 @@ export const IconLock = () => (
     height="18"
     viewBox="0 0 24 24"
     fill="none"
-    stroke="#94a3b8"
+    stroke="currentColor"
     strokeWidth="1.8"
     strokeLinecap="round"
     strokeLinejoin="round"
@@ -55,7 +58,7 @@ export const IconEye = ({ open }: { open: boolean }) =>
       height="18"
       viewBox="0 0 24 24"
       fill="none"
-      stroke="#94a3b8"
+      stroke="currentColor"
       strokeWidth="1.8"
       strokeLinecap="round"
       strokeLinejoin="round"
@@ -70,7 +73,7 @@ export const IconEye = ({ open }: { open: boolean }) =>
       height="18"
       viewBox="0 0 24 24"
       fill="none"
-      stroke="#94a3b8"
+      stroke="currentColor"
       strokeWidth="1.8"
       strokeLinecap="round"
       strokeLinejoin="round"
@@ -89,7 +92,7 @@ export const IconGlobe = () => (
     height="16"
     viewBox="0 0 24 24"
     fill="none"
-    stroke="#64748b"
+    stroke="currentColor"
     strokeWidth="1.8"
     strokeLinecap="round"
     strokeLinejoin="round"
@@ -111,7 +114,7 @@ export const IconArrowRight = () => (
     viewBox="0 0 24 24"
     fill="none"
     stroke="currentColor"
-    strokeWidth="2"
+    strokeWidth="1.8"
     strokeLinecap="round"
     strokeLinejoin="round"
     aria-hidden="true"
@@ -122,11 +125,11 @@ export const IconArrowRight = () => (
 
 export const IconShield = () => (
   <svg
-    width="18"
-    height="18"
+    width="16"
+    height="16"
     viewBox="0 0 24 24"
     fill="none"
-    stroke="#94a3b8"
+    stroke="currentColor"
     strokeWidth="1.8"
     strokeLinecap="round"
     strokeLinejoin="round"
@@ -138,11 +141,11 @@ export const IconShield = () => (
 
 export const IconCloud = () => (
   <svg
-    width="18"
-    height="18"
+    width="16"
+    height="16"
     viewBox="0 0 24 24"
     fill="none"
-    stroke="#94a3b8"
+    stroke="currentColor"
     strokeWidth="1.8"
     strokeLinecap="round"
     strokeLinejoin="round"
@@ -154,11 +157,11 @@ export const IconCloud = () => (
 
 export const IconMonitor = () => (
   <svg
-    width="18"
-    height="18"
+    width="16"
+    height="16"
     viewBox="0 0 24 24"
     fill="none"
-    stroke="#94a3b8"
+    stroke="currentColor"
     strokeWidth="1.8"
     strokeLinecap="round"
     strokeLinejoin="round"
@@ -209,7 +212,7 @@ export const IconAlert = () => (
     viewBox="0 0 24 24"
     fill="none"
     stroke="currentColor"
-    strokeWidth="2"
+    strokeWidth="1.8"
     strokeLinecap="round"
     strokeLinejoin="round"
     className="mt-0.5 shrink-0"
