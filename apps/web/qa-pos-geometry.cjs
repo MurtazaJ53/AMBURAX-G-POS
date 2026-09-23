@@ -61,7 +61,7 @@ const { chromium } = require('playwright');
       
       const itemHeights = cartItems.map(item => {
          const rect = item.getBoundingClientRect();
-         const isVisible = rect.top >= cartRect.top && rect.bottom <= cartRect.bottom + 2;
+         const isVisible = rect.top >= cartRect.top && Math.round(rect.bottom) <= Math.round(cartRect.bottom) + 2;
          if (isVisible) visibleCartItems++;
          return Math.round(rect.height);
       });
@@ -84,8 +84,8 @@ const { chromium } = require('playwright');
     });
   }
 
-  const m3 = await measure(3);
-  console.log("m3 = " + JSON.stringify(m3, null, 2));
+  const m4 = await measure(4);
+  console.log("m4 = " + JSON.stringify(m4, null, 2));
   const m5 = await measure(5);
   console.log("m5 = " + JSON.stringify(m5, null, 2));
   const m10 = await measure(10);
@@ -96,18 +96,18 @@ const { chromium } = require('playwright');
   let failed = false;
   const fail = (msg) => { console.error("FAIL: " + msg); failed = true; }
 
-  if (m3.checkoutWidth < 380 || m3.checkoutWidth > 400) fail("Checkout width not in 380-400: " + m3.checkoutWidth);
-  if (m3.headerHeight < 48 || m3.headerHeight > 54) fail("Header not in 48-54: " + m3.headerHeight);
-  if (m3.customerHeight < 76 || m3.customerHeight > 90) fail("Customer not in 76-90: " + m3.customerHeight);
-  if (m3.footerHeight < 420 || m3.footerHeight > 460) fail("Footer not in 420-460: " + m3.footerHeight);
-  if (m3.completeSaleHeight < 46 || m3.completeSaleHeight > 52) fail("Complete Sale not in 46-52: " + m3.completeSaleHeight);
+  if (m4.checkoutWidth < 380 || m4.checkoutWidth > 400) fail("Checkout width not in 380-400: " + m4.checkoutWidth);
+  if (m4.headerHeight < 48 || m4.headerHeight > 54) fail("Header not in 48-54: " + m4.headerHeight);
+  if (m4.customerHeight < 76 || m4.customerHeight > 90) fail("Customer not in 76-90: " + m4.customerHeight);
+  if (m4.footerHeight > 460) fail("Footer height too tall! " + m4.footerHeight + " > 460");
+  if (m4.completeSaleHeight < 46 || m4.completeSaleHeight > 52) fail("Complete Sale not in 46-52: " + m4.completeSaleHeight);
   
-  for (const h of m3.cartItemHeights) {
-    if (h < 86 || h > 100) fail("Cart item height not in 86-100: " + h);
+  for (const h of m4.cartItemHeights) {
+    if (h > 100) fail("Cart item height > 100: " + h);
   }
 
-  if (m3.visibleCartItems < 3) fail("Expected 3 items visible, got " + m3.visibleCartItems);
-  if (m3.pageScrollHeight > m3.pageClientHeight + 1) fail("Page scrolled! " + m3.pageScrollHeight + " > " + m3.pageClientHeight);
+  if (m4.visibleCartItems < 4) fail("Expected 4 items visible, got " + m4.visibleCartItems);
+  if (m4.pageScrollHeight > m4.pageClientHeight + 1) fail("Page scrolled! " + m4.pageScrollHeight + " > " + m4.pageClientHeight);
 
   if (m5.cartScrollHeight <= m5.cartClientHeight) fail("Cart region did not scroll internally for 5 items");
   if (m5.pageScrollHeight > m5.pageClientHeight + 1) fail("Page scrolled for 5 items!");

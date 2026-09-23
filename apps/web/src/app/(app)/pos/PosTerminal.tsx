@@ -434,15 +434,15 @@ export function PosTerminal(props: { storeName: string; storeCode: string; cashi
                 </div>
                 <div className="flex-1 min-w-0 flex flex-col">
                    <div className="pr-6 leading-tight mb-2">
-                     <p className="text-[13px] font-medium text-slate-900 truncate">{line.productName}</p>
-                     <p className="text-[11px] text-slate-500 truncate mt-0.5">{line.sku} {variantLabel(line) ? `| ${variantLabel(line)}` : ''}</p>
+                     <p className="text-[12px] font-semibold text-slate-900 truncate">{line.productName}</p>
+                     <p className="text-[10px] text-slate-500 truncate mt-0.5">{line.sku} {variantLabel(line) ? `| ${variantLabel(line)}` : ''}</p>
                    </div>
                    <div className="flex items-center justify-between mt-auto">
-                     <p className="text-[13px] font-bold text-slate-900">{formatMinor(line.unitPriceMinor)}</p>
+                     <p className="text-[12px] font-semibold text-slate-900">{formatMinor(line.unitPriceMinor)}</p>
                      
                      <div className="flex items-center border border-slate-200 rounded text-slate-700 bg-white h-[30px] shrink-0 overflow-hidden shadow-sm">
                         <button onClick={() => setQuantity(line.variantId, line.quantity - 1)} className="w-7 h-full flex items-center justify-center hover:bg-slate-100 transition-colors bg-slate-50 border-r border-slate-200"><Minus className="w-[14px] h-[14px]"/></button>
-                        <span className="w-8 text-center text-[13px] font-bold flex items-center justify-center h-full">{line.quantity}</span>
+                        <span className="w-8 text-center text-[12px] font-bold flex items-center justify-center h-full">{line.quantity}</span>
                         <button onClick={() => setQuantity(line.variantId, line.quantity + 1)} className="w-7 h-full flex items-center justify-center hover:bg-slate-100 transition-colors bg-slate-50 border-l border-slate-200"><Plus className="w-[14px] h-[14px]"/></button>
                      </div>
                    </div>

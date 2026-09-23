@@ -1,5 +1,3 @@
-# F8 FINAL REPORT: POS CHECKOUT GEOMETRY
-
 SCREEN:
 POS Checkout
 
@@ -95,10 +93,8 @@ PASS
 PASS
 
 FINAL HEAD:
-315ac150cb2167d131196c2dac3b9d80d71433ca
+6f0bd5f932a6017b680fa3c46f164b9784c6cd76
 
 GIT STATUS:
 On branch main
 nothing to commit, working tree clean
-
-F8 POS CHECKOUT = CLOSED / GREEN
