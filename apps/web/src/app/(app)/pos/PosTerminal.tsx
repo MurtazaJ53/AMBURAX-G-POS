@@ -289,10 +289,10 @@ export function PosTerminal(props: { storeName: string; storeCode: string; cashi
       <div className="flex-1 flex flex-col min-w-0 bg-white border-r border-slate-200">
         
         {/* Top Tabs */}
-        <div className="flex px-4 pt-4 border-b border-slate-200 gap-6 text-[13px] font-medium">
-          <button className="pb-3 border-b-2 border-blue-600 text-blue-600">Products</button>
-          <button className="pb-3 border-b-2 border-transparent text-slate-500 hover:text-slate-700">Barcode Scan</button>
-          <button className="pb-3 border-b-2 border-transparent text-slate-500 hover:text-slate-700">Quick Add</button>
+        <div className="flex px-4 pt-3 border-b border-slate-200 gap-6 text-[13px] font-medium">
+          <button className="pb-2.5 border-b-2 border-blue-600 text-blue-600">Products</button>
+          <button className="pb-2.5 border-b-2 border-transparent text-slate-500 hover:text-slate-700">Barcode Scan</button>
+          <button className="pb-2.5 border-b-2 border-transparent text-slate-500 hover:text-slate-700">Quick Add</button>
         </div>
 
         {/* Filter Toolbar */}
@@ -331,7 +331,7 @@ export function PosTerminal(props: { storeName: string; storeCode: string; cashi
         </div>
 
         {/* Categories row (Visual only) */}
-        <div className="px-4 py-3 flex gap-3 overflow-x-auto border-b border-slate-100 no-scrollbar">
+        <div className="px-4 py-2 flex gap-3 overflow-x-auto border-b border-slate-100 no-scrollbar">
              {[
                { name: 'Men\'s Wear', icon: Shirt },
                { name: 'Women\'s Wear', icon: Sparkles },
@@ -344,7 +344,7 @@ export function PosTerminal(props: { storeName: string; storeCode: string; cashi
                { name: 'Offers', icon: Gem },
              ].map(cat => (
                <div key={cat.name} className="flex flex-col items-center gap-1.5 min-w-[72px] cursor-pointer group">
-                  <div className="w-12 h-12 rounded-lg bg-slate-50 border border-slate-100 flex items-center justify-center text-slate-400 group-hover:border-blue-200 group-hover:bg-blue-50">
+                  <div className="w-10 h-10 rounded-lg bg-slate-50 border border-slate-100 flex items-center justify-center text-slate-400 group-hover:border-blue-200 group-hover:bg-blue-50">
                     <cat.icon className="w-5 h-5"/>
                   </div>
                   <span className="text-[11px] font-medium text-slate-600 text-center">{cat.name}</span>
@@ -372,7 +372,7 @@ export function PosTerminal(props: { storeName: string; storeCode: string; cashi
                     )}
                  </div>
                  <div className="p-3 flex flex-col gap-1.5">
-                   <p className="text-[13px] font-medium text-slate-900 line-clamp-2 leading-snug">{hit.productName}</p>
+                   <p className="text-[12px] font-medium text-slate-900 line-clamp-2 leading-snug">{hit.productName}</p>
                    <div className="flex justify-between items-end mt-1">
                      <div>
                        <p className="text-[15px] font-bold text-slate-900 leading-none">{formatMinor(hit.priceMinor)}</p>
