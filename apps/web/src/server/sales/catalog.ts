@@ -23,6 +23,7 @@ export interface CatalogHit {
    * to be rendered as "0 in stock".
    */
   stockQuantity: number | null;
+  imageUrl?: string | null;
 }
 
 export const CATALOG_SEARCH_LIMIT = 30;
@@ -87,6 +88,7 @@ export async function searchCatalog(params: {
     priceMinor: v.priceMinor,
     taxRateBp: v.taxRateBp,
     stockQuantity: v.stockLevels[0]?.quantity ?? null,
+    imageUrl: v.product.imageUrl ?? null,
   }));
 }
 
@@ -126,7 +128,7 @@ export async function scanBarcode(params: {
       priceMinor: true,
       taxRateBp: true,
       isActive: true,
-      product: { select: { name: true, isActive: true } },
+      product: { select: { name: true, isActive: true, imageUrl: true } },
       stockLevels: { where: { storeId: params.storeId }, select: { quantity: true } },
     },
   });
@@ -142,6 +144,7 @@ export async function scanBarcode(params: {
     priceMinor: variant.priceMinor,
     taxRateBp: variant.taxRateBp,
     stockQuantity: variant.stockLevels[0]?.quantity ?? null,
+    imageUrl: variant.product.imageUrl ?? null,
     // A withdrawn product makes its variants unsellable too, so both flags fold into one answer.
     isActive: variant.isActive && variant.product.isActive,
   };
