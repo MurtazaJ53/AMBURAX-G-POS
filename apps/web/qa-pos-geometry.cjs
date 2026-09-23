@@ -2,7 +2,10 @@ const { chromium } = require('playwright');
 
 (async () => {
   const browser = await chromium.launch({ headless: true });
-  const context = await browser.newContext({ viewport: { width: 1536, height: 1024 } });
+  // Simulating 90% browser zoom for a 1536x1024 physical window.
+  // 1536 / 0.9 = 1706.66 css pixels
+  // 1024 / 0.9 = 1137.77 css pixels
+  const context = await browser.newContext({ viewport: { width: Math.round(1536 / 0.9), height: Math.round(1024 / 0.9) }, deviceScaleFactor: 0.9 });
   await context.clearCookies();
   const page = await context.newPage();
 

@@ -423,7 +423,7 @@ export function PosTerminal(props: { storeName: string; storeCode: string; cashi
              <p className="text-[12px] text-rose-700 bg-rose-50 p-2 rounded shrink-0">{cartNotice}</p>
           )}
           {cart.map((line) => (
-             <div key={line.variantId} className="flex gap-2.5 bg-white p-2 min-h-[88px] rounded-[6px] border border-slate-200 shadow-sm relative group shrink-0">
+             <div key={line.variantId} className="flex gap-2.5 bg-white p-2 min-h-[94px] rounded-[6px] border border-slate-200 shadow-sm relative group shrink-0">
                 <div className="w-10 h-10 bg-slate-100 rounded-[4px] border border-slate-100 flex items-center justify-center overflow-hidden shrink-0 mt-0.5">
                    {line.imageUrl ? (
                      /* eslint-disable-next-line @next/next/no-img-element */
