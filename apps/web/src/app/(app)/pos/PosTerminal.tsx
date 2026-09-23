@@ -356,14 +356,14 @@ export function PosTerminal(props: { storeName: string; storeCode: string; cashi
         <div className="flex-1 overflow-y-auto p-4 bg-slate-50/50">
            {searchError && <p className="text-[13px] text-rose-600 bg-rose-50 p-3 rounded-lg border border-rose-100">{searchError}</p>}
            
-           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 2xl:grid-cols-6 gap-4">
+           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-4">
              {results.map(hit => (
                <button 
                  key={hit.variantId} 
                  onClick={() => addToCart(hit)}
                  className="flex flex-col bg-white border border-slate-200 rounded-xl overflow-hidden hover:shadow-md transition-shadow text-left group"
                >
-                 <div className="aspect-[4/5] bg-slate-100 relative w-full border-b border-slate-100 flex items-center justify-center">
+                 <div className="aspect-square bg-slate-100 relative w-full border-b border-slate-100 flex items-center justify-center">
                     {hit.imageUrl ? (
                       /* eslint-disable-next-line @next/next/no-img-element */
                       <img src={hit.imageUrl} alt={hit.productName} className="w-full h-full object-cover" />
