@@ -70,8 +70,14 @@ const createSaleSchema = z.object({
   discountMinor: z.number().int().min(0).optional(),
   payment: z.object({
     method: z.enum(["CASH", "UPI", "CARD"]),
+    amountMinor: z.number().int().optional(),
     reference: z.string().trim().max(100).optional(),
-  }),
+  }).optional(),
+  payments: z.array(z.object({
+    method: z.enum(["CASH", "UPI", "CARD"]),
+    amountMinor: z.number().int().min(1),
+    reference: z.string().trim().max(100).optional(),
+  })).optional(),
 });
 
 export async function POST(req: NextRequest) {
@@ -115,6 +121,7 @@ export async function POST(req: NextRequest) {
       posSessionId: parsed.data.posSessionId ?? null,
       discountMinor: parsed.data.discountMinor ?? 0,
       payment: parsed.data.payment,
+      payments: parsed.data.payments,
       correlationId,
     });
 
@@ -135,6 +142,14 @@ export async function POST(req: NextRequest) {
           code: "not_found",
           message: "Not found.",
           status: 404,
+          correlationId,
+        });
+
+      case "validation_error":
+        return apiError({
+          code: "validation_error",
+          message: (result as any).reason,
+          status: 400,
           correlationId,
         });
 

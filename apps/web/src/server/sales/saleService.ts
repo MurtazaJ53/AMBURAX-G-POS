@@ -44,6 +44,7 @@ export interface SaleLineInput {
 export interface SalePaymentInput {
   method: "CASH" | "UPI" | "CARD";
   /** Operator-typed UPI/card reference. Never a gateway token — no gateway is integrated. */
+  amountMinor?: number;
   reference?: string;
 }
 
@@ -62,7 +63,8 @@ export interface CreateSaleInput {
    */
   posSessionId?: string | null;
   discountMinor?: number;
-  payment: SalePaymentInput;
+  payment?: SalePaymentInput;
+  payments?: SalePaymentInput[];
   correlationId: string;
 }
 
@@ -74,6 +76,7 @@ export type CreateSaleResult =
   | { status: "unknown_variant"; variantId: string }
   | { status: "inactive_variant"; variantId: string }
   | { status: "unknown_customer" }
+  | { status: "validation_error"; reason: string }
   /** The named shift is closed, another cashier's, or another store's. */
   | { status: "invalid_session"; reason: string }
   /** The tenant does not have the RETAIL business module switched on. Not a permission failure. */
@@ -267,9 +270,32 @@ export async function createSale(input: CreateSaleInput): Promise<CreateSaleResu
   });
   const totals = computeSaleTotals(priced, input.discountMinor ?? 0);
 
-  // Every supported tender is operator-confirmed at the counter; there is no gateway to
-  // call and therefore no asynchronous confirmation to await. When a gateway is added this
-  // becomes PENDING until the provider confirms — see ADR-082.
+  // Unify payments
+  const providedPayments = input.payments || (input.payment ? [input.payment] : []);
+  if (providedPayments.length === 0) {
+    return { status: "validation_error", reason: "At least one payment is required." };
+  }
+
+  let sumMinor = 0;
+  const processedPayments = providedPayments.map((p) => {
+    const amt = p.amountMinor ?? totals.totalMinor;
+    if (amt <= 0) {
+      throw new Error("Payment amounts must be positive");
+    }
+    sumMinor += amt;
+    return { ...p, amountMinor: amt };
+  });
+
+  if (sumMinor < totals.totalMinor) {
+    return { status: "validation_error", reason: "Insufficient payment." };
+  }
+  if (sumMinor > totals.totalMinor) {
+    const hasCash = processedPayments.some(p => p.method === "CASH");
+    if (!hasCash) {
+      return { status: "validation_error", reason: "Overpayment requires CASH method." };
+    }
+  }
+
   const paidMinor = totals.totalMinor;
 
   try {
@@ -298,13 +324,13 @@ export async function createSale(input: CreateSaleInput): Promise<CreateSaleResu
           idempotencyKey: input.idempotencyKey,
           posSessionId,
           payments: {
-            create: {
-              method: input.payment.method,
+            create: processedPayments.map(p => ({
+              method: p.method,
               status: "CONFIRMED",
-              amountMinor: paidMinor,
-              reference: input.payment.reference?.trim() || null,
+              amountMinor: p.amountMinor,
+              reference: p.reference?.trim() || null,
               confirmedAt: new Date(),
-            },
+            })),
           },
         },
         select: SALE_SELECT,
@@ -371,7 +397,7 @@ export async function createSale(input: CreateSaleInput): Promise<CreateSaleResu
           lineCount: totals.lines.length,
           // No card number, no UPI VPA, no operator reference — an event payload is
           // replayable and readable by every future consumer.
-          paymentMethod: input.payment.method,
+          paymentMethod: processedPayments.length === 1 ? processedPayments[0]?.method ?? "SPLIT" : "SPLIT",
         },
       });
 
