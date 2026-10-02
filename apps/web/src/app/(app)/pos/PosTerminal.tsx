@@ -87,7 +87,7 @@ export function PosTerminal(props: { storeName: string; storeCode: string; cashi
   const [cartNotice, setCartNotice] = useState<string | null>(null);
   const [customer, setCustomer] = useState<CustomerHit | null>(null);
   
-  const [method, setMethod] = useState<PaymentMethod | "SPLIT">("CASH");
+  const [method, setMethod] = useState<PaymentMethod>("CASH");
   const [reference, setReference] = useState("");
   const [amountReceived, setAmountReceived] = useState<number | null>(null);
 
@@ -514,7 +514,7 @@ export function PosTerminal(props: { storeName: string; storeCode: string; cashi
                  <button 
                    key={m.value}
                    onClick={() => {
-                     setMethod(m.value as any);
+                     setMethod(m.value);
                      if (m.value !== "SPLIT") {
                        setAmountReceived(null);
                      }

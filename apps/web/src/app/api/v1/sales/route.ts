@@ -148,7 +148,7 @@ export async function POST(req: NextRequest) {
       case "validation_error":
         return apiError({
           code: "validation_error",
-          message: (result as any).reason,
+          message: result.reason,
           status: 400,
           correlationId,
         });
