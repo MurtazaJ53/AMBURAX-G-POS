@@ -284,9 +284,9 @@ export function PosTerminal(props: { storeName: string; storeCode: string; cashi
   }
 
   return (
-    <div className="flex w-full h-[calc(100vh-68px)] overflow-hidden bg-slate-50 flex-col lg:flex-row">
+    <div className="flex w-full h-[calc(100vh-68px)] overflow-y-auto lg:overflow-hidden bg-slate-50 flex-col lg:flex-row">
       {/* Left Workspace (Products) - 70% */}
-      <div className="flex-1 flex flex-col min-w-0 bg-white border-r border-slate-200">
+      <div className="flex-1 flex flex-col min-w-0 bg-white border-r border-slate-200 min-h-[500px] lg:min-h-0 shrink-0 lg:shrink">
         
         {/* Top Tabs */}
         <div className="flex px-4 pt-3 border-b border-slate-200 gap-6 text-[13px] font-medium">
@@ -404,7 +404,7 @@ export function PosTerminal(props: { storeName: string; storeCode: string; cashi
       </div>
 
       {/* Right Checkout Panel - Hard Reset */}
-      <div className="w-[390px] shrink-0 flex flex-col bg-slate-50 lg:border-l border-slate-200 h-full min-h-0 relative">
+      <div className="w-full lg:w-[390px] shrink-0 flex flex-col bg-slate-50 lg:border-l border-slate-200 h-[600px] lg:h-full relative">
         
         {/* Header (~50px) */}
         <div className="flex px-4 h-[50px] shrink-0 items-center border-b border-slate-200 gap-5 text-[13px] font-medium bg-white">
