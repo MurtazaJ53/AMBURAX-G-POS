@@ -65,13 +65,6 @@ async function makeDevice(params: {
   return device.id;
 }
 
-beforeAll(async () => {
-  await db.$connect();
-});
-
-afterAll(async () => {
-  await db.$disconnect();
-});
 
 beforeEach(async () => {
   await resetDatabase();

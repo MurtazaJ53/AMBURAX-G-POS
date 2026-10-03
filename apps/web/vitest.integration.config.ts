@@ -71,8 +71,23 @@ export default defineConfig({
     isolate: false,
     pool: "forks",
     maxWorkers: 1,
+    // No global teardown is registered, deliberately.
+    //
+    // There was a `globalTeardown: [...]` entry here. Vitest has no such option — it offers
+    // `globalSetup`, whose module may export a `teardown`. The unknown key was ignored at
+    // runtime, so the file it named never ran, and it failed `tsc` (TS2769), which is what made
+    // `npm run typecheck` red.
+    //
+    // Nothing needs to replace it. What actually caused hangs was per-file `db.$disconnect()`
+    // in `afterAll`: with `isolate: false` every file shares one process and one client, so the
+    // first file to finish closed the pool out from under the rest and the next `beforeEach`
+    // waited forever for a connection that would never be granted. Those calls are gone. The
+    // worker owns the client for the whole run and the process tears it down on exit — and a
+    // global teardown could not have helped regardless, since it runs in the main process and
+    // would be disconnecting a different client instance from the worker's.
     env: {
       DATABASE_URL: testUrl,
     },
   },
 });
+

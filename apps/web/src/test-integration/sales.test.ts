@@ -196,9 +196,6 @@ describe("Split Payments", () => {
   });
 });
 
-afterAll(async () => {
-  await db.$disconnect();
-});
 
 describe("createSale — the happy path", () => {
   it("records the sale, its items, its payment and its stock movement in one transaction", async () => {
@@ -646,9 +643,14 @@ describe('F11 Sales History & Analytics', () => {
       cashierUserId: IDS.ownerA,
       idempotencyKey: idKey,
       lines: [{ variantId: COMMERCE_IDS.variantA1, quantity: 1 }],
+      // 50_000 + 50_000 = 100_000, which is one variantA1 (priceMinor 100_000, tax inclusive).
+      // These were 1000 + 1000 — two per cent of the bill — so `createSale` correctly refused
+      // with "Insufficient payment" and this test could never reach its assertions. The split
+      // itself is the point of the case (two methods, so the listed label reads "CASH + UPI"),
+      // and that is unchanged.
       payments: [
-        { method: 'CASH', amountMinor: 1000 },
-        { method: 'UPI', amountMinor: 1000 }
+        { method: 'CASH', amountMinor: 50_000 },
+        { method: 'UPI', amountMinor: 50_000 }
       ],
       correlationId: idKey,
     });

@@ -24,7 +24,6 @@ beforeEach(async () => {
 
 afterAll(async () => {
   await resetDatabase();
-  await db.$disconnect();
 });
 
 /** A device row that satisfies the schema, created inside whatever client is passed. */

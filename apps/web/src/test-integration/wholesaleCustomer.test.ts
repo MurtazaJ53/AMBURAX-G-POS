@@ -50,13 +50,7 @@ async function enableWholesale(tenantId: string) {
   });
 }
 
-beforeAll(async () => {
-  await db.$connect();
-});
 
-afterAll(async () => {
-  await db.$disconnect();
-});
 
 beforeEach(async () => {
   await resetDatabase();

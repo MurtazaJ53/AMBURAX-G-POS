@@ -83,7 +83,6 @@ beforeEach(async () => {
 
 afterAll(async () => {
   await resetDatabase();
-  await db.$disconnect();
 });
 
 describe("inbound stock — the operation that did not exist before P1-8B", () => {

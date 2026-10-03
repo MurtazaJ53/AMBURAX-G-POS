@@ -39,9 +39,7 @@ beforeEach(async () => {
   });
 });
 
-afterAll(async () => {
-  await db.$disconnect();
-});
+
 
 const ACTOR_A = {
   tenantId: IDS.tenantA,

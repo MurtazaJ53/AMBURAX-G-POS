@@ -63,7 +63,6 @@ beforeEach(async () => {
 
 afterAll(async () => {
   await resetDatabase();
-  await db.$disconnect();
 });
 
 describe("creating and listing addresses", () => {

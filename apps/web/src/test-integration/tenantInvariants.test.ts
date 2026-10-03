@@ -24,13 +24,7 @@ import { db, resetDatabase, seedTwoTenants, seedCommerce, IDS, COMMERCE_IDS } fr
 
 const CORR = "corr-invariants";
 
-beforeAll(async () => {
-  await db.$connect();
-});
 
-afterAll(async () => {
-  await db.$disconnect();
-});
 
 beforeEach(async () => {
   await resetDatabase();

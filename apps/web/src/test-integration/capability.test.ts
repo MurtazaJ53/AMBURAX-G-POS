@@ -22,14 +22,6 @@ const OWNER_A = { tenantId: IDS.tenantA, userId: IDS.ownerA, tenantRole: "OWNER"
 const STAFF_A = { tenantId: IDS.tenantA, userId: IDS.staffA, tenantRole: "STAFF" as const };
 const OWNER_B = { tenantId: IDS.tenantB, userId: IDS.ownerB, tenantRole: "OWNER" as const };
 
-beforeAll(async () => {
-  await db.$connect();
-});
-
-afterAll(async () => {
-  await db.$disconnect();
-});
-
 beforeEach(async () => {
   await resetDatabase();
   await seedTwoTenants();

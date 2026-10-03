@@ -27,9 +27,7 @@ beforeEach(async () => {
   await seedTwoTenants();
 });
 
-afterAll(async () => {
-  await db.$disconnect();
-});
+
 
 describe("adding a terminal after onboarding", () => {
   it("creates a terminal, issues a pairing code, and stores only its hash", async () => {

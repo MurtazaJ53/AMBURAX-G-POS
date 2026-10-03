@@ -49,21 +49,67 @@ export const COMMERCE_IDS = {
 } as const;
 
 /**
- * Truncate every table between tests. `RESTART IDENTITY CASCADE` in one statement is both
- * faster than per-table deletes and immune to foreign-key ordering, which would otherwise
- * make the reset depend on the schema's shape.
+ * The public table list, read once per process.
+ *
+ * The schema cannot change while a suite is running, so asking `pg_tables` before every single
+ * test bought nothing and cost ~18ms × every test in the run.
+ */
+let tableNames: string[] | null = null;
+
+async function publicTables(): Promise<string[]> {
+  if (tableNames) return tableNames;
+  const rows = await db.$queryRaw<{ tablename: string }[]>`
+    SELECT tablename FROM pg_tables
+    WHERE schemaname = 'public' AND tablename <> '_prisma_migrations'
+  `;
+  tableNames = rows.map((r) => r.tablename);
+  return tableNames;
+}
+
+/**
+ * Empty every table between tests.
+ *
+ * This used to be one `TRUNCATE ... RESTART IDENTITY CASCADE` over all 32 tables, which reads
+ * like the obviously faster choice and was the single thing making this suite unusable.
+ *
+ * Measured against this project's Docker-for-Windows Postgres:
+ *
+ *   TRUNCATE all 32 tables ............ ~1350 ms
+ *   TRUNCATE exactly 1 table .......... ~1557 ms   <- the same
+ *   DELETE all 32 tables (this) ....... ~25 ms
+ *
+ * The cost does not scale with the number of tables, because it is not the row removal that is
+ * expensive: each `TRUNCATE` rewrites table files and forces an fsync, and on a virtiofs-backed
+ * Docker volume one fsync costs over a second. Thirty-two tables or one, it is the same single
+ * penalty — which is also why truncating "only the dirty tables" would have saved nothing.
+ *
+ * With `beforeEach` running this once per test, that fixed penalty was roughly three quarters of
+ * the entire integration run: 539 tests × ~1.35s ≈ 12 minutes of a measured 15.
+ *
+ * `DELETE` is also what removes the parallel deadlocks. `TRUNCATE` takes an AccessExclusiveLock
+ * on every table it names, so two workers truncating the same 32 tables acquire those locks in
+ * whatever order each plan chooses, and Postgres reports `40P01 deadlock detected`. `DELETE`
+ * takes RowExclusiveLock, which does not self-conflict that way.
+ *
+ * Two details keep this exactly equivalent to the TRUNCATE it replaces:
+ *
+ *   - `SET LOCAL session_replication_role = replica` disables foreign-key triggers for the
+ *     duration of the transaction, so the deletes need no dependency ordering — the same
+ *     property `CASCADE` was providing. `LOCAL` scopes it to this transaction, so it reverts on
+ *     commit *and* on rollback; the session can never be left with FK checks disabled.
+ *   - `RESTART IDENTITY` is not reproduced because it has nothing to restart: no model in
+ *     `schema.prisma` uses `autoincrement()`, so the schema owns no identity sequences.
  *
  * `_prisma_migrations` is deliberately excluded — wiping it would make the database look
  * unmigrated to `prisma migrate status`.
  */
 export async function resetDatabase(): Promise<void> {
-  const rows = await db.$queryRaw<{ tablename: string }[]>`
-    SELECT tablename FROM pg_tables
-    WHERE schemaname = 'public' AND tablename <> '_prisma_migrations'
-  `;
-  if (rows.length === 0) return;
-  const list = rows.map((r) => `"public"."${r.tablename}"`).join(", ");
-  await db.$executeRawUnsafe(`TRUNCATE TABLE ${list} RESTART IDENTITY CASCADE`);
+  const tables = await publicTables();
+  if (tables.length === 0) return;
+  await db.$transaction([
+    db.$executeRawUnsafe(`SET LOCAL session_replication_role = replica`),
+    ...tables.map((t) => db.$executeRawUnsafe(`DELETE FROM "public"."${t}"`)),
+  ]);
 }
 
 /** Never a real credential — a fixed bcrypt-shaped string, since nothing here verifies it. */

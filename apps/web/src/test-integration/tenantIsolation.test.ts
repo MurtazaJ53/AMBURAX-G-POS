@@ -19,7 +19,6 @@ beforeEach(async () => {
 
 afterAll(async () => {
   await resetDatabase();
-  await db.$disconnect();
 });
 
 describe("tenant isolation — reads", () => {

@@ -87,7 +87,6 @@ beforeEach(async () => {
 
 afterAll(async () => {
   await resetDatabase();
-  await db.$disconnect();
 });
 
 describe("defining units", () => {

@@ -22,7 +22,6 @@ beforeEach(async () => {
 
 afterAll(async () => {
   await resetDatabase();
-  await db.$disconnect();
 });
 
 /** The fixture seeds both tenants at STORE_CREATED with one store each. */

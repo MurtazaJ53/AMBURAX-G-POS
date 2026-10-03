@@ -25,7 +25,6 @@ beforeEach(async () => {
 
 afterAll(async () => {
   await resetDatabase();
-  await db.$disconnect();
 });
 
 const scopeA = { tenantId: IDS.tenantA, storeId: IDS.storeA };

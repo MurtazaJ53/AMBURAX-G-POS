@@ -43,9 +43,7 @@ beforeEach(async () => {
   await seedTwoTenants();
 });
 
-afterAll(async () => {
-  await db.$disconnect();
-});
+
 
 describe("listing a store's terminals", () => {
   it("returns the store's own terminals with a derived status", async () => {
