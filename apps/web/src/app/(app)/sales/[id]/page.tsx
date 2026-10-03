@@ -34,15 +34,16 @@ function StatusPill({ status, tone = "default" }: { status: string, tone?: "succ
   return <span className="amb-pill bg-slate-100 text-slate-600">{status}</span>;
 }
 
-export default async function SaleDetailPage({ params }: { params: { id: string } }) {
+export default async function SaleDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const cookieStore = await cookies();
+  const resolvedParams = await params;
   const token = cookieStore.get(env.SESSION_COOKIE_NAME)?.value;
   if (!token) return redirect("/login");
 
   const ctx = await resolvePosContext(token);
   if (ctx.status !== "ok") return redirect("/login");
 
-  const sale = await getSaleDetail({ tenantId: ctx.context.tenantId, saleId: params.id });
+  const sale = await getSaleDetail({ tenantId: ctx.context.tenantId, saleId: resolvedParams.id });
   if (!sale) notFound();
 
   const isPosted = sale.erpSyncStatus === "SYNCED" || sale.erpSyncStatus === "POSTED" || sale.erpSyncStatus === "SUCCESS";
