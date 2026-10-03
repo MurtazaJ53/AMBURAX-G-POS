@@ -1,17 +1,26 @@
+
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
+import Link from "next/link";
+import { ChevronRight, ArrowDownToLine, Filter, X, UserRound, Search, CreditCard, ShoppingCart, Receipt, RotateCcw, Wallet, MoreHorizontal, RefreshCcw } from "lucide-react";
+
 import { fetchSaleDetailAction } from "../actions";
 import { formatMinor } from "@/server/sales/saleTotals";
-import type { SalesPage, SalesSummary, SalesAnalytics, SaleDetail } from "@/server/sales/saleQueries";
-import {  Search, ChevronDown, Download, Calendar, Filter, FileText, IndianRupee, Store, MoreHorizontal, Receipt, X , User, Package, CreditCard } from "lucide-react";
+import type { SalesPage, SalesSummary, SalesAnalytics, SaleDetail, SaleListRow } from "@/server/sales/saleQueries";
 
 interface SalesWorkspaceProps {
   page: SalesPage;
   summary: SalesSummary;
   analytics: SalesAnalytics;
   carriedParams: Record<string, string | undefined>;
+}
+
+function StatusPill({ status }: { status: string }) {
+  if (status === "COMPLETED") return <span className="amb-pill bg-emerald-100 text-emerald-700">Completed</span>;
+  if (status === "VOIDED") return <span className="amb-pill bg-slate-200 text-slate-600">Voided</span>;
+  return <span className="amb-pill bg-slate-100 text-slate-600">{status}</span>;
 }
 
 export function SalesWorkspace({ page, summary, analytics, carriedParams }: SalesWorkspaceProps) {
@@ -22,8 +31,21 @@ export function SalesWorkspace({ page, summary, analytics, carriedParams }: Sale
   const [selectedTxId, setSelectedTxId] = useState<string | null>(page.rows[0]?.id || null);
   const [txDetail, setTxDetail] = useState<SaleDetail | null>(null);
   const [loadingTx, setLoadingTx] = useState(false);
+  
+  const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
+  const [inspectorOpen, setInspectorOpen] = useState(false);
+  const [notice, setNotice] = useState("");
 
-  // Fetch full details when selected ID changes
+  const handleNotice = (text: string) => { 
+    setNotice(text); 
+    window.setTimeout(() => setNotice(""), 2600); 
+  };
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setInspectorOpen(window.innerWidth >= 768 && page.rows.length > 0);
+  }, [page.rows.length]);
+
   useEffect(() => {
     if (!selectedTxId) {
       // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -40,491 +62,317 @@ export function SalesWorkspace({ page, summary, analytics, carriedParams }: Sale
     }).catch(() => {
       if (active) setLoadingTx(false);
     });
-    
     return () => { active = false; };
   }, [selectedTxId]);
 
-  const activeTxRow = page.rows.find((r) => r.id === selectedTxId) || page.rows[0];
-
-  const handleTxSelect = (id: string) => {
+  const handleSelect = (id: string) => {
     setSelectedTxId(id);
-    const el = document.getElementById("inspector-scroll");
-    if (el) el.scrollTop = 0;
+    setInspectorOpen(true);
   };
 
-  const handleTabClick = (status?: string) => {
-    const p = new URLSearchParams();
-    if (carriedParams.q) p.set("q", carriedParams.q);
-    if (carriedParams.method) p.set("method", carriedParams.method);
-    if (carriedParams.from) p.set("from", carriedParams.from);
-    if (carriedParams.to) p.set("to", carriedParams.to);
-    if (status) p.set("status", status);
-    router.push(`${pathname}?${p.toString()}`);
+  const setParam = (key: string, value: string | null) => {
+    const next = new URLSearchParams(searchParams.toString());
+    if (value) next.set(key, value);
+    else next.delete(key);
+    if (key !== "page") next.delete("page"); // reset page on filter change
+    router.push(`${pathname}?${next.toString()}`);
   };
+
+  const onSearch = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setParam("q", e.target.value);
+  };
+
+  // KPIs
+  const kpis = [
+    { label: "Total Sales", value: formatMinor(summary.totalMinor), icon: <ShoppingCart size={14} className="text-blue-500" /> },
+    { label: "Total Bills", value: summary.billCount.toString(), icon: <Receipt size={14} className="text-violet-500" /> },
+    { label: "Unposted (ERP)", value: summary.unpostedCount.toString(), icon: <RotateCcw size={14} className="text-rose-500" /> },
+    { label: "Avg. Bill Value", value: summary.averageBillMinor ? formatMinor(summary.averageBillMinor) : "—", icon: <Wallet size={14} className="text-emerald-500" /> },
+  ];
 
   return (
-    <div className="flex flex-col flex-1 min-h-0 min-w-0">
-      
-      {/* KPI ROW */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-4 shrink-0">
-        <div className="bg-white border border-slate-200 rounded-lg p-3 shadow-subtle flex flex-col justify-between h-[80px]">
-          <div className="flex justify-between items-start">
-            <span className="text-[12px] font-medium text-slate-500">Total Sales</span>
-            <div className="w-5 h-5 rounded bg-blue-50 text-blue-600 flex items-center justify-center"><IndianRupee size={12}/></div>
+    <>
+      <div className="mb-4 flex items-start justify-between gap-3">
+        <div>
+          <div className="mb-1 flex items-center gap-2 text-[10px] font-semibold text-[hsl(var(--muted-foreground))]">
+            <Link href="/" className="text-[hsl(var(--primary))] hover:underline">Operations</Link>
+            <ChevronRight size={12} /> Sales
           </div>
-          <div className="flex items-baseline gap-2">
-            <span className="text-[20px] font-bold text-slate-900 leading-none">{formatMinor(summary.totalMinor)}</span>
-          </div>
+          <h1 className="page-heading text-[25px] font-bold tracking-[-.045em] text-[#243b58]">Sales &amp; Transaction History</h1>
+          <p className="mt-1 text-[11px] text-[hsl(var(--muted-foreground))]">View, search and manage all your sales, returns and transactions</p>
         </div>
-
-        <div className="bg-white border border-slate-200 rounded-lg p-3 shadow-subtle flex flex-col justify-between h-[80px]">
-          <div className="flex justify-between items-start">
-            <span className="text-[12px] font-medium text-slate-500">Total Bills</span>
-            <div className="w-5 h-5 rounded bg-purple-50 text-purple-600 flex items-center justify-center"><Receipt size={12}/></div>
-          </div>
-          <div className="flex items-baseline gap-2">
-            <span className="text-[20px] font-bold text-slate-900 leading-none">{summary.billCount}</span>
-          </div>
-        </div>
-
-        <div className="bg-white border border-slate-200 rounded-lg p-3 shadow-subtle flex flex-col justify-between h-[80px]">
-          <div className="flex justify-between items-start">
-            <span className="text-[12px] font-medium text-slate-500">Returns / Exchanges</span>
-            <div className="w-5 h-5 rounded bg-rose-50 text-rose-600 flex items-center justify-center"><FileText size={12}/></div>
-          </div>
-          <div className="flex items-baseline gap-2">
-            <span className="text-[20px] font-bold text-slate-900 leading-none">—</span>
-          </div>
-          <span className="text-[11px] text-slate-400 font-medium leading-none">Unavailable</span>
-        </div>
-
-        <div className="bg-white border border-slate-200 rounded-lg p-3 shadow-subtle flex flex-col justify-between h-[80px]">
-          <div className="flex justify-between items-start">
-            <span className="text-[12px] font-medium text-slate-500">Avg. Bill Value</span>
-            <div className="w-5 h-5 rounded bg-emerald-50 text-emerald-600 flex items-center justify-center"><IndianRupee size={12}/></div>
-          </div>
-          <div className="flex items-baseline gap-2">
-            <span className="text-[20px] font-bold text-slate-900 leading-none">{summary.averageBillMinor ? formatMinor(summary.averageBillMinor) : "—"}</span>
-          </div>
-        </div>
-      </div>
-
-      {/* FILTER ROW */}
-      <div className="flex items-center gap-3 mb-4 shrink-0 flex-nowrap overflow-x-auto pb-1">
-        <button className="flex items-center h-8 px-2.5 rounded border border-slate-200 text-[12px] bg-white shadow-sm shrink-0 font-medium text-slate-700 hover:bg-slate-50">
-          <Calendar size={13} className="mr-1.5 text-slate-500" />
-          All Time
-          <ChevronDown size={13} className="ml-1.5 text-slate-400" />
-        </button>
-        <button className="flex items-center h-8 px-2.5 rounded border border-slate-200 text-[12px] bg-white shadow-sm shrink-0 font-medium text-slate-700 hover:bg-slate-50">
-          All Stores
-          <ChevronDown size={13} className="ml-1.5 text-slate-400" />
-        </button>
-        <button className="flex items-center h-8 px-2.5 rounded border border-slate-200 text-[12px] bg-white shadow-sm shrink-0 font-medium text-slate-700 hover:bg-slate-50">
-          All Payment Modes
-          <ChevronDown size={13} className="ml-1.5 text-slate-400" />
-        </button>
-        <button className="flex items-center h-8 px-2.5 rounded border border-slate-200 text-[12px] bg-white shadow-sm shrink-0 font-medium text-slate-700 hover:bg-slate-50">
-          All Transaction Types
-          <ChevronDown size={13} className="ml-1.5 text-slate-400" />
-        </button>
-        <div className="relative flex-1 min-w-[200px] shrink-0">
-          <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
-          <input 
-            type="text"
-            placeholder="Search by bill no, customer..." 
-            className="w-full h-8 pl-8 pr-3 rounded border border-slate-200 text-[12px] bg-white shadow-sm outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500" 
-            defaultValue={carriedParams.q} 
-          />
-        </div>
-        <button className="flex items-center h-8 px-2.5 rounded border border-slate-200 text-[12px] text-blue-600 bg-white shadow-sm shrink-0 font-medium hover:bg-blue-50">
-          <Filter size={13} className="mr-1.5" /> More Filters
-        </button>
-        <button className="flex items-center h-8 px-2.5 rounded text-[12px] text-slate-500 shrink-0 font-medium hover:text-slate-700">
-          Reset
+        <button className="amb-control mt-5 font-bold text-[hsl(var(--primary))]" onClick={() => handleNotice("Export prepared locally.")}>
+          <ArrowDownToLine size={14} /> Export
         </button>
       </div>
 
-      {/* TABS */}
-      <div className="flex items-center gap-5 border-b border-slate-200 mb-3 shrink-0 px-2 overflow-x-auto">
-        <button onClick={() => handleTabClick()} className={`pb-2.5 text-[12px] font-semibold whitespace-nowrap ${!carriedParams.status ? 'text-blue-600 border-b-2 border-blue-600' : 'text-slate-500 hover:text-slate-700'}`}>
-          All Transactions ({summary.billCount})
+      <section className="kpi-grid mb-3 grid grid-cols-2 md:grid-cols-4 gap-3">
+        {kpis.map((item) => (
+          <div className="amb-card kpi-card p-4 min-w-0" key={item.label}>
+            <div className="flex items-center gap-2 mb-2">
+              <span className="grid h-6 w-6 place-items-center rounded bg-slate-100">{item.icon}</span>
+              <h3 className="amb-label m-0">{item.label}</h3>
+            </div>
+            <div className="flex items-baseline gap-2">
+              <div className="kpi-value text-[22px] font-bold tracking-[-.04em] text-slate-800 truncate">{item.value}</div>
+            </div>
+          </div>
+        ))}
+      </section>
+
+      <div className="mb-3 flex items-center justify-between gap-2">
+        <div className="hidden text-[11px] font-bold text-[#425a73] md:block">Transaction workspace</div>
+        <button className="amb-control amb-mobile-only ml-auto" onClick={() => setMobileFiltersOpen(!mobileFiltersOpen)}>
+          <Filter size={13} /> Filters
         </button>
-        <button onClick={() => handleTabClick("COMPLETED")} className={`pb-2.5 text-[12px] font-semibold whitespace-nowrap ${carriedParams.status === 'COMPLETED' ? 'text-blue-600 border-b-2 border-blue-600' : 'text-slate-500 hover:text-slate-700'}`}>
-          Completed
-        </button>
-        <button onClick={() => handleTabClick("VOIDED")} className={`pb-2.5 text-[12px] font-semibold whitespace-nowrap ${carriedParams.status === 'VOIDED' ? 'text-blue-600 border-b-2 border-blue-600' : 'text-slate-500 hover:text-slate-700'}`}>
-          Voided
-        </button>
-        <button disabled className="pb-2.5 text-[12px] font-medium text-slate-300 cursor-not-allowed whitespace-nowrap">Returns (0)</button>
-        <button disabled className="pb-2.5 text-[12px] font-medium text-slate-300 cursor-not-allowed whitespace-nowrap">Exchanges (0)</button>
-        <button disabled className="pb-2.5 text-[12px] font-medium text-slate-300 cursor-not-allowed whitespace-nowrap">Drafts (0)</button>
       </div>
 
-      {/* TABLE + INSPECTOR WORKSPACE */}
-      <div className="flex flex-col lg:flex-row gap-5 mb-5 h-[480px] shrink-0">
-        
-        {/* Table Area */}
-        <div className="flex-1 flex flex-col bg-white border border-slate-200 rounded-lg shadow-sm min-w-0 overflow-hidden h-full">
-          <div className="flex-1 overflow-auto">
-            <table className="w-full text-left border-collapse whitespace-nowrap">
-              <thead className="sticky top-0 bg-white z-10 shadow-[0_1px_0_0_#e2e8f0]">
-                <tr className="text-[11px] font-bold text-slate-400 uppercase tracking-wider bg-slate-50/50">
-                  <th className="px-3 py-2 font-semibold w-10 text-center"><input type="checkbox" className="rounded border-slate-300 text-blue-600 cursor-pointer" /></th>
-                  <th className="px-1 py-2 font-semibold w-8">#</th>
-                  <th className="px-3 py-2 font-semibold">Date & Time</th>
-                  <th className="px-3 py-2 font-semibold">Bill No.</th>
-                  <th className="px-3 py-2 font-semibold max-w-[140px] truncate">Customer</th>
-                  <th className="px-3 py-2 font-semibold text-center">Items</th>
-                  <th className="px-3 py-2 font-semibold text-right">Amount</th>
-                  <th className="px-3 py-2 font-semibold">Payment</th>
-                  <th className="px-3 py-2 font-semibold">Status</th>
-                  <th className="px-3 py-2 font-semibold">Action</th>
+      <div className={`${mobileFiltersOpen ? "block" : "hidden"} mb-3 md:block`}>
+        <div className="flex flex-wrap items-center gap-2 bg-white p-2 rounded-md border border-[hsl(var(--border))]">
+          <div className="relative flex-1 min-w-[200px]">
+            <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
+            <input 
+              className="w-full bg-slate-50 border border-slate-200 rounded px-8 py-1.5 text-[11px] outline-none focus:border-blue-500 transition-colors"
+              placeholder="Search by Bill No or Customer..." 
+              value={carriedParams.q || ""}
+              onChange={onSearch}
+            />
+          </div>
+          <select className="amb-control" value={carriedParams.method || ""} onChange={e => setParam("method", e.target.value)}>
+            <option value="">All Payments</option>
+            <option value="CASH">Cash</option>
+            <option value="UPI">UPI</option>
+            <option value="CARD">Card</option>
+          </select>
+          <select className="amb-control" value={carriedParams.status || ""} onChange={e => setParam("status", e.target.value)}>
+            <option value="">All Statuses</option>
+            <option value="COMPLETED">Completed</option>
+            <option value="VOIDED">Voided</option>
+          </select>
+          <input type="date" className="amb-control" value={carriedParams.from || ""} onChange={e => setParam("from", e.target.value)} title="From Date" />
+          <span className="text-[10px] text-slate-400">to</span>
+          <input type="date" className="amb-control" value={carriedParams.to || ""} onChange={e => setParam("to", e.target.value)} title="To Date" />
+          <button className="text-[10px] text-blue-600 font-medium hover:underline ml-1" onClick={() => router.push(pathname)}>Reset</button>
+        </div>
+      </div>
+
+      <div className="tabs-scroll mb-0 flex border-b border-[hsl(var(--border))]" role="tablist">
+        <button className={`amb-tab ${!carriedParams.status ? "active" : ""}`} onClick={() => setParam("status", "")} role="tab">All Transactions</button>
+        <button className={`amb-tab ${carriedParams.status === "COMPLETED" ? "active" : ""}`} onClick={() => setParam("status", "COMPLETED")} role="tab">Sales</button>
+        <button className={`amb-tab ${carriedParams.status === "VOIDED" ? "active" : ""}`} onClick={() => setParam("status", "VOIDED")} role="tab">Voided</button>
+        <button className="amb-tab opacity-50 cursor-not-allowed" title="Future Feature">Returns</button>
+      </div>
+
+      <div className={`amb-card flex min-h-[476px] min-w-0 overflow-hidden rounded-t-none`}>
+        <div className="min-w-0 flex-1 flex flex-col">
+          <div className="amb-table-wrap flex-1">
+            <table className="amb-table">
+              <thead>
+                <tr>
+                  <th className="w-[34px] text-center"><input type="checkbox" /></th>
+                  <th className="w-[34px]">#</th>
+                  <th className="w-[126px]">Date &amp; Time</th>
+                  <th className="w-[98px]">Bill No.</th>
+                  <th>Customer</th>
+                  <th className="w-[52px]">Items</th>
+                  <th className="w-[78px] text-right">Amount</th>
+                  <th className="w-[83px]">Payment</th>
+                  <th className="w-[74px]">Status</th>
+                  <th className="w-[43px]">Action</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100">
-                {page.rows.map((row, i) => (
-                  <tr 
-                    key={row.id} 
-                    onClick={() => handleTxSelect(row.id)}
-                    className={`hover:bg-slate-50 cursor-pointer transition-colors ${selectedTxId === row.id ? 'bg-blue-50/50' : ''}`}
-                  >
-                    <td className="px-3 py-1.5 text-center"><input type="checkbox" className="rounded border-slate-300 text-blue-600 cursor-pointer" /></td>
-                    <td className="px-1 py-1.5 text-[11px] font-medium text-slate-400">{(page.page - 1) * 20 + i + 1}</td>
-                    <td className="px-3 py-1.5 text-[12px] text-slate-600">
-                      {row.completedAt.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}, {row.completedAt.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}
-                    </td>
-                    <td className="px-3 py-1.5 text-[12px] font-medium text-blue-600">{row.billNumber}</td>
-                    <td className="px-3 py-1.5 text-[12px] text-slate-700 truncate max-w-[140px]">{row.customerName || "Walk-in Customer"}</td>
-                    <td className="px-3 py-1.5 text-[12px] text-slate-600 text-center">{row.itemsCount}</td>
-                    <td className="px-3 py-1.5 text-[12px] font-medium text-slate-900 text-right">{formatMinor(row.totalMinor)}</td>
-                    <td className="px-3 py-1.5 text-[12px] text-slate-600">{row.paymentMethod || "Unknown"}</td>
-                    <td className="px-3 py-1.5">
-                      <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider ${
-                        row.status === "COMPLETED" ? "bg-emerald-50 text-emerald-600" : "bg-slate-100 text-slate-500"
-                      }`}>
-                        {row.status}
-                      </span>
-                    </td>
-                    <td className="px-3 py-1.5 text-[12px] font-medium text-blue-600">View</td>
-                  </tr>
-                ))}
+              <tbody>
+                {page.rows.length === 0 && (
+                  <tr><td colSpan={10} className="text-center py-8 text-slate-500">No transactions found</td></tr>
+                )}
+                {page.rows.map((row, index) => {
+                  const localDate = new Date(row.completedAt).toLocaleString("en-IN", { timeZone: "Asia/Kolkata", dateStyle: "medium", timeStyle: "short" });
+                  return (
+                    <tr className={row.id === selectedTxId ? "selected" : ""} key={row.id} onClick={() => handleSelect(row.id)}>
+                      <td className="text-center"><input type="checkbox" checked={row.id === selectedTxId} readOnly /></td>
+                      <td className="amb-number text-[hsl(var(--muted-foreground))]">{(page.page - 1) * 20 + index + 1}</td>
+                      <td className="text-[10px] text-[#5e7187]">{localDate}</td>
+                      <td><button className="font-mono text-[10px] font-bold text-[hsl(var(--primary))] hover:underline">{row.billNumber}</button></td>
+                      <td className="font-medium text-[#3b526c]" title={row.customerName ?? "Walk-in Customer"}>{row.customerName ?? "Walk-in"}</td>
+                      <td className="amb-number text-[hsl(var(--muted-foreground))]">{row.itemsCount}</td>
+                      <td className="amb-number text-right font-bold text-[#293f5b]">{formatMinor(row.totalMinor)}</td>
+                      <td className="text-[10px] text-[#586c82]">{row.paymentMethod ?? "—"}</td>
+                      <td><StatusPill status={row.status} /></td>
+                      <td><button className="text-slate-400 hover:text-slate-700" onClick={(e) => { e.stopPropagation(); handleSelect(row.id); }}><MoreHorizontal size={14} /></button></td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
-          <div className="flex items-center justify-between px-3 py-2 border-t border-slate-200 bg-slate-50 shrink-0">
-            <span className="text-[11px] text-slate-500">
-              Showing {(page.page - 1) * 20 + 1}-{Math.min(page.page * 20, page.total)} of {page.total}
-            </span>
-            <div className="flex gap-1.5">
-               <button className="h-6 px-2.5 rounded border border-slate-200 text-[10px] font-medium bg-white disabled:opacity-50" disabled={page.page <= 1}>Previous</button>
-               <button className="h-6 px-2.5 rounded border border-slate-200 text-[10px] font-medium bg-white disabled:opacity-50" disabled={page.page >= page.pageCount}>Next</button>
-            </div>
-          </div>
-        </div>
-
-        
-        {/* Inspector Area (approx 300px fixed) */}
-        <div className="w-full lg:w-[300px] shrink-0 bg-white border border-slate-200 rounded-xl shadow-sm flex flex-col h-full overflow-hidden relative">
-          {activeTxRow ? (
-            <>
-              {/* Fixed Header */}
-              <div className="px-4 py-3 border-b border-slate-200 shrink-0 bg-white z-10 flex justify-between items-center">
-                <h2 className="text-[14.5px] font-bold text-slate-900 tracking-tight">Transaction Details</h2>
-                <button className="text-slate-400 hover:text-slate-600"><X size={16} /></button>
-              </div>
-              
-              {/* Scrollable Content */}
-              <div id="inspector-scroll" className="flex-1 overflow-y-auto p-4 custom-scrollbar">
-                
-                {/* Transaction Meta */}
-                <div className="flex justify-between items-start mb-1.5">
-                  <span className="text-[16px] font-bold text-slate-900 leading-none">{txDetail?.billNumber || activeTxRow.billNumber}</span>
-                  <span className={`inline-flex items-center px-1.5 py-0.5 rounded-md text-[9px] font-bold uppercase tracking-wider ${
-                        activeTxRow.status === "COMPLETED" ? "bg-emerald-50 text-emerald-600" : "bg-slate-100 text-slate-500"
-                      }`}>
-                        {activeTxRow.status}
-                  </span>
-                </div>
-                <div className="text-[11.5px] text-slate-500 mb-0.5 font-medium">
-                  {activeTxRow.completedAt.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}, {activeTxRow.completedAt.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}
-                </div>
-                <div className="text-[11.5px] text-slate-500 mb-4 font-medium">Cashier: {txDetail?.cashierName || activeTxRow.cashierName}</div>
-                
-                {/* Customer Block */}
-                <div className="bg-slate-50 border border-slate-100 rounded-lg p-2.5 flex items-center gap-2.5 mb-5">
-                  <div className="w-7 h-7 rounded-md bg-white border border-slate-200 text-slate-400 flex items-center justify-center shrink-0">
-                    <User size={14} />
-                  </div>
-                  <div className="min-w-0">
-                    <p className="text-[12.5px] font-bold text-slate-800 truncate">{txDetail?.customer?.name || activeTxRow.customerName || "Walk-in Customer"}</p>
-                    {txDetail?.customer?.phone && <p className="text-[11px] text-slate-500">{txDetail.customer.phone}</p>}
-                  </div>
-                </div>
-
-                {/* Items */}
-                <div className="space-y-3 mb-5">
-                  {txDetail ? (
-                    txDetail.items.map(item => (
-                      <div key={item.id} className="flex gap-2.5 items-start">
-                        {item.imageUrl ? (
-                          /* eslint-disable-next-line @next/next/no-img-element */
-                          <img src={item.imageUrl} alt={item.name} className="w-9 h-9 rounded object-cover border border-slate-200 shrink-0 bg-white" />
-                        ) : (
-                          <div className="w-9 h-9 rounded bg-slate-50 border border-slate-100 shrink-0 flex items-center justify-center text-slate-300">
-                            <Package size={16} />
-                          </div>
-                        )}
-                        <div className="min-w-0 flex-1">
-                          <div className="flex justify-between items-start gap-2 mb-0.5">
-                            <p className="text-[12px] font-medium text-slate-800 leading-snug truncate">{item.name}</p>
-                            <span className="text-[12px] font-bold text-slate-900 shrink-0">{formatMinor(item.lineTotalMinor)}</span>
-                          </div>
-                          <p className="text-[11px] text-slate-500 font-medium">{formatMinor(item.unitPriceMinor)} × {item.quantity}</p>
-                        </div>
-                      </div>
-                    ))
-                  ) : (
-                    <div className="flex justify-center p-4">
-                      <div className="w-5 h-5 border-2 border-slate-200 border-t-blue-600 rounded-full animate-spin" />
-                    </div>
-                  )}
-                </div>
-
-                <div className="border-t border-slate-100 mb-4" />
-
-                {/* Totals */}
-                <div className="space-y-2 mb-5 text-[12px]">
-                  <div className="flex justify-between text-slate-500 font-medium">
-                    <span>Subtotal</span>
-                    <span>{txDetail ? formatMinor(txDetail.subtotalMinor) : '—'}</span>
-                  </div>
-                  <div className="flex justify-between text-slate-500 font-medium">
-                    <span>Discount</span>
-                    <span>{txDetail && txDetail.discountMinor > 0 ? `-${formatMinor(txDetail.discountMinor)}` : '—'}</span>
-                  </div>
-                  <div className="flex justify-between text-slate-500 font-medium">
-                    <span>GST</span>
-                    <span>{txDetail ? formatMinor(txDetail.taxMinor) : '—'}</span>
-                  </div>
-                  <div className="flex justify-between items-center pt-2.5 mt-2.5 border-t border-slate-100">
-                    <span className="font-bold text-[13px] text-slate-800">Total</span>
-                    <span className="font-bold text-[16px] text-slate-900">{formatMinor(activeTxRow.totalMinor)}</span>
-                  </div>
-                </div>
-
-                <div className="border-t border-slate-100 mb-4" />
-
-                {/* Payment Method */}
-                <div className="mb-2">
-                  <h3 className="text-[10.5px] font-bold text-slate-400 uppercase tracking-wider mb-2.5">Payment Method</h3>
-                  {(txDetail?.payments || []).length > 0 ? (
-                    txDetail!.payments.map((p, idx) => (
-                      <div key={idx} className="flex items-center justify-between text-[12px] mb-2">
-                        <div className="flex items-center gap-2">
-                          <div className="w-5 h-5 rounded bg-slate-100 flex items-center justify-center shrink-0 text-slate-500">
-                            <CreditCard size={12} />
-                          </div>
-                          <div>
-                            <p className="font-semibold text-slate-700">{p.method}</p>
-                            {p.reference && <p className="text-[10px] text-slate-400 font-medium mt-0.5">Ref: {p.reference}</p>}
-                          </div>
-                        </div>
-                        <span className="font-semibold text-slate-900">{formatMinor(p.amountMinor)}</span>
-                      </div>
-                    ))
-                  ) : (
-                    <div className="flex items-center justify-between text-[12px]">
-                      <div className="flex items-center gap-2">
-                        <div className="w-5 h-5 rounded bg-slate-100 flex items-center justify-center shrink-0 text-slate-500">
-                          <CreditCard size={12} />
-                        </div>
-                        <p className="font-semibold text-slate-700">{activeTxRow.paymentMethod || "Unknown"}</p>
-                      </div>
-                      <span className="font-semibold text-slate-900">{formatMinor(activeTxRow.totalMinor)}</span>
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              {/* Sticky Actions */}
-              <div className="p-3 border-t border-slate-200 shrink-0 bg-slate-50 flex gap-2">
-                <button className="flex items-center justify-center h-[34px] flex-1 rounded-md border border-slate-200 text-[12px] font-semibold bg-white text-slate-700 hover:bg-slate-50 shadow-sm">
-                  <Receipt size={14} className="mr-1.5" /> Print Bill
-                </button>
-                <button className="flex items-center justify-center h-[34px] flex-1 rounded-md border border-slate-200 text-[12px] font-semibold bg-slate-50 text-slate-400 cursor-not-allowed">
-                  Return
-                </button>
-                <button className="flex items-center justify-center h-[34px] w-[34px] rounded-md border border-slate-200 shrink-0 text-slate-400 bg-white shadow-sm cursor-not-allowed">
-                  <MoreHorizontal size={14} />
-                </button>
-              </div>
-            </>
-          ) : (
-            <div className="flex-1 flex flex-col items-center justify-center text-slate-400">
-              <span className="text-[13px] font-medium">Select a transaction</span>
-            </div>
+          {/* Pagination */}
+          {page.pageCount > 1 && (
+             <div className="flex items-center justify-between px-4 py-3 border-t border-[hsl(var(--border))]">
+               <div className="text-[11px] text-slate-500">Page {page.page} of {page.pageCount}</div>
+               <div className="flex gap-2">
+                 <button className="amb-control" disabled={page.page <= 1} onClick={() => setParam("page", String(page.page - 1))}>Previous</button>
+                 <button className="amb-control" disabled={page.page >= page.pageCount} onClick={() => setParam("page", String(page.page + 1))}>Next</button>
+               </div>
+             </div>
           )}
         </div>
 
-      </div>
-
-      {/* ANALYTICS ROW */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 shrink-0 pb-2">
-        
-        {/* Sales Trend */}
-        <div className="bg-white p-3.5 flex flex-col shadow-sm border border-slate-200 rounded-lg h-[220px] min-w-0">
-          <div className="flex justify-between items-center mb-4 shrink-0">
-            <h3 className="text-[13px] font-bold text-slate-900 tracking-tight">Sales Trend</h3>
-            <button className="flex items-center h-6 px-2 rounded border border-slate-200 text-[10px] font-medium bg-white text-slate-600">
-              Last 7 Days <ChevronDown size={11} className="ml-1" />
-            </button>
-          </div>
-          <div className="flex-1 flex items-end justify-between gap-1.5 mt-1 min-h-0 w-full overflow-hidden px-1">
-            {analytics.trend.length === 0 ? (
-              <div className="w-full text-center text-[11px] text-slate-400 self-center">No trend data</div>
-            ) : (
-              analytics.trend.map((t, i) => {
-                const max = Math.max(...analytics.trend.map((x) => x.amountMinor), 1);
-                const pct = (t.amountMinor / max) * 100;
-                return (
-                  <div key={i} className="flex-1 flex flex-col items-center justify-end group relative h-full w-full min-w-0">
-                    <div
-                      className="w-full max-w-[32px] bg-blue-500 hover:bg-blue-600 rounded-sm transition-all relative mx-auto"
-                      style={{ height: `${Math.max(pct, 2)}%` }}
-                    >
-                      <div className="opacity-0 group-hover:opacity-100 absolute bottom-full mb-1.5 left-1/2 -translate-x-1/2 bg-slate-900 text-white text-[10px] px-2 py-1 rounded pointer-events-none whitespace-nowrap z-50 shadow-lg">
-                        <div className="font-medium">{t.label}</div>
-                        <div className="text-blue-200 mt-0.5">{formatMinor(t.amountMinor)}</div>
-                        <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-slate-900" />
-                      </div>
-                    </div>
-                    <span className="text-[9px] text-slate-400 mt-2 font-medium truncate w-full text-center shrink-0 px-0.5">{t.label.split(" ")[0]}</span>
+        {inspectorOpen && txDetail && (
+          <>
+            <div className="amb-drawer-backdrop md:hidden" onClick={() => setInspectorOpen(false)} />
+            <aside className="amb-inspector slide-in flex h-full flex-col overflow-y-auto z-40">
+              <div className="flex items-start justify-between border-b border-[hsl(var(--border))] px-4 py-3 shrink-0">
+                <div>
+                  <div className="text-[12px] font-bold text-[#2c435f]">Transaction Details</div>
+                  <div className="mt-0.5 text-[9px] text-[hsl(var(--muted-foreground))]">
+                    ERP Sync: {txDetail.erpSyncStatus} {txDetail.erpInvoiceId ? `(${txDetail.erpInvoiceId})` : ""}
                   </div>
-                );
-              })
-            )}
-          </div>
-        </div>
-
-        {/* Payment Mix */}
-        <div className="bg-white p-3.5 flex flex-col shadow-sm border border-slate-200 rounded-lg h-[220px] min-w-0">
-          <h3 className="text-[13px] font-bold text-slate-900 tracking-tight mb-4 shrink-0">Payment Mode Breakdown</h3>
-          <div className="flex items-center gap-5 flex-1 min-h-0 justify-center">
-            <div className="relative w-28 h-28 shrink-0">
-              <svg viewBox="0 0 36 36" className="w-full h-full transform -rotate-90">
-                {analytics.paymentMix.length === 0 ? (
-                  <circle cx="18" cy="18" r="16" fill="none" className="stroke-slate-100" strokeWidth="4" />
-                ) : (
-                  analytics.paymentMix.map((p, i) => {
-                    const total = analytics.paymentMix.reduce((a, b) => a + b.amountMinor, 0);
-                    const pct = (p.amountMinor / total) * 100;
-                    const colors = ["#10b981", "#3b82f6", "#f59e0b", "#a855f7"];
-                    const color = colors[i % colors.length];
-                    let offset = 0;
-                    for (let j = 0; j < i; j++) {
-                      offset += ((analytics.paymentMix[j]?.amountMinor ?? 0) / total) * 100;
-                    }
-                    return (
-                      <circle
-                        key={p.method}
-                        cx="18"
-                        cy="18"
-                        r="16"
-                        fill="none"
-                        stroke={color}
-                        strokeWidth="4"
-                        strokeDasharray={`${pct} ${100 - pct}`}
-                        strokeDashoffset={-offset}
-                        className="transition-all duration-500"
-                      />
-                    );
-                  })
-                )}
-              </svg>
-              <div className="absolute inset-0 flex flex-col items-center justify-center">
-                 <span className="font-bold text-slate-900 text-[12px]">{formatMinor(summary.totalMinor)}</span>
-                 <span className="text-[9px] text-slate-500 uppercase tracking-wider font-semibold mt-0.5">Total</span>
+                </div>
+                <button className="amb-icon-btn -mr-1 -mt-1" onClick={() => setInspectorOpen(false)}><X size={16} /></button>
               </div>
-            </div>
-            
-            <div className="flex-1 space-y-2.5">
-               {analytics.paymentMix.length === 0 ? (
-                 <div className="text-[11px] text-slate-400">No data</div>
-               ) : (
-                 analytics.paymentMix.map((p, i) => {
-                   const total = analytics.paymentMix.reduce((a, b) => a + b.amountMinor, 0);
-                   const pct = (p.amountMinor / total) * 100;
-                   const colors = ["bg-emerald-500", "bg-blue-500", "bg-yellow-500", "bg-purple-500"];
-                   return (
-                     <div key={p.method} className="flex items-center justify-between text-[11px]">
-                       <div className="flex items-center gap-1.5">
-                         <div className={`w-2 h-2 rounded-full ${colors[i % colors.length]}`} />
-                         <span className="font-medium text-slate-700">{p.method}</span>
-                       </div>
-                       <div className="flex items-center gap-2">
-                         <span className="text-slate-400 font-medium w-7 text-right text-[10px]">{pct.toFixed(0)}%</span>
-                         <span className="text-slate-900 font-semibold w-14 text-right">{formatMinor(p.amountMinor)}</span>
-                       </div>
-                     </div>
-                   );
-                 })
-               )}
-            </div>
-          </div>
-        </div>
+              
+              <div className="space-y-4 px-4 py-3 flex-1">
+                <div className="flex items-start justify-between">
+                  <div>
+                    <div className="font-mono text-[13px] font-bold text-[#263e5b]">{txDetail.billNumber}</div>
+                    <div className="mt-1 text-[10px] text-[hsl(var(--muted-foreground))]">{new Date(txDetail.completedAt).toLocaleString("en-IN", { timeZone: "Asia/Kolkata" })}</div>
+                    <div className="mt-0.5 text-[10px] text-[hsl(var(--muted-foreground))]">Cashier: {txDetail.cashierName}</div>
+                  </div>
+                  <StatusPill status={txDetail.status} />
+                </div>
+                
+                <div className="rounded border border-[hsl(var(--border))] bg-[hsl(var(--secondary)/.45)] p-3">
+                  <div className="flex items-center gap-2">
+                    <span className="grid h-7 w-7 place-items-center rounded-full bg-[#e4f2ff] text-[hsl(var(--primary))]"><UserRound size={15} /></span>
+                    <div>
+                      <div className="text-[11px] font-bold text-[#334d68]">{txDetail.customer?.name || "Walk-in Customer"}</div>
+                      <div className="text-[10px] text-[hsl(var(--muted-foreground))]">{txDetail.customer?.phone || "No phone provided"}</div>
+                    </div>
+                  </div>
+                </div>
+                
+                <div>
+                  <div className="mb-2 text-[10px] font-bold uppercase tracking-[.06em] text-[hsl(var(--muted-foreground))]">Order Items</div>
+                  <div className="space-y-2.5">
+                    {txDetail.items.map((item, idx) => (
+                      <div className="flex gap-2.5" key={idx}>
+                        <div className="h-10 w-10 shrink-0 overflow-hidden rounded border border-[#edf0f3] bg-[#f8fafc]">
+                           {item.imageUrl ? <img src={item.imageUrl} alt={item.name} className="h-full w-full object-cover" /> : null}
+                        </div>
+                        <div className="min-w-0 flex-1">
+                           <div className="truncate text-[11px] font-bold text-[#293f5b]">{item.name}</div>
+                           <div className="mt-0.5 text-[9px] text-[#5e7187]">SKU: {item.sku} {item.size ? `| ${item.size}` : ""} {item.colour ? `| ${item.colour}` : ""}</div>
+                           <div className="mt-1 flex items-center justify-between text-[10px]"><span className="text-[hsl(var(--muted-foreground))]">{item.quantity} x {formatMinor(item.unitPriceMinor)}</span><b className="text-[#3b526c]">{formatMinor(item.lineTotalMinor)}</b></div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
 
-        {/* Transaction Types */}
-        <div className="bg-white p-3.5 flex flex-col shadow-sm border border-slate-200 rounded-lg h-[220px] min-w-0">
-          <h3 className="text-[13px] font-bold text-slate-900 tracking-tight mb-4 shrink-0">Transaction Type</h3>
-          <div className="space-y-3 flex-1 flex flex-col justify-center min-h-0 px-2">
-            {analytics.typeMix.length === 0 ? (
-               <div className="text-center text-[11px] text-slate-400">No data</div>
-            ) : (
-               analytics.typeMix.map(t => {
-                 const total = analytics.typeMix.reduce((a, b) => a + b.count, 0);
-                 const pct = (t.count / total) * 100;
-                 return (
-                   <div key={t.status}>
-                     <div className="flex items-center justify-between text-[11px] mb-1.5">
-                       <span className="font-semibold text-slate-700 capitalize">{t.status.toLowerCase()}</span>
-                       <div className="flex items-center gap-3">
-                         <span className="font-bold text-slate-900">{t.count}</span>
-                         <span className="text-slate-400 font-medium w-7 text-right text-[10px]">{pct.toFixed(1)}%</span>
-                       </div>
-                     </div>
-                     <div className="h-1 w-full bg-slate-100 rounded-full overflow-hidden">
-                       <div className={`h-full rounded-full ${t.status === "COMPLETED" ? "bg-blue-600" : "bg-rose-500"}`} style={{ width: `${pct}%` }} />
-                     </div>
-                   </div>
-                 );
-               })
-            )}
-            
-            <div className="opacity-50 pt-1">
-              <div className="flex items-center justify-between text-[11px] mb-1.5">
-                <span className="font-semibold text-slate-400">Returns</span>
-                <div className="flex items-center gap-3">
-                  <span className="font-bold text-slate-400">—</span>
-                  <span className="text-slate-400 font-medium w-12 text-right text-[9px]">Unavailable</span>
+                <div className="rounded border border-[hsl(var(--border))] bg-[#f8fafc] p-3 text-[10px]">
+                  <div className="flex justify-between mb-1.5"><span className="text-[#5e7187]">Subtotal</span><span className="font-medium text-[#3b526c]">{formatMinor(txDetail.subtotalMinor)}</span></div>
+                  {txDetail.discountMinor > 0 && <div className="flex justify-between mb-1.5 text-emerald-600"><span className="font-medium">Discount</span><span className="font-bold">-{formatMinor(txDetail.discountMinor)}</span></div>}
+                  <div className="flex justify-between mb-2"><span className="text-[#5e7187]">Tax</span><span className="font-medium text-[#3b526c]">{formatMinor(txDetail.taxMinor)}</span></div>
+                  <div className="flex justify-between border-t border-[hsl(var(--border))] pt-2 text-[12px]"><span className="font-bold text-[#263e5b]">Total</span><span className="font-bold text-[hsl(var(--primary))]">{formatMinor(txDetail.totalMinor)}</span></div>
+                </div>
+
+                <div className="rounded border border-[hsl(var(--border))] p-3">
+                  <div className="mb-2 text-[10px] font-bold uppercase tracking-[.06em] text-[hsl(var(--muted-foreground))]">Payment</div>
+                  <div className="space-y-2">
+                    {txDetail.payments.map((p, idx) => (
+                      <div key={idx} className="flex flex-col">
+                        <div className="flex items-center justify-between text-[10px]">
+                          <span className="flex items-center gap-1.5 text-[#445a72]"><CreditCard size={13} className="text-[hsl(var(--primary))]" />{p.method} {txDetail.payments.length > 1 ? `(Split)` : ""}</span>
+                          <b className="text-[#293f5b]">{formatMinor(p.amountMinor)}</b>
+                        </div>
+                        {p.reference && <div className="mt-0.5 text-[9px] text-[hsl(var(--muted-foreground))]">Ref: {p.reference}</div>}
+                      </div>
+                    ))}
+                  </div>
+                  <div className="mt-2 text-[10px] pt-2 border-t border-[hsl(var(--border))] flex justify-between">
+                    <span className="text-[hsl(var(--muted-foreground))]">Paid</span>
+                    <b className="text-[#293f5b]">{formatMinor(txDetail.paidMinor)}</b>
+                  </div>
+                </div>
+
+                <div className="flex gap-2 pb-4">
+                  <button className="amb-control flex-1 justify-center text-[10px] font-bold text-[hsl(var(--primary))]" onClick={() => handleNotice("Print preview prepared.")}><ArrowDownToLine size={13} /> Print Bill</button>
+                  <button className="amb-control flex-1 justify-center text-[10px] font-bold text-slate-400 cursor-not-allowed"><RefreshCcw size={13} /> Return</button>
+                  <button className="amb-icon-btn border border-[hsl(var(--border))]" onClick={() => handleNotice("More actions available.")}><MoreHorizontal size={15} /></button>
                 </div>
               </div>
-              <div className="h-1 w-full bg-slate-50 rounded-full" />
-            </div>
-            <div className="opacity-50">
-              <div className="flex items-center justify-between text-[11px] mb-1.5">
-                <span className="font-semibold text-slate-400">Exchanges</span>
-                <div className="flex items-center gap-3">
-                  <span className="font-bold text-slate-400">—</span>
-                  <span className="text-slate-400 font-medium w-12 text-right text-[9px]">Unavailable</span>
-                </div>
-              </div>
-              <div className="h-1 w-full bg-slate-50 rounded-full" />
-            </div>
-          </div>
-        </div>
+            </aside>
+          </>
+        )}
       </div>
 
-    </div>
+      <section className="analytics-grid mt-3 grid grid-cols-[1.25fr_1fr_1fr] gap-3">
+         {/* Trend Chart (simple bar) */}
+         <div className="amb-card min-w-0 p-3 flex flex-col h-[220px]">
+           <div><h3 className="text-[12px] font-bold text-[#2d4561]">Sales Trend</h3><div className="mt-0.5 text-[9px] text-[hsl(var(--muted-foreground))]">Daily sales volume (IST)</div></div>
+           <div className="flex-1 mt-4 flex items-end gap-2 px-2 pb-2">
+             {analytics.trend.length === 0 ? <span className="text-[10px] text-slate-400 mx-auto">No data</span> : analytics.trend.map(t => {
+               const max = Math.max(...analytics.trend.map((x) => x.amountMinor), 1);
+               const pct = Math.max((t.amountMinor / max) * 100, 2);
+               return (
+                 <div key={t.label} className="flex-1 flex flex-col items-center justify-end h-full">
+                   <div className="w-full max-w-[24px] bg-[hsl(var(--primary))] rounded-t-sm mx-auto" style={{ height: `${pct}%` }} title={`${t.label}: ${formatMinor(t.amountMinor)}`} />
+                   <span className="text-[8px] text-[hsl(var(--muted-foreground))] mt-1 truncate">{t.label.split(" ")[0]}</span>
+                 </div>
+               )
+             })}
+           </div>
+         </div>
+         {/* Payment Mix */}
+         <div className="amb-card min-w-0 p-3 h-[220px] overflow-hidden">
+           <div><h3 className="text-[12px] font-bold text-[#2d4561]">Payment Mode</h3><div className="mt-0.5 text-[9px] text-[hsl(var(--muted-foreground))]">How customers paid</div></div>
+           <div className="mt-3 space-y-2">
+             {analytics.paymentMix.length === 0 ? <span className="text-[10px] text-slate-400">No data</span> : analytics.paymentMix.map((p, i) => {
+               const total = analytics.paymentMix.reduce((a, b) => a + b.amountMinor, 0);
+               const pct = ((p.amountMinor / total) * 100).toFixed(0);
+               const colors = ["#2587df", "#8b5cda", "#f0ad44", "#36b78e"];
+               return (
+                 <div className="flex items-center gap-1.5 text-[10px]" key={p.method}>
+                   <span className="h-2 w-2 rounded-full shrink-0" style={{ background: colors[i % colors.length] }} />
+                   <span className="w-9 text-[#50657b] font-semibold">{p.method}</span>
+                   <span className="ml-auto text-[hsl(var(--muted-foreground))]">{pct}%</span>
+                   <b className="w-[59px] text-right text-[#3b526c] truncate">{formatMinor(p.amountMinor)}</b>
+                 </div>
+               )
+             })}
+           </div>
+         </div>
+         {/* Types */}
+         <div className="amb-card min-w-0 p-3 h-[220px] overflow-hidden">
+           <div><h3 className="text-[12px] font-bold text-[#2d4561]">Transaction Type</h3><div className="mt-0.5 text-[9px] text-[hsl(var(--muted-foreground))]">Volume by transaction status</div></div>
+           <div className="mt-4 space-y-3">
+             {analytics.typeMix.map((t) => {
+               const total = analytics.typeMix.reduce((a, b) => a + b.count, 0) || 1;
+               const pct = (t.count / total) * 100;
+               return (
+                 <div key={t.status}>
+                   <div className="mb-1 flex items-center justify-between text-[10px]">
+                     <span className="text-[#50657b] font-semibold capitalize">{t.status.toLowerCase()}</span>
+                     <span className="amb-number font-bold text-[#3b526c]">{t.count} <small className="ml-1 font-medium text-[hsl(var(--muted-foreground))]">{pct.toFixed(0)}%</small></span>
+                   </div>
+                   <div className="h-1.5 overflow-hidden rounded-full bg-[#edf0f3]">
+                     <div className="h-full rounded-full" style={{ width: `${Math.max(pct, 2)}%`, background: t.status === "COMPLETED" ? "#2587df" : "#a2adba" }} />
+                   </div>
+                 </div>
+               )
+             })}
+             <div className="opacity-40">
+               <div className="mb-1 flex items-center justify-between text-[10px]">
+                 <span className="text-[#50657b] font-semibold">Returns</span>
+                 <span className="amb-number font-bold text-[#3b526c]">0 <small className="ml-1 font-medium text-[hsl(var(--muted-foreground))]">N/A</small></span>
+               </div>
+               <div className="h-1.5 overflow-hidden rounded-full bg-[#edf0f3]" />
+             </div>
+           </div>
+         </div>
+      </section>
+
+      {notice && <div className="fixed bottom-5 left-1/2 z-50 -translate-x-1/2 rounded-md bg-[#263e5b] px-4 py-2.5 text-[11px] font-semibold text-white shadow-lg rise-in" role="status">{notice}</div>}
+    </>
   );
 }

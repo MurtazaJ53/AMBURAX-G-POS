@@ -89,3 +89,51 @@ body {
 .status-pending { background: #fffbeb; color: #d97706; }
 .status-low { background: #fffbeb; color: #d97706; }
 .status-critical { background: #fef2f2; color: #dc2626; }
+
+/* F11 Sales History Classes from reference index.css */
+@keyframes rise-in { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes slide-in { from { opacity: 0; transform: translateX(18px); } to { opacity: 1; transform: translateX(0); } }
+.rise-in { animation: rise-in .35s ease-out both; }
+.slide-in { animation: slide-in .28s ease-out both; }
+
+.amb-card { background: var(--color-bg-card, #ffffff); border: 1px solid var(--color-border, #e2e8f0); border-radius: 0.42rem; box-shadow: 0 1px 2px rgba(28, 55, 84, .025); }
+.amb-label { color: var(--color-text-secondary, #64748b); font-size: 11px; font-weight: 600; letter-spacing: .015em; }
+.amb-number { font-variant-numeric: tabular-nums; }
+.amb-control { height: 34px; display: inline-flex; align-items: center; gap: 7px; border: 1px solid var(--color-border, #e2e8f0); background: var(--color-bg-card, #ffffff); color: var(--color-text-primary, #0f172a); border-radius: 5px; padding: 0 10px; font-size: 11px; transition: border-color .15s, background-color .15s, color .15s; }
+.amb-control:hover { background: var(--color-bg-hover, #f1f5f9); border-color: #94a3b8; }
+.amb-control:focus-visible, .amb-icon-btn:focus-visible { outline: 2px solid #3b82f6; outline-offset: 2px; }
+.amb-icon-btn { height: 32px; width: 32px; display: inline-grid; place-items: center; border-radius: 5px; color: var(--color-text-secondary, #64748b); transition: background-color .15s, color .15s; }
+.amb-icon-btn:hover { background: var(--color-bg-hover, #f1f5f9); color: var(--color-text-primary, #0f172a); }
+.amb-table-wrap { overflow-x: auto; overflow-y: hidden; }
+.amb-table { width: 100%; min-width: 780px; border-collapse: collapse; table-layout: fixed; }
+.amb-table th { height: 32px; padding: 0 9px; text-align: left; background: #f8fafc; color: var(--color-text-secondary, #64748b); font-size: 9px; text-transform: uppercase; letter-spacing: .05em; font-weight: 700; white-space: nowrap; }
+.amb-table td { height: 43px; padding: 0 9px; border-top: 1px solid var(--color-border, #e2e8f0); font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.amb-table tbody tr { cursor: pointer; transition: background-color .12s; }
+.amb-table tbody tr:hover { background: #f1f5f9; }
+.amb-table tbody tr.selected { background: #e2e8f0; box-shadow: inset 3px 0 #3b82f6; }
+.amb-tab { height: 38px; border-bottom: 2px solid transparent; color: var(--color-text-secondary, #64748b); padding: 0 13px; font-size: 11px; font-weight: 600; white-space: nowrap; transition: color .15s, border-color .15s; }
+.amb-tab:hover { color: #3b82f6; }
+.amb-tab.active { color: #3b82f6; border-color: #3b82f6; }
+.amb-pill { display: inline-flex; align-items: center; padding: 3px 7px; border-radius: 999px; font-size: 10px; font-weight: 650; line-height: 1; }
+.amb-inspector { width: 370px; flex: 0 0 370px; border-left: 1px solid var(--color-border, #e2e8f0); background: var(--color-bg-card, #ffffff); }
+.amb-drawer-backdrop { position: fixed; inset: 0; z-index: 30; background: rgba(18, 34, 55, .28); }
+.amb-mobile-only { display: none; }
+.chart-grid line { stroke: var(--color-border, #e2e8f0); stroke-dasharray: 2 3; }
+
+@media (max-width: 1080px) {
+  .amb-inspector { width: 342px; flex-basis: 342px; }
+  .hide-1080 { display: none !important; }
+}
+@media (max-width: 800px) {
+  .amb-mobile-only { display: inline-grid; }
+  .amb-inspector { position: fixed; z-index: 40; top: 0; right: 0; bottom: 0; width: min(390px, 94vw); box-shadow: -12px 0 35px rgba(18, 34, 55, .16); }
+  .analytics-grid { grid-template-columns: 1fr !important; }
+}
+@media (max-width: 520px) {
+  .kpi-grid { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; gap: 7px !important; }
+  .filter-grid { grid-template-columns: 1fr 1fr !important; }
+  .filter-search { grid-column: 1 / -1; }
+  .filter-more { grid-column: 1 / -1; }
+  .tabs-scroll { overflow-x: auto; margin-right: -10px; padding-right: 10px; }
+  .workspace-card { border-radius: 5px; }
+}

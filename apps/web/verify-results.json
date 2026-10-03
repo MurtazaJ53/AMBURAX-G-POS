@@ -1,0 +1,77 @@
+{
+  "productsUrl": null,
+  "posCardUrl": "http://localhost:3000/products/casual-crossbody-bag.jpg",
+  "metrics": {
+    "cartTabBox": {
+      "x": 1163,
+      "y": 68,
+      "width": 52.1875,
+      "height": 49,
+      "top": 68,
+      "right": 1215.1875,
+      "bottom": 117,
+      "left": 1163
+    },
+    "custTabBox": {
+      "x": 1235.1875,
+      "y": 68,
+      "width": 66.78125,
+      "height": 49,
+      "top": 68,
+      "right": 1301.96875,
+      "bottom": 117,
+      "left": 1235.1875
+    },
+    "pickerHeaderBox": {
+      "x": 1159,
+      "y": 137,
+      "width": 109.09375,
+      "height": 18,
+      "top": 137,
+      "right": 1268.09375,
+      "bottom": 155,
+      "left": 1159
+    },
+    "cancelBtnBox": {
+      "x": 1491.859375,
+      "y": 137.75,
+      "width": 32.140625,
+      "height": 16.5,
+      "top": 137.75,
+      "right": 1524,
+      "bottom": 154.25,
+      "left": 1491.859375
+    },
+    "searchInputBox": {
+      "x": 1159,
+      "y": 174,
+      "width": 365,
+      "height": 40,
+      "top": 174,
+      "right": 1524,
+      "bottom": 214,
+      "left": 1159
+    },
+    "tabsBottom": 117,
+    "pickerHeaderTop": 137,
+    "overlap": false,
+    "cartItemCount": 0,
+    "checkoutPanelWidth": 390,
+    "checkoutHeaderHeight": null,
+    "customerBlockHeight": null,
+    "cartItemHeight": null,
+    "cartViewportHeight": null,
+    "footerHeight": 168,
+    "completeSaleHeight": 40,
+    "docScrollHeight4": 1024,
+    "winInnerHeight4": 1024,
+    "cartScrollHeight5": null,
+    "cartClientHeight5": null,
+    "docScrollHeight5": 1024,
+    "cartScrollHeight10": null,
+    "cartClientHeight10": null,
+    "docScrollHeight10": 1024,
+    "posCartUrl": null,
+    "cartItemsAfterSale": 0
+  }
+}

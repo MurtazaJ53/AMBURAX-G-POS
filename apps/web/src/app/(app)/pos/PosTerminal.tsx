@@ -8,7 +8,8 @@ import {
   MAX_LINES_PER_SALE,
   type PricedLine,
 } from "@/server/sales/saleTotals";
-import { Search, Plus, Minus, Trash2, Package, LayoutGrid, CheckCircle2, SlidersHorizontal, Barcode, Zap, ChevronDown, AlignJustify, Shirt, Users, Tag, Baby, Gem, Footprints, Sparkles, Flame, Briefcase } from "lucide-react";
+import { Search, Plus, Minus, Trash2, Package, LayoutGrid, CheckCircle2, SlidersHorizontal, Barcode, Zap, ChevronDown, AlignJustify, Shirt, Users, Tag, Baby, Gem, Footprints, Sparkles, Flame, Briefcase, Printer, FileText, X, Copy, Check } from "lucide-react";
+import { formatDateTime } from "@/app/(app)/sales/formatDateTime";
 
 interface CatalogHit {
   variantId: string;
@@ -48,7 +49,73 @@ interface CompletedSale {
   duplicate: boolean;
 }
 
+/**
+ * The completed sale as the server tells it, for the receipt on the success screen.
+ *
+ * `createSale` answers with totals and identifiers only — enough to say the sale happened,
+ * not enough to print it. Rather than widen that response (a contract F9 settled, and one
+ * this till is not the only caller of), the success screen re-reads the sale through the
+ * bill endpoint that already exists and that `/sales/[id]` is already built on. One extra
+ * round trip, once per sale, and every figure on the receipt then comes from the row rather
+ * than from the cart the browser happened to be holding.
+ *
+ * `completedAt` arrives as an ISO string because this crossed JSON; it is parsed at the one
+ * place it is rendered.
+ */
+interface SaleReceipt {
+  id: string;
+  billNumber: string;
+  completedAt: string;
+  erpSyncStatus: string;
+  subtotalMinor: number;
+  discountMinor: number;
+  taxMinor: number;
+  totalMinor: number;
+  paidMinor: number;
+  storeName: string;
+  storeCode: string;
+  storeAddressLine: string;
+  storeCity: string;
+  storeState: string;
+  storePostalCode: string | null;
+  cashierName: string;
+  customer: { name: string; phone: string | null } | null;
+  items: {
+    id: string;
+    name: string;
+    sku: string;
+    quantity: number;
+    unitPriceMinor: number;
+    lineTotalMinor: number;
+    size: string | null;
+    colour: string | null;
+  }[];
+  payments: {
+    method: string;
+    status: string;
+    amountMinor: number;
+    reference: string | null;
+  }[];
+}
+
 type PaymentMethod = "CASH" | "UPI" | "CARD" | "SPLIT" | "MORE";
+
+/**
+ * The methods a single split row may carry.
+ *
+ * Narrower than `PaymentMethod` on purpose: "SPLIT" and "MORE" are modes of this panel, not ways
+ * of paying, and the server's `createSaleSchema` accepts only these three. Typing the rows this
+ * way means the payload built in `completeSale` needs no cast to satisfy the API contract — a row
+ * cannot hold a value the server would reject.
+ */
+type SplitMethod = "CASH" | "UPI" | "CARD";
+
+interface SplitRow {
+  id: string;
+  method: SplitMethod;
+  amount: number | null;
+  reference: string;
+}
 
 const PAYMENT_METHODS: { value: PaymentMethod; label: string }[] = [
   { value: "CASH", label: "Cash" },
@@ -91,7 +158,7 @@ export function PosTerminal(props: { storeName: string; storeCode: string; cashi
   const [reference, setReference] = useState("");
   const [amountReceived, setAmountReceived] = useState<number | null>(null);
 
-  const [splitPayments, setSplitPayments] = useState<Array<{ id: string, method: PaymentMethod, amount: number | null, reference: string }>>([
+  const [splitPayments, setSplitPayments] = useState<SplitRow[]>([
     { id: "1", method: "CASH", amount: null, reference: "" },
     { id: "2", method: "UPI", amount: null, reference: "" }
   ]);
@@ -99,6 +166,11 @@ export function PosTerminal(props: { storeName: string; storeCode: string; cashi
   const [submitting, setSubmitting] = useState(false);
   const [saleError, setSaleError] = useState<string | null>(null);
   const [completed, setCompleted] = useState<CompletedSale | null>(null);
+  // The printable sale, re-read from the server after completion. Null while it is in
+  // flight or if the read failed — the success screen degrades to the figures the sale
+  // response already proved, and says so, rather than inventing a receipt.
+  const [receipt, setReceipt] = useState<SaleReceipt | null>(null);
+  const [receiptFailed, setReceiptFailed] = useState(false);
 
   const idempotencyKey = useRef<string>("");
   useEffect(() => {
@@ -222,6 +294,37 @@ export function PosTerminal(props: { storeName: string; storeCode: string; cashi
 
   const totals = computeSaleTotals(cart, 0);
 
+  /**
+   * The split tally, computed once.
+   *
+   * It used to be computed inside an IIFE in the middle of the split panel's JSX, which meant the
+   * "Remaining" a cashier reads and the rule that decides whether Complete Sale may be pressed
+   * were two separate expressions that merely happened to agree. They now cannot disagree,
+   * because the readout and the button both read these.
+   *
+   * Amounts are entered in rupees and the server speaks minor units, so each row is rounded on
+   * its own before being summed. Rounding the sum instead lets two halves of a paisa cancel out
+   * into a total that no row actually paid.
+   */
+  const splitSumMinor = splitPayments.reduce(
+    (acc, row) => acc + Math.round((row.amount ?? 0) * 100),
+    0,
+  );
+  const splitRemainingMinor = totals.totalMinor - splitSumMinor;
+  const splitOverMinor = splitSumMinor - totals.totalMinor;
+  const splitHasCash = splitPayments.some((row) => row.method === "CASH" && (row.amount ?? 0) > 0);
+
+  /**
+   * Why Complete Sale is blocked, in the split case.
+   *
+   * These are the server's two rules, restated so the cashier is stopped at the button rather
+   * than at a rejected request: `saleService` refuses a sum under the total, and refuses an
+   * overpayment that no CASH row backs. The server still enforces both — this does not replace
+   * that check, it just means the common mistakes never become a round trip.
+   */
+  const splitBlocked =
+    method === "SPLIT" && (splitRemainingMinor > 0 || (splitOverMinor > 0 && !splitHasCash));
+
   function startNewSale() {
     setCart([]);
     setCustomer(null);
@@ -229,11 +332,47 @@ export function PosTerminal(props: { storeName: string; storeCode: string; cashi
     setReference("");
     setAmountReceived(null);
     setCompleted(null);
+    setReceipt(null);
+    setReceiptFailed(false);
     setSaleError(null);
     setCartNotice(null);
     setQuery("");
     idempotencyKey.current = crypto.randomUUID();
     searchInput.current?.focus();
+  }
+
+  /**
+   * Dismiss the success screen without starting a new sale.
+   *
+   * Deliberately does NOT clear the cart or rotate the idempotency key. The sale is already
+   * recorded; leaving both in place means pressing Complete Sale again returns that same
+   * sale as a duplicate rather than ringing a second one, which is the only safe thing an
+   * accidental dismissal can do.
+   */
+  function dismissSuccess() {
+    setCompleted(null);
+    setReceipt(null);
+    setReceiptFailed(false);
+  }
+
+  /**
+   * Re-read the completed sale for the receipt.
+   *
+   * Tenant scoping is the server's, not ours: `/api/v1/sales/[id]` resolves the session and
+   * returns the same 404 for another tenant's sale as for one that never existed.
+   */
+  async function loadReceipt(saleId: string) {
+    try {
+      const res = await fetch(`/api/v1/sales/${saleId}`);
+      if (!res.ok) {
+        setReceiptFailed(true);
+        return;
+      }
+      const data = await res.json();
+      setReceipt(data.sale as SaleReceipt);
+    } catch {
+      setReceiptFailed(true);
+    }
   }
 
   async function completeSale() {
@@ -248,7 +387,38 @@ export function PosTerminal(props: { storeName: string; storeCode: string; cashi
       return;
     }
 
+    if (method === "SPLIT" && splitRemainingMinor > 0) {
+      setSaleError("The split payments do not cover the total amount.");
+      setSubmitting(false);
+      return;
+    }
+
     try {
+      /*
+        A split sale sends `payments[]`; every other mode sends the single `payment` it always
+        sent. Both fields are on `createSaleSchema`, and `saleService` unifies them, so this is
+        the contract the server already had rather than a new one.
+
+        What this replaces: the panel used to collect the rows and then throw them away, posting
+        `{ method: "CASH" }` for the whole total whenever SPLIT was selected. The cashier saw two
+        payments; the database recorded one, under the wrong method, with no reference. Rows with
+        no amount typed are dropped rather than sent as zero, because the server requires at least
+        1 minor unit per payment and an untouched row is not a payment anyone made.
+
+        "MORE" keeps its CASH fallback. It has no interaction design and no implementation behind
+        it, and inventing one is not this gate's job.
+      */
+      const splitRows =
+        method === "SPLIT"
+          ? splitPayments
+              .filter((row) => (row.amount ?? 0) > 0)
+              .map((row) => ({
+                method: row.method,
+                amountMinor: Math.round((row.amount as number) * 100),
+                reference: row.reference.trim() ? row.reference.trim() : undefined,
+              }))
+          : null;
+
       const res = await fetch("/api/v1/sales", {
         method: "POST",
         headers: { "content-type": "application/json" },
@@ -256,7 +426,14 @@ export function PosTerminal(props: { storeName: string; storeCode: string; cashi
           idempotencyKey: idempotencyKey.current,
           lines: cart.map((l) => ({ variantId: l.variantId, quantity: l.quantity })),
           customerId: customer?.id ?? null,
-          payment: { method: method === "SPLIT" || method === "MORE" ? "CASH" : method, reference: reference.trim() ? reference.trim() : undefined }, // Fallback split/more to cash as placeholder
+          ...(splitRows
+            ? { payments: splitRows }
+            : {
+                payment: {
+                  method: method === "MORE" ? "CASH" : method,
+                  reference: reference.trim() ? reference.trim() : undefined,
+                },
+              }),
         }),
       });
       const data = await res.json();
@@ -273,6 +450,11 @@ export function PosTerminal(props: { storeName: string; storeCode: string; cashi
         erpSyncStatus: data.sale.erpSyncStatus,
         duplicate: Boolean(data.duplicate),
       });
+      // Not awaited: the success screen must appear the moment the sale is real. The
+      // receipt fills in behind it.
+      setReceipt(null);
+      setReceiptFailed(false);
+      void loadReceipt(data.sale.id);
     } catch {
       setSaleError("We couldn't reach the server. Check the connection and press Complete sale again - this will not charge twice.");
     } finally {
@@ -280,16 +462,18 @@ export function PosTerminal(props: { storeName: string; storeCode: string; cashi
     }
   }
 
-  if (completed) {
-    return (
-      <div className="absolute inset-0 bg-slate-50/90 z-50 flex items-center justify-center p-4">
-        <SaleSuccess sale={completed} customerName={customer?.name ?? null} onNewSale={startNewSale} />
-      </div>
-    );
-  }
-
   return (
-    <div className="flex w-full h-[calc(100vh-68px)] overflow-y-auto lg:overflow-hidden bg-slate-50 flex-col lg:flex-row">
+    <>
+      {completed && (
+        <SaleSuccess
+          sale={completed}
+          receipt={receipt}
+          receiptFailed={receiptFailed}
+          onNewSale={startNewSale}
+          onDismiss={dismissSuccess}
+        />
+      )}
+    <div className="flex w-full h-[calc(100vh-68px)] overflow-y-auto lg:overflow-hidden bg-slate-50 flex-col lg:flex-row print:hidden">
       {/* Left Workspace (Products) - 70% */}
       <div className="flex-1 flex flex-col min-w-0 bg-white border-r border-slate-200 min-h-[500px] lg:min-h-0 shrink-0 lg:shrink">
         
@@ -511,8 +695,10 @@ export function PosTerminal(props: { storeName: string; storeCode: string; cashi
            <div>
              <div className="flex gap-1.5 h-[34px]">
                {PAYMENT_METHODS.map(m => (
-                 <button 
+                 <button
                    key={m.value}
+                   type="button"
+                   aria-pressed={method === m.value}
                    onClick={() => {
                      setMethod(m.value);
                      if (m.value !== "SPLIT") {
@@ -531,8 +717,10 @@ export function PosTerminal(props: { storeName: string; storeCode: string; cashi
            {method === 'CASH' && (
              <div className="flex flex-col mt-2">
                 <div className="flex justify-between items-center mb-1.5">
-                  <span className="text-[12px] font-semibold text-slate-600">Amount Received</span>
-                  <input 
+                  {/* A real label/for pair: the text is already on screen, so it should name the field. */}
+                  <label htmlFor="amount-received" className="text-[12px] font-semibold text-slate-600">Amount Received</label>
+                  <input
+                    id="amount-received"
                     type="number"
                     value={amountReceived ?? ''}
                     onChange={(e) => setAmountReceived(e.target.value ? parseFloat(e.target.value) : null)}
@@ -562,9 +750,18 @@ export function PosTerminal(props: { storeName: string; storeCode: string; cashi
              <div className="flex flex-col mt-2 gap-2 max-h-[160px] overflow-y-auto pr-1 no-scrollbar">
                 {splitPayments.map((p, i) => (
                   <div key={p.id} className="flex gap-1.5 items-center bg-white border border-slate-200 rounded-[6px] p-1.5">
+                    {/*
+                      Every control in a split row is labelled by its row number. There is no
+                      visible label to point a <label> at — the row is a dense strip of controls
+                      the design gives no room for one — and "Amt" repeated four times tells a
+                      screen-reader user which column they are in but not which payment. The
+                      position is the only thing that distinguishes one row from another, so the
+                      position is what the accessible name carries.
+                    */}
                     <select
+                      aria-label={`Payment ${i + 1} method`}
                       value={p.method}
-                      onChange={(e) => setSplitPayments(curr => curr.map(x => x.id === p.id ? { ...x, method: e.target.value as PaymentMethod } : x))}
+                      onChange={(e) => setSplitPayments(curr => curr.map(x => x.id === p.id ? { ...x, method: e.target.value as SplitMethod } : x))}
                       className="w-20 text-[11px] font-bold border-none bg-slate-50 rounded px-1 h-[28px] outline-none text-slate-700 focus:ring-1 focus:ring-blue-500 cursor-pointer"
                     >
                       <option value="CASH">Cash</option>
@@ -574,6 +771,7 @@ export function PosTerminal(props: { storeName: string; storeCode: string; cashi
                     
                     {p.method !== "CASH" ? (
                       <input
+                        aria-label={`Payment ${i + 1} reference`}
                         placeholder="Ref (Opt)"
                         value={p.reference}
                         onChange={(e) => setSplitPayments(curr => curr.map(x => x.id === p.id ? { ...x, reference: e.target.value } : x))}
@@ -585,43 +783,55 @@ export function PosTerminal(props: { storeName: string; storeCode: string; cashi
                     
                     <input
                       type="number"
+                      aria-label={`Payment ${i + 1} amount`}
                       placeholder="Amt"
                       value={p.amount ?? ''}
                       onChange={(e) => setSplitPayments(curr => curr.map(x => x.id === p.id ? { ...x, amount: e.target.value ? parseFloat(e.target.value) : null } : x))}
                       className="w-[72px] text-right text-[12px] font-bold border border-slate-200 rounded px-1.5 h-[28px] outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
                     />
                     
-                    <button 
+                    {/*
+                      "×" is a glyph, not a name. Marked aria-hidden with the name on the button,
+                      so the control announces what it removes rather than announcing "times".
+                    */}
+                    <button
+                      type="button"
+                      aria-label={`Remove payment ${i + 1}`}
                       onClick={() => setSplitPayments(curr => curr.filter(x => x.id !== p.id))}
                       className="w-6 h-[28px] flex items-center justify-center text-slate-400 hover:text-rose-500 hover:bg-rose-50 rounded"
                     >
-                      ×
+                      <span aria-hidden="true">×</span>
                     </button>
                   </div>
                 ))}
                 
-                <button 
+                <button
+                  type="button"
                   onClick={() => setSplitPayments(curr => [...curr, { id: Date.now().toString(), method: "CASH", amount: null, reference: "" }])}
                   className="w-full h-[30px] border border-dashed border-blue-300 text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-[6px] text-[11px] font-semibold transition-colors shrink-0"
                 >
                   + Add Payment Row
                 </button>
                 
-                {(() => {
-                  const splitSum = splitPayments.reduce((acc, curr) => acc + Math.round((curr.amount || 0) * 100), 0);
-                  const rem = totals.totalMinor - splitSum;
-                  const hasCash = splitPayments.some(p => p.method === "CASH" && (p.amount || 0) > 0);
-                  const over = splitSum - totals.totalMinor;
-                  
-                  return (
-                    <div className="flex justify-between items-center text-[13px] h-[26px] mt-1 px-1 shrink-0">
-                      <span className="font-semibold text-slate-500">{rem > 0 ? "Remaining" : "Balance"}</span>
-                      <span className={`font-bold ${rem > 0 ? "text-amber-600" : "text-slate-900"}`}>
-                        {rem > 0 ? formatMinor(rem) : (over > 0 && hasCash ? formatMinor(over) : "—")}
-                      </span>
-                    </div>
-                  );
-                })()}
+                {/*
+                  Reads the hoisted tally rather than recomputing it, so this number and the
+                  Complete Sale button can never tell the cashier two different things.
+                */}
+                <div className="flex justify-between items-center text-[13px] h-[26px] mt-1 px-1 shrink-0">
+                  <span className="font-semibold text-slate-500">
+                    {splitRemainingMinor > 0 ? "Remaining" : "Balance"}
+                  </span>
+                  <span
+                    data-testid="split-remaining"
+                    className={`font-bold ${splitRemainingMinor > 0 ? "text-amber-600" : "text-slate-900"}`}
+                  >
+                    {splitRemainingMinor > 0
+                      ? formatMinor(splitRemainingMinor)
+                      : splitOverMinor > 0 && splitHasCash
+                        ? formatMinor(splitOverMinor)
+                        : "—"}
+                  </span>
+                </div>
              </div>
            )}
 
@@ -630,7 +840,8 @@ export function PosTerminal(props: { storeName: string; storeCode: string; cashi
            <button 
              onClick={completeSale}
              id="complete-sale-btn"
-             disabled={submitting || cart.length === 0}
+             type="button"
+             disabled={submitting || cart.length === 0 || splitBlocked}
              className="w-full h-[50px] bg-[#10b981] hover:bg-[#059669] text-white font-bold text-[14px] rounded-[8px] flex items-center justify-center gap-2 shadow-sm disabled:opacity-50 disabled:cursor-not-allowed transition-colors mt-3"
            >
              <Package className="w-5 h-5"/>
@@ -639,6 +850,7 @@ export function PosTerminal(props: { storeName: string; storeCode: string; cashi
         </div>
       </div>
     </div>
+    </>
   );
 }
 function ActionBtn({ icon, label, hotkey, disabled = false }: { icon: React.ReactNode, label: string, hotkey?: string, disabled?: boolean }) {
@@ -837,43 +1049,473 @@ function CustomerPicker(props: {
 
 function SaleSuccess(props: {
   sale: CompletedSale;
-  customerName: string | null;
+  receipt: SaleReceipt | null;
+  receiptFailed: boolean;
   onNewSale: () => void;
+  onDismiss: () => void;
 }) {
+  const { sale, receipt, receiptFailed } = props;
+  const dialog = useRef<HTMLDivElement>(null);
+  const printAction = useRef<HTMLButtonElement>(null);
+  const [copied, setCopied] = useState(false);
+
+  /*
+    Focus, in two steps rather than one.
+
+    The print button is the primary action, but it is disabled until the receipt has been
+    re-read, and a disabled button cannot take focus — aiming at it on mount would leave
+    focus on <body>, outside the dialog, which is the exact failure this is meant to avoid.
+    So focus goes to the dialog itself first (it is `tabIndex={-1}` for this), and moves to
+    the print button the moment that button becomes real.
+  */
+  useEffect(() => {
+    dialog.current?.focus();
+  }, []);
+
+  useEffect(() => {
+    if (receipt) printAction.current?.focus();
+  }, [receipt]);
+
+  /*
+    Escape dismisses, and Tab cannot leave. A sale has just been recorded and the receipt is
+    the only thing on screen worth acting on; letting focus wander into the dimmed till
+    behind would offer controls that are not reachable by mouse.
+  */
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape") {
+        props.onDismiss();
+        return;
+      }
+      if (e.key !== "Tab" || !dialog.current) return;
+
+      const focusable = dialog.current.querySelectorAll<HTMLElement>(
+        'a[href], button:not([disabled]), input, select, textarea, [tabindex]:not([tabindex="-1"])',
+      );
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (!first || !last) return;
+
+      if (e.shiftKey && document.activeElement === first) {
+        e.preventDefault();
+        last.focus();
+      } else if (!e.shiftKey && document.activeElement === last) {
+        e.preventDefault();
+        first.focus();
+      }
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [props]);
+
+  /*
+    Change due, derived from the tenders rather than from `Sale.paidMinor`.
+
+    `paidMinor` looks like the obvious operand and is the wrong one: `saleService` assigns it
+    `totals.totalMinor` unconditionally, so `paidMinor - totalMinor` is always exactly zero
+    even on a sale the cashier was handed more cash for. The overpayment is real and it is
+    recorded — on the `SalePayment` rows, which is where F9 puts it — so what was handed over
+    is the sum of those rows. Reading it there changes nothing about how a sale is written;
+    it just reads the number from the column that actually holds it.
+
+    Shown only when positive, so an exactly-settled sale carries no ₹0.00 row that means
+    nothing at the counter. Before the receipt arrives the fallback is the completion
+    response's own figures, which yield zero — no flash of a wrong number.
+
+    Known limit, and F9's to decide rather than this screen's: a single-tender cash sale does
+    not send an amount, so the server records the tender as the total and no change can be
+    derived. Change therefore appears on split tenders, where the amount handed over is
+    explicitly recorded.
+  */
+  const totalMinor = receipt?.totalMinor ?? sale.totalMinor;
+  const tenderedMinor = receipt
+    ? receipt.payments.reduce((n, p) => n + p.amountMinor, 0)
+    : sale.paidMinor;
+  const changeMinor = tenderedMinor - totalMinor;
+
+  // Units sold, not lines. A cashier handing over three of one shirt has sold three items.
+  const itemCount = receipt ? receipt.items.reduce((n, i) => n + i.quantity, 0) : null;
+
+  const erpPending = (receipt?.erpSyncStatus ?? sale.erpSyncStatus) !== "SYNCED";
+
+  function printReceipt() {
+    window.print();
+  }
+
+  /**
+   * Copy the bill number — the one value a cashier reads back over a phone or writes on a
+   * bag. `navigator.clipboard` is unavailable on an insecure origin, so a failure is
+   * swallowed to leave the icon unchanged rather than claiming a copy that did not happen.
+   */
+  async function copyBillNumber() {
+    try {
+      await navigator.clipboard.writeText(sale.billNumber);
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 2000);
+    } catch {
+      // No clipboard permission or no secure context. The number is on screen regardless.
+    }
+  }
+
   return (
-    <div className="w-full max-w-sm bg-white rounded-2xl p-8 text-center shadow-xl border border-slate-100 animate-in fade-in zoom-in duration-200">
-      <div className="mx-auto w-16 h-16 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-600 mb-4">
-        <CheckCircle2 className="w-8 h-8" />
-      </div>
-      <h2 className="text-xl font-bold text-slate-900">Payment Successful</h2>
-      <p className="text-4xl font-extrabold tracking-tight text-slate-900 my-4">
-        {formatMinor(props.sale.totalMinor)}
-      </p>
-      
-      <div className="text-[13px] text-slate-500 bg-slate-50 rounded-lg p-3 mb-6 space-y-1">
-        <p>Bill <span className="font-semibold text-slate-700">{props.sale.billNumber}</span></p>
-        {props.customerName && <p>Customer: <span className="font-semibold text-slate-700">{props.customerName}</span></p>}
-      </div>
-
-      {props.sale.duplicate && (
-        <p className="text-[12px] text-amber-700 bg-amber-50 p-2 rounded mb-4">
-          Duplicate submission. Original sale retrieved.
-        </p>
-      )}
-
-      <div className="flex flex-col gap-2">
+    /*
+      Two elements rather than one, and not for decoration: a flex child that is taller than
+      its scrolling parent gets its overflow clipped at the TOP when the parent centres it, so
+      a single `fixed inset-0 flex items-center overflow-y-auto` loses the heading and the
+      close control on a phone. The scroll lives on the outer box; the centring lives on an
+      inner box with `min-h-full`, which can grow past the viewport instead of being cut.
+    */
+    <div
+      className="fixed inset-0 z-50 overflow-y-auto bg-slate-900/40 backdrop-blur-sm print:static print:block print:overflow-visible print:bg-transparent print:backdrop-blur-none"
+      data-testid="sale-success"
+    >
+      <div className="flex min-h-full items-center justify-center p-4 print:block print:p-0">
+      <div
+        ref={dialog}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="sale-success-heading"
+        tabIndex={-1}
+        className="relative grid w-full max-w-4xl focus:outline-none animate-in fade-in zoom-in duration-200 overflow-hidden rounded-2xl bg-white shadow-2xl lg:grid-cols-2 print:block print:max-w-none print:animate-none print:rounded-none print:shadow-none"
+      >
+        {/*
+          The close control belongs to the dialog, not to either column. At `lg` that puts it
+          in the receipt's top corner exactly as the reference draws it; below `lg` the columns
+          stack and it stays at the top of the dialog, where it is reachable without scrolling
+          past the whole receipt first.
+        */}
         <button
-          onClick={props.onNewSale}
-          className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3 rounded-lg transition-colors"
+          type="button"
+          onClick={props.onDismiss}
+          aria-label="Close and return to the till"
+          data-testid="success-close"
+          className="absolute right-3 top-3 z-10 rounded-full bg-white/80 p-1.5 text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-900 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-slate-600 print:hidden"
         >
-          Start New Sale
+          <X className="h-4 w-4" />
         </button>
-        <Link
-          href={`/sales/${props.sale.id}`}
-          className="w-full bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-bold py-3 rounded-lg transition-colors inline-block"
+
+        {/* ---------- Confirmation + actions ---------- */}
+        <div className="flex flex-col justify-center p-6 sm:p-8 print:hidden">
+          <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-emerald-100 text-emerald-600">
+            <CheckCircle2 className="h-8 w-8" />
+          </div>
+
+          <h2
+            id="sale-success-heading"
+            className="text-center text-2xl font-bold text-slate-900"
+          >
+            Sale Completed!
+          </h2>
+          <p className="mt-1 text-center text-[13px] text-slate-500">Bill generated successfully</p>
+
+          {sale.duplicate && (
+            <p className="mt-4 rounded-lg bg-amber-50 p-2 text-center text-[12px] text-amber-800">
+              Duplicate submission. The original sale was retrieved — nothing was charged twice.
+            </p>
+          )}
+
+          {/* Transaction summary */}
+          <dl className="mt-6 grid grid-cols-2 gap-x-4 gap-y-3 rounded-xl bg-slate-50 p-4 sm:grid-cols-4">
+            <div>
+              <dt className="text-[11px] font-medium uppercase tracking-wide text-slate-500">
+                Bill No.
+              </dt>
+              <dd
+                className="mt-0.5 flex items-center gap-1.5 text-[13px] font-semibold text-slate-900"
+                data-testid="success-bill-number"
+              >
+                {sale.billNumber}
+                <button
+                  type="button"
+                  onClick={copyBillNumber}
+                  aria-label={`Copy bill number ${sale.billNumber}`}
+                  data-testid="success-copy-bill"
+                  className="rounded p-0.5 text-slate-400 transition-colors hover:bg-white hover:text-slate-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-slate-600"
+                >
+                  {copied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
+                </button>
+                {/* Announced rather than only shown — the icon swap is invisible to a screen
+                    reader, and the copy is the whole point of pressing it. */}
+                <span aria-live="polite" className="sr-only">
+                  {copied ? "Bill number copied" : ""}
+                </span>
+              </dd>
+            </div>
+            <div>
+              <dt className="text-[11px] font-medium uppercase tracking-wide text-slate-500">
+                Date &amp; Time
+              </dt>
+              <dd className="mt-0.5 text-[13px] font-semibold text-slate-900">
+                {receipt ? formatDateTime(new Date(receipt.completedAt)) : "—"}
+              </dd>
+            </div>
+            <div>
+              <dt className="text-[11px] font-medium uppercase tracking-wide text-slate-500">
+                Total
+              </dt>
+              <dd
+                className="mt-0.5 text-[13px] font-semibold text-slate-900"
+                data-testid="success-total"
+              >
+                {formatMinor(totalMinor)}
+              </dd>
+            </div>
+            <div>
+              <dt className="text-[11px] font-medium uppercase tracking-wide text-slate-500">
+                Items
+              </dt>
+              <dd
+                className="mt-0.5 text-[13px] font-semibold text-slate-900"
+                data-testid="success-item-count"
+              >
+                {itemCount ?? "—"}
+              </dd>
+            </div>
+          </dl>
+
+          {changeMinor > 0 && (
+            <div
+              className="mt-3 flex items-center justify-between rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3"
+              data-testid="success-change-due"
+            >
+              <span className="text-[13px] font-semibold text-emerald-900">Change due</span>
+              <span className="text-xl font-bold text-emerald-700">
+                {formatMinor(changeMinor)}
+              </span>
+            </div>
+          )}
+
+          <div className="mt-6 flex flex-col gap-2">
+            <button
+              ref={printAction}
+              type="button"
+              onClick={printReceipt}
+              disabled={!receipt}
+              data-testid="success-print"
+              className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-blue-600 py-3 font-semibold text-white transition-colors hover:bg-blue-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600 disabled:cursor-not-allowed disabled:bg-slate-300"
+            >
+              <Printer className="h-4 w-4" />
+              {receipt ? "Print Receipt" : "Preparing receipt..."}
+            </button>
+
+            <Link
+              href={`/sales/${sale.id}`}
+              data-testid="success-bill-details"
+              className="inline-flex w-full items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white py-3 font-semibold text-slate-700 transition-colors hover:bg-slate-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-slate-600"
+            >
+              <FileText className="h-4 w-4" />
+              View Bill Details
+            </Link>
+
+            <button
+              type="button"
+              onClick={props.onNewSale}
+              data-testid="success-new-sale"
+              className="inline-flex w-full items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white py-3 font-semibold text-blue-700 transition-colors hover:bg-blue-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600"
+            >
+              <Plus className="h-4 w-4" />
+              New Sale
+            </button>
+          </div>
+
+          {/*
+            ERPNext is not connected, so PENDING is the truthful state and the only thing this
+            screen may say about it. It must never read as "posted" — schema.prisma says so at
+            the column, and the receipt deliberately carries no invoice number for the same
+            reason: AMBURAX allocates a bill number, ERPNext allocates invoice numbers, and
+            only one of those has happened.
+          */}
+          {erpPending && (
+            <p
+              className="mt-4 text-center text-[11px] text-slate-500"
+              data-testid="success-erp-status"
+            >
+              ERP sync pending
+            </p>
+          )}
+        </div>
+
+        {/* ---------- Receipt ---------- */}
+        <div
+          id="sale-receipt"
+          className="relative border-t border-slate-200 bg-slate-100 p-4 sm:p-6 lg:border-l lg:border-t-0 print:border-0 print:bg-white print:p-0"
         >
-          View Receipt
-        </Link>
+          {receipt ? (
+            <div className="mx-auto max-w-[22rem] bg-white px-5 py-6 text-[12px] text-slate-700 shadow-sm print:max-w-none print:shadow-none">
+              {/* Header — store identity. No GSTIN: AMBURAX has no store-level tax
+                  registration field, and a tenant-wide taxId is not one. */}
+              <div className="text-center">
+                <p className="text-base font-bold tracking-tight text-slate-900">
+                  {receipt.storeName}
+                </p>
+                <p className="mt-0.5 text-[11px] text-slate-500">Store {receipt.storeCode}</p>
+                <p className="mt-1.5 text-[11px] leading-snug text-slate-600">
+                  {receipt.storeAddressLine}
+                  <br />
+                  {receipt.storeCity}, {receipt.storeState}
+                  {receipt.storePostalCode ? ` — ${receipt.storePostalCode}` : ""}
+                </p>
+              </div>
+
+              <dl className="mt-4 space-y-1 border-t border-dashed border-slate-300 pt-3">
+                <div className="flex justify-between gap-3">
+                  <dt className="text-slate-500">Bill No.</dt>
+                  <dd className="font-semibold text-slate-900">{receipt.billNumber}</dd>
+                </div>
+                <div className="flex justify-between gap-3">
+                  <dt className="text-slate-500">Date &amp; Time</dt>
+                  <dd className="text-slate-900">
+                    {formatDateTime(new Date(receipt.completedAt))}
+                  </dd>
+                </div>
+                <div className="flex justify-between gap-3">
+                  <dt className="text-slate-500">Cashier</dt>
+                  <dd className="text-slate-900">{receipt.cashierName}</dd>
+                </div>
+                {receipt.customer && (
+                  <div className="flex justify-between gap-3">
+                    <dt className="text-slate-500">Customer</dt>
+                    <dd className="text-right text-slate-900" data-testid="receipt-customer">
+                      {receipt.customer.name}
+                      {receipt.customer.phone ? (
+                        <span className="block text-[11px] text-slate-500">
+                          {receipt.customer.phone}
+                        </span>
+                      ) : null}
+                    </dd>
+                  </div>
+                )}
+              </dl>
+
+              <table className="mt-3 w-full border-t border-dashed border-slate-300 pt-2 text-left">
+                <caption className="sr-only">Items sold on this bill</caption>
+                <thead>
+                  <tr className="text-[10px] uppercase tracking-wide text-slate-500">
+                    <th scope="col" className="py-1.5 font-medium">
+                      Item
+                    </th>
+                    <th scope="col" className="py-1.5 text-center font-medium">
+                      Qty
+                    </th>
+                    <th scope="col" className="py-1.5 text-right font-medium">
+                      Price
+                    </th>
+                    <th scope="col" className="py-1.5 text-right font-medium">
+                      Total
+                    </th>
+                  </tr>
+                </thead>
+                <tbody data-testid="receipt-items">
+                  {receipt.items.map((item) => {
+                    // Size and colour are live variant reads — see the note in saleQueries.ts.
+                    const variant = [item.size, item.colour].filter(Boolean).join(" / ");
+                    return (
+                      <tr key={item.id} className="align-top">
+                        <td className="py-1.5 pr-2">
+                          <span className="block text-slate-900">{item.name}</span>
+                          <span className="block text-[10px] text-slate-500">
+                            {item.sku}
+                            {variant ? ` | ${variant}` : ""}
+                          </span>
+                        </td>
+                        <td className="py-1.5 text-center text-slate-900">{item.quantity}</td>
+                        <td className="py-1.5 text-right text-slate-700">
+                          {formatMinor(item.unitPriceMinor)}
+                        </td>
+                        <td className="py-1.5 text-right font-medium text-slate-900">
+                          {formatMinor(item.lineTotalMinor)}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+
+              <dl className="mt-3 space-y-1 border-t border-dashed border-slate-300 pt-3">
+                <div className="flex justify-between gap-3">
+                  <dt className="text-slate-500">Subtotal</dt>
+                  <dd className="text-slate-900">{formatMinor(receipt.subtotalMinor)}</dd>
+                </div>
+                {/*
+                  Conditional, and labelled "Discount" rather than "Item discount": the only
+                  discount this product can record is the order-level `Sale.discountMinor`.
+                  Per-line POS discounting does not exist, so naming one would describe a
+                  mechanism that is not there.
+                */}
+                {receipt.discountMinor > 0 && (
+                  <div className="flex justify-between gap-3" data-testid="receipt-discount">
+                    <dt className="text-slate-500">Discount</dt>
+                    <dd className="text-emerald-700">−{formatMinor(receipt.discountMinor)}</dd>
+                  </div>
+                )}
+                <div className="flex justify-between gap-3">
+                  <dt className="text-slate-500">Tax</dt>
+                  <dd className="text-slate-900">{formatMinor(receipt.taxMinor)}</dd>
+                </div>
+                <div className="mt-1 flex justify-between gap-3 border-t border-slate-300 pt-2 text-[13px] font-bold text-slate-900">
+                  <dt>
+                    Total ({receipt.items.reduce((n, i) => n + i.quantity, 0)} items)
+                  </dt>
+                  <dd data-testid="receipt-total">{formatMinor(receipt.totalMinor)}</dd>
+                </div>
+              </dl>
+
+              <div className="mt-3 border-t border-dashed border-slate-300 pt-3">
+                <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">
+                  Payment details
+                </p>
+                <ul className="mt-1.5 space-y-1" data-testid="receipt-payments">
+                  {receipt.payments.map((p, i) => (
+                    <li key={`${p.method}-${i}`} className="flex justify-between gap-3">
+                      <span className="text-slate-700">
+                        {i + 1}. {p.method}
+                        {p.reference ? (
+                          <span className="block text-[10px] text-slate-500">{p.reference}</span>
+                        ) : null}
+                        {/* Surfaced only when it is not confirmed — a till must never imply a
+                            tender settled when the row says otherwise. */}
+                        {p.status !== "CONFIRMED" ? (
+                          <span className="block text-[10px] text-amber-700">
+                            {p.status.toLowerCase()}
+                          </span>
+                        ) : null}
+                      </span>
+                      <span className="font-medium text-slate-900">
+                        {formatMinor(p.amountMinor)}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+                {changeMinor > 0 && (
+                  <div className="mt-2 flex justify-between gap-3 border-t border-dashed border-slate-300 pt-2 font-semibold text-slate-900">
+                    <span>Change</span>
+                    <span data-testid="receipt-change">{formatMinor(changeMinor)}</span>
+                  </div>
+                )}
+              </div>
+
+              <p className="mt-4 text-center text-[10px] text-slate-500">
+                {erpPending ? "ERP sync pending" : "ERP synced"}
+              </p>
+            </div>
+          ) : receiptFailed ? (
+            <div className="flex h-full min-h-[12rem] items-center justify-center px-6 text-center">
+              <p className="text-[12px] text-slate-600" data-testid="receipt-unavailable">
+                The sale is recorded and the bill number above is final. The printable receipt
+                could not be loaded — open{" "}
+                <Link href={`/sales/${sale.id}`} className="font-semibold text-blue-700 underline">
+                  Bill Details
+                </Link>{" "}
+                to print it.
+              </p>
+            </div>
+          ) : (
+            <div className="flex h-full min-h-[12rem] items-center justify-center">
+              <p className="text-[12px] text-slate-500">Loading receipt...</p>
+            </div>
+          )}
+        </div>
+      </div>
       </div>
     </div>
   );

@@ -38,7 +38,7 @@ const SALE_LIST_SELECT = {
   customer: { select: { name: true } },
   cashier: { select: { name: true } },
   store: { select: { name: true } },
-  payments: { select: { status: true, method: true }, take: 1 },
+  payments: { select: { status: true, method: true } },
   _count: { select: { items: true } },
 } as const;
 
@@ -63,7 +63,9 @@ function toListRow(s: {
     status: s.status,
     erpSyncStatus: s.erpSyncStatus,
     paymentStatus: s.payments[0]?.status ?? null,
-    paymentMethod: s.payments[0]?.method ?? null,
+    paymentMethod: s.payments.length > 1 
+      ? Array.from(new Set(s.payments.map(p => p.method))).join(" + ")
+      : (s.payments[0]?.method ?? null),
     customerName: s.customer?.name ?? null,
     cashierName: s.cashier.name,
     storeName: s.store.name,
@@ -233,6 +235,11 @@ export interface SaleDetail {
   paidMinor: number;
   storeName: string;
   storeCode: string;
+  /** Store address, for the receipt header. Only the postcode is optional on the model. */
+  storeAddressLine: string;
+  storeCity: string;
+  storeState: string;
+  storePostalCode: string | null;
   cashierName: string;
   customer: { name: string; phone: string | null } | null;
   items: {
@@ -246,6 +253,19 @@ export interface SaleDetail {
     lineDiscountMinor: number;
     lineTotalMinor: number;
     imageUrl: string | null;
+    /**
+     * Size and colour are read LIVE from the variant. They are NOT snapshots.
+     *
+     * `SaleItem` snapshots name, sku and every money figure precisely so a later catalogue
+     * edit cannot rewrite what a customer was charged (see the model comment in
+     * schema.prisma). Size and colour have no snapshot column, so editing a variant today
+     * would retroactively change what a past receipt says was sold. Accepted for F10
+     * because these two fields define the variant and are near-immutable in practice,
+     * unlike price — and recorded here rather than left silent. Adding `sizeSnapshot` /
+     * `colourSnapshot` is the real fix and belongs in its own slice.
+     */
+    size: string | null;
+    colour: string | null;
   }[];
   payments: {
     method: string;
@@ -280,7 +300,16 @@ export async function getSaleDetail(params: {
       taxMinor: true,
       totalMinor: true,
       paidMinor: true,
-      store: { select: { name: true, code: true } },
+      store: {
+        select: {
+          name: true,
+          code: true,
+          addressLine: true,
+          city: true,
+          state: true,
+          postalCode: true,
+        },
+      },
       cashier: { select: { name: true } },
       customer: { select: { name: true, phone: true } },
       items: {
@@ -294,7 +323,11 @@ export async function getSaleDetail(params: {
           taxMinor: true,
           lineDiscountMinor: true,
           lineTotalMinor: true,
-          variant: { select: { product: { select: { imageUrl: true } } } },
+          // `size` and `colour` are live variant reads, not snapshots — see the note on
+          // SaleDetail.items above.
+          variant: {
+            select: { size: true, colour: true, product: { select: { imageUrl: true } } },
+          },
         },
       },
       payments: {
@@ -325,6 +358,10 @@ export async function getSaleDetail(params: {
     paidMinor: sale.paidMinor,
     storeName: sale.store.name,
     storeCode: sale.store.code,
+    storeAddressLine: sale.store.addressLine,
+    storeCity: sale.store.city,
+    storeState: sale.store.state,
+    storePostalCode: sale.store.postalCode,
     cashierName: sale.cashier.name,
     customer: sale.customer ? { name: sale.customer.name, phone: sale.customer.phone } : null,
     // Snapshots, not live joins: the bill shows what was charged, not what the catalogue
@@ -340,6 +377,8 @@ export async function getSaleDetail(params: {
       lineDiscountMinor: i.lineDiscountMinor,
       lineTotalMinor: i.lineTotalMinor,
       imageUrl: i.variant?.product?.imageUrl ?? null,
+      size: i.variant?.size ?? null,
+      colour: i.variant?.colour ?? null,
     })),
     payments: sale.payments,
   };
@@ -383,8 +422,12 @@ export async function getSalesAnalytics(
 
   // 3. Trend (fetch completedAt and totalMinor for in-memory grouping)
   const now = new Date();
-  const trendStartDate = params.from || new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() - 6));
-  const trendEndDate = params.to || new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + 1));
+  const IST_OFFSET_MS = 5.5 * 60 * 60 * 1000;
+  function getISTDate(d: Date) { return new Date(d.getTime() + IST_OFFSET_MS); }
+  
+  const nowIST = getISTDate(now);
+  const trendStartDate = params.from || new Date(Date.UTC(nowIST.getUTCFullYear(), nowIST.getUTCMonth(), nowIST.getUTCDate() - 6) - IST_OFFSET_MS);
+  const trendEndDate = params.to || new Date(Date.UTC(nowIST.getUTCFullYear(), nowIST.getUTCMonth(), nowIST.getUTCDate() + 1) - IST_OFFSET_MS);
 
   const sales = await db.sale.findMany({
     where: { 
@@ -401,14 +444,15 @@ export async function getSalesAnalytics(
   // Pre-fill all days in the range
   let current = new Date(trendStartDate);
   while (current < trendEndDate) {
-    const key = `${current.getUTCFullYear()}-${String(current.getUTCMonth() + 1).padStart(2, "0")}-${String(current.getUTCDate()).padStart(2, "0")}`;
+    const curIST = getISTDate(current);
+    const key = `${curIST.getUTCFullYear()}-${String(curIST.getUTCMonth() + 1).padStart(2, "0")}-${String(curIST.getUTCDate()).padStart(2, "0")}`;
     daily.set(key, 0);
-    current.setUTCDate(current.getUTCDate() + 1);
+    current = new Date(current.getTime() + 24 * 60 * 60 * 1000);
   }
 
   for (const s of sales) {
-    const d = new Date(s.completedAt);
-    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+    const dIST = getISTDate(s.completedAt);
+    const key = `${dIST.getUTCFullYear()}-${String(dIST.getUTCMonth() + 1).padStart(2, "0")}-${String(dIST.getUTCDate()).padStart(2, "0")}`;
     if (daily.has(key)) {
       daily.set(key, daily.get(key)! + s.totalMinor);
     }

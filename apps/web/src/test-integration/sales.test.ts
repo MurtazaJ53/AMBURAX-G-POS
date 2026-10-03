@@ -62,127 +62,137 @@ beforeEach(async () => {
   await resetDatabase();
   await seedTwoTenants();
   await seedCommerce();
+});
 
-  describe("Split Payments", () => {
-    it("Exactly matches total", async () => {
-      // Create a sale to find total
-      const trial = await createSale({
-        tenantId: IDS.tenantA,
-        storeId: IDS.storeA,
-        cashierUserId: IDS.ownerA,
-        idempotencyKey: `trial-${Date.now()}`,
-        lines: [{ variantId: COMMERCE_IDS.variantA1, quantity: 2 }],
-        payment: { method: "CASH" },
-        correlationId: "trial-1",
-      });
-      if (trial.status !== "ok") throw new Error("trial failed");
-      const total = trial.sale.totalMinor;
-
-      const res = await createSale({
-        tenantId: IDS.tenantA,
-        storeId: IDS.storeA,
-        cashierUserId: IDS.ownerA,
-        idempotencyKey: `split-exact-${Date.now()}`,
-        lines: [{ variantId: COMMERCE_IDS.variantA1, quantity: 2 }],
-        payments: [
-          { method: "CASH", amountMinor: total / 2 },
-          { method: "UPI", amountMinor: total / 2, reference: "txn_123" }
-        ],
-        correlationId: "corr-1",
-      });
-      expect(res.status).toBe("ok");
-      if (res.status === "ok") {
-        expect(res.sale.totalMinor).toBe(total);
-        expect(res.sale.paidMinor).toBe(total);
-      }
+/**
+ * Split payments.
+ *
+ * This block used to sit *inside* the `beforeEach` above. Vitest refuses to register a suite
+ * declared from inside a hook — "Calling the suite function inside test function is not allowed"
+ * — and it raises that during collection, so the effect was not four failing payment tests: it
+ * was the whole file failing, all 34 of them, including the tenant-isolation and idempotency
+ * cases that have nothing to do with payments. The tests themselves were never wrong and are
+ * unchanged below. Only their position is.
+ */
+describe("Split Payments", () => {
+  it("Exactly matches total", async () => {
+    // Create a sale to find total
+    const trial = await createSale({
+      tenantId: IDS.tenantA,
+      storeId: IDS.storeA,
+      cashierUserId: IDS.ownerA,
+      idempotencyKey: `trial-${Date.now()}`,
+      lines: [{ variantId: COMMERCE_IDS.variantA1, quantity: 2 }],
+      payment: { method: "CASH" },
+      correlationId: "trial-1",
     });
+    if (trial.status !== "ok") throw new Error("trial failed");
+    const total = trial.sale.totalMinor;
 
-    it("Insufficient sum fails", async () => {
-      const trial = await createSale({
-        tenantId: IDS.tenantA,
-        storeId: IDS.storeA,
-        cashierUserId: IDS.ownerA,
-        idempotencyKey: `trial2-${Date.now()}`,
-        lines: [{ variantId: COMMERCE_IDS.variantA1, quantity: 2 }],
-        payment: { method: "CASH" },
-        correlationId: "trial-2",
-      });
-      if (trial.status !== "ok") throw new Error("trial failed");
-      const total = trial.sale.totalMinor;
-
-      const res = await createSale({
-        tenantId: IDS.tenantA,
-        storeId: IDS.storeA,
-        cashierUserId: IDS.ownerA,
-        idempotencyKey: `split-insuf-${Date.now()}`,
-        lines: [{ variantId: COMMERCE_IDS.variantA1, quantity: 2 }],
-        payments: [
-          { method: "CASH", amountMinor: total / 2 - 100 },
-          { method: "UPI", amountMinor: total / 2 }
-        ],
-        correlationId: "corr-2",
-      });
-      expect(res.status).toBe("validation_error");
+    const res = await createSale({
+      tenantId: IDS.tenantA,
+      storeId: IDS.storeA,
+      cashierUserId: IDS.ownerA,
+      idempotencyKey: `split-exact-${Date.now()}`,
+      lines: [{ variantId: COMMERCE_IDS.variantA1, quantity: 2 }],
+      payments: [
+        { method: "CASH", amountMinor: total / 2 },
+        { method: "UPI", amountMinor: total / 2, reference: "txn_123" }
+      ],
+      correlationId: "corr-1",
     });
+    expect(res.status).toBe("ok");
+    if (res.status === "ok") {
+      expect(res.sale.totalMinor).toBe(total);
+      expect(res.sale.paidMinor).toBe(total);
+    }
+  });
 
-    it("Overpayment requires CASH", async () => {
-      const trial = await createSale({
-        tenantId: IDS.tenantA,
-        storeId: IDS.storeA,
-        cashierUserId: IDS.ownerA,
-        idempotencyKey: `trial3-${Date.now()}`,
-        lines: [{ variantId: COMMERCE_IDS.variantA1, quantity: 2 }],
-        payment: { method: "CASH" },
-        correlationId: "trial-3",
-      });
-      if (trial.status !== "ok") throw new Error("trial failed");
-      const total = trial.sale.totalMinor;
-
-      const res = await createSale({
-        tenantId: IDS.tenantA,
-        storeId: IDS.storeA,
-        cashierUserId: IDS.ownerA,
-        idempotencyKey: `split-over-upi-${Date.now()}`,
-        lines: [{ variantId: COMMERCE_IDS.variantA1, quantity: 2 }],
-        payments: [
-          { method: "UPI", amountMinor: total + 100 }
-        ],
-        correlationId: "corr-3",
-      });
-      expect(res.status).toBe("validation_error");
+  it("Insufficient sum fails", async () => {
+    const trial = await createSale({
+      tenantId: IDS.tenantA,
+      storeId: IDS.storeA,
+      cashierUserId: IDS.ownerA,
+      idempotencyKey: `trial2-${Date.now()}`,
+      lines: [{ variantId: COMMERCE_IDS.variantA1, quantity: 2 }],
+      payment: { method: "CASH" },
+      correlationId: "trial-2",
     });
+    if (trial.status !== "ok") throw new Error("trial failed");
+    const total = trial.sale.totalMinor;
 
-    it("Overpayment works with CASH", async () => {
-      const trial = await createSale({
-        tenantId: IDS.tenantA,
-        storeId: IDS.storeA,
-        cashierUserId: IDS.ownerA,
-        idempotencyKey: `trial4-${Date.now()}`,
-        lines: [{ variantId: COMMERCE_IDS.variantA1, quantity: 2 }],
-        payment: { method: "CASH" },
-        correlationId: "trial-4",
-      });
-      if (trial.status !== "ok") throw new Error("trial failed");
-      const total = trial.sale.totalMinor;
-
-      const res = await createSale({
-        tenantId: IDS.tenantA,
-        storeId: IDS.storeA,
-        cashierUserId: IDS.ownerA,
-        idempotencyKey: `split-over-cash-${Date.now()}`,
-        lines: [{ variantId: COMMERCE_IDS.variantA1, quantity: 2 }],
-        payments: [
-          { method: "UPI", amountMinor: total - 100 },
-          { method: "CASH", amountMinor: 200 }
-        ],
-        correlationId: "corr-4",
-      });
-      expect(res.status).toBe("ok");
-      if (res.status === "ok") {
-        expect(res.sale.totalMinor).toBe(total);
-        expect(res.sale.paidMinor).toBe(total);
-      }
+    const res = await createSale({
+      tenantId: IDS.tenantA,
+      storeId: IDS.storeA,
+      cashierUserId: IDS.ownerA,
+      idempotencyKey: `split-insuf-${Date.now()}`,
+      lines: [{ variantId: COMMERCE_IDS.variantA1, quantity: 2 }],
+      payments: [
+        { method: "CASH", amountMinor: total / 2 - 100 },
+        { method: "UPI", amountMinor: total / 2 }
+      ],
+      correlationId: "corr-2",
     });
+    expect(res.status).toBe("validation_error");
+  });
+
+  it("Overpayment requires CASH", async () => {
+    const trial = await createSale({
+      tenantId: IDS.tenantA,
+      storeId: IDS.storeA,
+      cashierUserId: IDS.ownerA,
+      idempotencyKey: `trial3-${Date.now()}`,
+      lines: [{ variantId: COMMERCE_IDS.variantA1, quantity: 2 }],
+      payment: { method: "CASH" },
+      correlationId: "trial-3",
+    });
+    if (trial.status !== "ok") throw new Error("trial failed");
+    const total = trial.sale.totalMinor;
+
+    const res = await createSale({
+      tenantId: IDS.tenantA,
+      storeId: IDS.storeA,
+      cashierUserId: IDS.ownerA,
+      idempotencyKey: `split-over-upi-${Date.now()}`,
+      lines: [{ variantId: COMMERCE_IDS.variantA1, quantity: 2 }],
+      payments: [
+        { method: "UPI", amountMinor: total + 100 }
+      ],
+      correlationId: "corr-3",
+    });
+    expect(res.status).toBe("validation_error");
+  });
+
+  it("Overpayment works with CASH", async () => {
+    const trial = await createSale({
+      tenantId: IDS.tenantA,
+      storeId: IDS.storeA,
+      cashierUserId: IDS.ownerA,
+      idempotencyKey: `trial4-${Date.now()}`,
+      lines: [{ variantId: COMMERCE_IDS.variantA1, quantity: 2 }],
+      payment: { method: "CASH" },
+      correlationId: "trial-4",
+    });
+    if (trial.status !== "ok") throw new Error("trial failed");
+    const total = trial.sale.totalMinor;
+
+    const res = await createSale({
+      tenantId: IDS.tenantA,
+      storeId: IDS.storeA,
+      cashierUserId: IDS.ownerA,
+      idempotencyKey: `split-over-cash-${Date.now()}`,
+      lines: [{ variantId: COMMERCE_IDS.variantA1, quantity: 2 }],
+      payments: [
+        { method: "UPI", amountMinor: total - 100 },
+        { method: "CASH", amountMinor: 200 }
+      ],
+      correlationId: "corr-4",
+    });
+    expect(res.status).toBe("ok");
+    if (res.status === "ok") {
+      expect(res.sale.totalMinor).toBe(total);
+      expect(res.sale.paidMinor).toBe(total);
+    }
   });
 });
 
@@ -623,5 +633,34 @@ describe("sale history and bill reads are tenant-scoped", () => {
     expect(await listSales({ tenantId: IDS.tenantA, query: "SA-000001" })).toHaveLength(1);
     expect(await listSales({ tenantId: IDS.tenantA, query: "9000000001" })).toHaveLength(1);
     expect(await listSales({ tenantId: IDS.tenantA, query: "nothing-matches" })).toHaveLength(0);
+  });
+});
+
+describe('F11 Sales History & Analytics', () => {
+  it('Lists split payments correctly and groups analytics by IST', async () => {
+    const { listSalesPage, getSalesAnalytics } = await import('@/server/sales/saleQueries');
+    const idKey = 'split-f11-' + Date.now();
+    const res = await createSale({
+      tenantId: IDS.tenantA,
+      storeId: IDS.storeA,
+      cashierUserId: IDS.ownerA,
+      idempotencyKey: idKey,
+      lines: [{ variantId: COMMERCE_IDS.variantA1, quantity: 1 }],
+      payments: [
+        { method: 'CASH', amountMinor: 1000 },
+        { method: 'UPI', amountMinor: 1000 }
+      ],
+      correlationId: idKey,
+    });
+    expect(res.status).toBe('ok');
+    const list = await listSalesPage({ tenantId: IDS.tenantA });
+    if (res.status !== 'ok') throw new Error('Create failed');
+    const row = list.rows.find((r) => r.id === res.sale.id);
+    expect(row).toBeDefined();
+    expect(row?.paymentMethod).toContain('CASH');
+    expect(row?.paymentMethod).toContain('UPI');
+    expect(row?.paymentMethod).toContain('+');
+    const analytics = await getSalesAnalytics({ tenantId: IDS.tenantA });
+    expect(analytics.paymentMix.length).toBeGreaterThan(0);
   });
 });

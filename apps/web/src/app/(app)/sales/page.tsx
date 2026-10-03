@@ -82,20 +82,7 @@ export default async function SalesPage({
   const carried = { q: query || undefined, method, status, from: sp.from, to: sp.to };
 
   return (
-    <div className="flex w-full flex-col p-5 max-w-[1600px] mx-auto">
-      {/* Custom Header matching the reference density */}
-      <div className="mb-5 flex flex-col sm:flex-row sm:items-center sm:justify-between shrink-0">
-        <div>
-          <h1 className="text-[25px] font-bold text-slate-900 leading-tight tracking-tight">Sales & Transaction History</h1>
-          <p className="text-[14.5px] text-slate-500 mt-0.5">View, search and manage all your sales, returns and transactions</p>
-        </div>
-        <div className="mt-3 sm:mt-0">
-          <Link href="/sales/export" className="inline-flex items-center justify-center rounded h-8 px-3 text-[12px] font-medium bg-white text-slate-600 shadow-sm border border-slate-200 hover:bg-slate-50">
-             <Download size={14} className="mr-1.5" /> Export
-          </Link>
-        </div>
-      </div>
-
+    <div className="amb-content w-full">
       <SalesWorkspace
         page={result}
         summary={summary}
