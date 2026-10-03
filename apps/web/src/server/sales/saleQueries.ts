@@ -224,6 +224,7 @@ export async function getSalesSummary(
 export interface SaleDetail {
   id: string;
   billNumber: string;
+  createdAt: Date;
   completedAt: Date;
   status: string;
   erpSyncStatus: string;
@@ -241,6 +242,9 @@ export interface SaleDetail {
   storeState: string;
   storePostalCode: string | null;
   cashierName: string;
+  posTerminal: string | null;
+  posShiftStart: Date | null;
+  posShiftEnd: Date | null;
   customer: { name: string; phone: string | null } | null;
   items: {
     id: string;
@@ -291,6 +295,7 @@ export async function getSaleDetail(params: {
     select: {
       id: true,
       billNumber: true,
+      createdAt: true,
       completedAt: true,
       status: true,
       erpSyncStatus: true,
@@ -312,6 +317,13 @@ export async function getSaleDetail(params: {
       },
       cashier: { select: { name: true } },
       customer: { select: { name: true, phone: true } },
+      posSession: {
+        select: {
+          openedAt: true,
+          closedAt: true,
+          posDevice: { select: { name: true, code: true } }
+        }
+      },
       items: {
         select: {
           id: true,
@@ -347,6 +359,7 @@ export async function getSaleDetail(params: {
   return {
     id: sale.id,
     billNumber: sale.billNumber,
+    createdAt: sale.createdAt,
     completedAt: sale.completedAt,
     status: sale.status,
     erpSyncStatus: sale.erpSyncStatus,
@@ -363,6 +376,9 @@ export async function getSaleDetail(params: {
     storeState: sale.store.state,
     storePostalCode: sale.store.postalCode,
     cashierName: sale.cashier.name,
+    posTerminal: sale.posSession?.posDevice.name ?? sale.posSession?.posDevice.code ?? null,
+    posShiftStart: sale.posSession?.openedAt ?? null,
+    posShiftEnd: sale.posSession?.closedAt ?? null,
     customer: sale.customer ? { name: sale.customer.name, phone: sale.customer.phone } : null,
     // Snapshots, not live joins: the bill shows what was charged, not what the catalogue
     // says today.
