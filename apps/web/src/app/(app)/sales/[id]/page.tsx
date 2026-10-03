@@ -38,10 +38,13 @@ export default async function SaleDetailPage({ params }: { params: Promise<{ id:
   const cookieStore = await cookies();
   const resolvedParams = await params;
   const token = cookieStore.get(env.SESSION_COOKIE_NAME)?.value;
-  if (!token) return redirect("/login");
+  // `/auth/login` is the real sign-in route; `/login` does not exist and 404s, which is what
+  // a logged-out visitor following a bookmarked bill link used to hit. Same guards as before —
+  // only the destination changes.
+  if (!token) return redirect("/auth/login");
 
   const ctx = await resolvePosContext(token);
-  if (ctx.status !== "ok") return redirect("/login");
+  if (ctx.status !== "ok") return redirect("/auth/login");
 
   const sale = await getSaleDetail({ tenantId: ctx.context.tenantId, saleId: resolvedParams.id });
   if (!sale) notFound();
@@ -49,8 +52,11 @@ export default async function SaleDetailPage({ params }: { params: Promise<{ id:
   const isPosted = sale.erpSyncStatus === "SYNCED" || sale.erpSyncStatus === "POSTED" || sale.erpSyncStatus === "SUCCESS";
   const erpStatusText = isPosted ? "Submitted" : (sale.erpSyncStatus === "FAILED" ? "Failed" : "Pending");
 
+  // `w-full min-w-0` on the page container is what the rest of the app already uses (see the
+  // inventory forms). Without it this box sized to its content rather than to the track left
+  // beside the shell sidebar, so it ran ~184px past a 1280 viewport and ~424px past a 390 one.
   return (
-    <div className="mx-auto max-w-7xl p-4 sm:p-6 lg:p-8 text-[11px] text-slate-900">
+    <div className="mx-auto w-full min-w-0 max-w-7xl p-4 sm:p-6 lg:p-8 text-[11px] text-slate-900">
       
       {/* Header Area */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
@@ -137,10 +143,12 @@ export default async function SaleDetailPage({ params }: { params: Promise<{ id:
                     <th>SKU</th>
                     <th>Variant</th>
                     <th className="text-right">Qty</th>
-                    <th className="text-right">Price (?)</th>
-                    <th className="text-right">Discount (?)</th>
-                    <th className="text-right">Tax (?)</th>
-                    <th className="text-right">Total (?)</th>
+                    {/* These read `(?)` before — a rupee sign that did not survive an encoding
+                        step. Every cell below renders formatMinor, which is INR. */}
+                    <th className="text-right">Price (₹)</th>
+                    <th className="text-right">Discount (₹)</th>
+                    <th className="text-right">Tax (₹)</th>
+                    <th className="text-right">Total (₹)</th>
                     <th className="w-10"></th>
                   </tr>
                 </thead>
@@ -182,7 +190,7 @@ export default async function SaleDetailPage({ params }: { params: Promise<{ id:
                     <th>Date & Time</th>
                     <th>Method</th>
                     <th>Reference No.</th>
-                    <th className="text-right">Amount (?)</th>
+                    <th className="text-right">Amount (₹)</th>
                     <th>Status</th>
                   </tr>
                 </thead>

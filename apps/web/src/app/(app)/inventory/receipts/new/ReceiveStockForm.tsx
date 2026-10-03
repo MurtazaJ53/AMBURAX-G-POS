@@ -59,7 +59,8 @@ export function ReceiveStockForm({ variants, storeId }: { variants: any[], store
   return (
     <Card className="max-w-2xl mx-auto shadow-sm">
       <CardHeader>
-        <CardTitle>Receive Stock</CardTitle>
+        {/* This card is the page, so its title is the page's h1 — one heading, not two. */}
+        <CardTitle as="h1">Receive Stock</CardTitle>
         <CardDescription>
           Record incoming stock for products. This will immediately increase the available inventory in this store.
         </CardDescription>

@@ -134,6 +134,9 @@ body {
   .filter-grid { grid-template-columns: 1fr 1fr !important; }
   .filter-search { grid-column: 1 / -1; }
   .filter-more { grid-column: 1 / -1; }
-  .tabs-scroll { overflow-x: auto; margin-right: -10px; padding-right: 10px; }
+  /* Scrolls inside its own container. The negative margin this used to carry bled 10px past
+     the viewport and became page-level horizontal overflow; `min-width: 0` is what actually
+     lets a flex child shrink below its content width so the scroll container can do its job. */
+  .tabs-scroll { overflow-x: auto; min-width: 0; max-width: 100%; }
   .workspace-card { border-radius: 5px; }
 }

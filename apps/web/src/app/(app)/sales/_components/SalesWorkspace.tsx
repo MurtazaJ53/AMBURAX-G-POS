@@ -160,7 +160,17 @@ export function SalesWorkspace({ page, summary, analytics, carriedParams }: Sale
         <button className={`amb-tab ${!carriedParams.status ? "active" : ""}`} onClick={() => setParam("status", "")} role="tab">All Transactions</button>
         <button className={`amb-tab ${carriedParams.status === "COMPLETED" ? "active" : ""}`} onClick={() => setParam("status", "COMPLETED")} role="tab">Sales</button>
         <button className={`amb-tab ${carriedParams.status === "VOIDED" ? "active" : ""}`} onClick={() => setParam("status", "VOIDED")} role="tab">Voided</button>
-        <button className="amb-tab opacity-50 cursor-not-allowed" title="Future Feature">Returns</button>
+        {/* Returns is not built. Genuinely disabled rather than only styled that way, so the
+            keyboard and a screen reader get the same answer the mouse already had. */}
+        <button
+          type="button"
+          disabled
+          aria-disabled="true"
+          className="amb-tab opacity-50 cursor-not-allowed"
+          title="Returns are not available yet"
+        >
+          Returns
+        </button>
       </div>
 
       <div className={`amb-card flex min-h-[476px] min-w-0 overflow-hidden rounded-t-none`}>
@@ -297,7 +307,16 @@ export function SalesWorkspace({ page, summary, analytics, carriedParams }: Sale
 
                 <div className="flex gap-2 pb-4">
                   <button className="amb-control flex-1 justify-center text-[10px] font-bold text-[hsl(var(--primary))]" onClick={() => handleNotice("Print preview prepared.")}><ArrowDownToLine size={13} /> Print Bill</button>
-                  <button className="amb-control flex-1 justify-center text-[10px] font-bold text-slate-400 cursor-not-allowed"><RefreshCcw size={13} /> Return</button>
+                  {/* Same reasoning as the Returns tab: not built, so actually disabled. */}
+                  <button
+                    type="button"
+                    disabled
+                    aria-disabled="true"
+                    title="Returns are not available yet"
+                    className="amb-control flex-1 justify-center text-[10px] font-bold text-slate-400 cursor-not-allowed"
+                  >
+                    <RefreshCcw size={13} /> Return
+                  </button>
                   <button className="amb-icon-btn border border-[hsl(var(--border))]" onClick={() => handleNotice("More actions available.")}><MoreHorizontal size={15} /></button>
                 </div>
               </div>

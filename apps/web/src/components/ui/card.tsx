@@ -23,15 +23,22 @@ const CardHeader = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDiv
 )
 CardHeader.displayName = "CardHeader"
 
-const CardTitle = React.forwardRef<HTMLParagraphElement, React.HTMLAttributes<HTMLHeadingElement>>(
-  ({ className, ...props }, ref) => (
-    <h3
-      ref={ref}
-      className={cn("text-lg font-bold leading-none tracking-tight", className)}
-      {...props}
-    />
-  )
-)
+/**
+ * `as` lets a page promote its card title to the document's `h1` without growing a second
+ * visible heading. A card that *is* the page — the stock receipt and adjustment forms — needs
+ * its title to be the page heading; every other card is a section within a page and stays
+ * `h3`, which is why that remains the default.
+ */
+const CardTitle = React.forwardRef<
+  HTMLHeadingElement,
+  React.HTMLAttributes<HTMLHeadingElement> & { as?: "h1" | "h2" | "h3" }
+>(({ className, as: Tag = "h3", ...props }, ref) => (
+  <Tag
+    ref={ref}
+    className={cn("text-lg font-bold leading-none tracking-tight", className)}
+    {...props}
+  />
+))
 CardTitle.displayName = "CardTitle"
 
 const CardDescription = React.forwardRef<HTMLParagraphElement, React.HTMLAttributes<HTMLParagraphElement>>(

@@ -4,6 +4,7 @@ import { env } from "@/lib/env";
 import { resolvePosContext } from "@/server/sales/posContext";
 import { canManageCatalog } from "@/server/catalog/catalogRoles";
 import { getProduct } from "@/server/catalog/catalogQueries";
+import { formatMinor } from "@/server/sales/saleTotals";
 import { PageHeader, Card, buttonClass, BadgeTone, StatusBadge } from "../../_components/ui";
 import Link from "next/link";
 
@@ -90,7 +91,7 @@ export default async function ProductDetailsPage(props: { params: Promise<{ id: 
                           {[v.size, v.colour].filter(Boolean).join(" / ") || "-"}
                         </td>
                         <td className="whitespace-nowrap px-3 py-4 text-sm text-slate-500">
-                          {v.priceMinor != null ? `$${(v.priceMinor / 100).toFixed(2)}` : "-"}
+                          {v.priceMinor != null ? formatMinor(v.priceMinor) : "-"}
                         </td>
                         <td className="whitespace-nowrap px-3 py-4 text-sm text-slate-500">
                           <StatusBadge tone={(v.isActive ? "success" : "neutral") as BadgeTone}>

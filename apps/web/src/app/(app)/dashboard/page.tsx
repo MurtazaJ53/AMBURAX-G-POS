@@ -164,8 +164,17 @@ export default async function DashboardPage() {
           </p>
         </div>
         
-        <div className="flex items-center gap-4">
-          <div className="flex items-center gap-3 border-r border-slate-200 pr-4">
+        {/*
+          Wraps rather than overflows. This row used to be a single non-wrapping flex line, so
+          at 390px it ran 169px past the viewport and gave the whole dashboard a horizontal
+          scrollbar. `flex-wrap` at both levels is the entire fix — no transforms, no zoom.
+
+          The three action buttons were also inert: real labels with no handler. They now link
+          to the screens they name, all of which already exist. Nothing was invented to make
+          them work; they simply point where they always claimed to.
+        */}
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-3">
+          <div className="flex items-center gap-3 sm:border-r sm:border-slate-200 sm:pr-4">
             <div className="flex items-center gap-1.5 rounded-md border border-slate-200 px-3 py-1.5 text-sm font-medium cursor-pointer hover:bg-slate-50">
               <Calendar size={14} className="text-sky-600" />
               Today (Live)
@@ -175,20 +184,20 @@ export default async function DashboardPage() {
               {formatTradingDay(startOfStoreDay())}
             </span>
           </div>
-          
-          <div className="flex items-center gap-2">
+
+          <div className="flex flex-wrap items-center gap-2">
             <Link href="/pos" className="flex items-center gap-1.5 rounded-md border border-sky-200 bg-sky-50 px-3 py-1.5 text-[13px] font-semibold text-sky-700 hover:bg-sky-100">
               <Monitor size={14} /> POS (F2)
             </Link>
-            <button className="flex items-center gap-1.5 rounded-md border border-slate-200 px-3 py-1.5 text-[13px] font-medium text-slate-600 hover:bg-slate-50">
+            <Link href="/products/new" className="flex items-center gap-1.5 rounded-md border border-slate-200 px-3 py-1.5 text-[13px] font-medium text-slate-600 hover:bg-slate-50">
               <Plus size={14} className="text-sky-600" /> Add Item
-            </button>
-            <button className="flex items-center gap-1.5 rounded-md border border-slate-200 px-3 py-1.5 text-[13px] font-medium text-slate-600 hover:bg-slate-50">
+            </Link>
+            <Link href="/inventory/receipts/new" className="flex items-center gap-1.5 rounded-md border border-slate-200 px-3 py-1.5 text-[13px] font-medium text-slate-600 hover:bg-slate-50">
               <ArrowDownToLine size={14} className="text-sky-600" /> Receive Stock
-            </button>
-            <button className="flex items-center gap-1.5 rounded-md border border-slate-200 px-3 py-1.5 text-[13px] font-medium text-slate-600 hover:bg-slate-50">
+            </Link>
+            <Link href="/reports" className="flex items-center gap-1.5 rounded-md border border-slate-200 px-3 py-1.5 text-[13px] font-medium text-slate-600 hover:bg-slate-50">
               <FileText size={14} className="text-sky-600" /> Generate Report
-            </button>
+            </Link>
           </div>
         </div>
       </div>

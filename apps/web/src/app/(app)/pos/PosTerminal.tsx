@@ -474,6 +474,12 @@ export function PosTerminal(props: { storeName: string; storeCode: string; cashi
         />
       )}
     <div className="flex w-full h-[calc(100vh-68px)] overflow-y-auto lg:overflow-hidden bg-slate-50 flex-col lg:flex-row print:hidden">
+      {/*
+        The till is a full-bleed workstation with no title bar, so it carried no page heading
+        at all — a screen reader announced the document with nothing to name it. Visually
+        hidden rather than drawn, because a visible title would change a layout F8 settled.
+      */}
+      <h1 className="sr-only">Point of Sale — {props.storeName}</h1>
       {/* Left Workspace (Products) - 70% */}
       <div className="flex-1 flex flex-col min-w-0 bg-white border-r border-slate-200 min-h-[500px] lg:min-h-0 shrink-0 lg:shrink">
         

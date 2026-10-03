@@ -130,7 +130,8 @@ export function AdjustStockForm({ variants, storeId, stockByVariant }: Props) {
   return (
     <Card className="max-w-2xl mx-auto shadow-sm">
       <CardHeader>
-        <CardTitle>Adjust Stock</CardTitle>
+        {/* This card is the page, so its title is the page's h1 — one heading, not two. */}
+        <CardTitle as="h1">Adjust Stock</CardTitle>
         <CardDescription>
           Correct inventory levels due to damage, loss, shrinkage, or data-entry errors. A reason is
           required for every adjustment.
