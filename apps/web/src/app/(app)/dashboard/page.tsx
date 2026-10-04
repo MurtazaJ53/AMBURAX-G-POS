@@ -153,49 +153,56 @@ export default async function DashboardPage() {
   const showPaymentMix = showAnalytics && hasRetail;
 
   return (
-      <div className="w-full px-5 py-4">
-      <div className="mb-5 flex flex-col justify-between gap-4 xl:flex-row xl:items-start">
+      <div className="w-full px-4 py-6 md:px-6 lg:px-8">
+      <div className="mb-8 flex flex-col justify-between gap-5 xl:flex-row xl:items-end">
         <div>
-          <h1 className="text-[24px] font-bold tracking-[-0.02em] text-slate-900">
+          <h1 className="text-2xl font-bold tracking-tight text-slate-900">
             {greetingFor()}, {context.userName.split(' ')[0]} 👋
           </h1>
-          <p className="mt-0.5 text-[13px] text-slate-500">
+          <p className="mt-1 text-sm text-slate-500">
             Here&apos;s what&apos;s happening at {context.storeName} today
           </p>
         </div>
         
-        {/*
-          Wraps rather than overflows. This row used to be a single non-wrapping flex line, so
-          at 390px it ran 169px past the viewport and gave the whole dashboard a horizontal
-          scrollbar. `flex-wrap` at both levels is the entire fix — no transforms, no zoom.
-
-          The three action buttons were also inert: real labels with no handler. They now link
-          to the screens they name, all of which already exist. Nothing was invented to make
-          them work; they simply point where they always claimed to.
-        */}
-        <div className="flex flex-wrap items-center gap-x-4 gap-y-3">
+        <div className="flex flex-wrap items-center gap-4">
           <div className="flex items-center gap-3 sm:border-r sm:border-slate-200 sm:pr-4">
-            <span className="flex items-center gap-1.5 rounded-md border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs font-medium text-slate-600">
-              <Calendar size={14} className="text-sky-600" />
+            <button
+              type="button"
+              className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500"
+            >
+              <Calendar size={16} className="text-sky-600" />
               Today (Live)
-            </span>
-            <span className="text-[13px] text-slate-500 font-medium">
+              <ChevronDown size={14} className="ml-1 text-slate-400" />
+            </button>
+            <span className="text-sm font-medium text-slate-500">
               {formatTradingDay(startOfStoreDay())}
             </span>
           </div>
 
-          <div className="flex flex-wrap items-center gap-2">
-            <Link href="/pos" className="flex items-center gap-1.5 rounded-md border border-sky-200 bg-sky-50 px-3 py-1.5 text-[13px] font-semibold text-sky-700 hover:bg-sky-100">
-              <Monitor size={14} /> POS (F2)
+          <div className="flex flex-wrap items-center gap-2.5">
+            <Link
+              href="/pos"
+              className="flex items-center gap-1.5 rounded-lg border border-sky-200 bg-sky-50 px-3.5 py-2 text-sm font-semibold text-sky-700 transition-colors hover:bg-sky-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500"
+            >
+              <Monitor size={16} /> POS (F2)
             </Link>
-            <Link href="/products/new" className="flex items-center gap-1.5 rounded-md border border-slate-200 px-3 py-1.5 text-[13px] font-medium text-slate-600 hover:bg-slate-50">
-              <Plus size={14} className="text-sky-600" /> Add Item
+            <Link
+              href="/products/new"
+              className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3.5 py-2 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500"
+            >
+              <Plus size={16} className="text-slate-400" /> Add Item
             </Link>
-            <Link href="/inventory/receipts/new" className="flex items-center gap-1.5 rounded-md border border-slate-200 px-3 py-1.5 text-[13px] font-medium text-slate-600 hover:bg-slate-50">
-              <ArrowDownToLine size={14} className="text-sky-600" /> Receive Stock
+            <Link
+              href="/inventory/receipts/new"
+              className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3.5 py-2 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500"
+            >
+              <ArrowDownToLine size={16} className="text-slate-400" /> Receive Stock
             </Link>
-            <Link href="/sales" className="flex items-center gap-1.5 rounded-md border border-slate-200 px-3 py-1.5 text-[13px] font-medium text-slate-600 hover:bg-slate-50">
-              <FileText size={14} className="text-sky-600" /> Sales History
+            <Link
+              href="/reports"
+              className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3.5 py-2 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500"
+            >
+              <FileText size={16} className="text-slate-400" /> Generate Report
             </Link>
           </div>
         </div>
