@@ -44,18 +44,30 @@ function SalesChart({ data }: { data: TrendPointDto[] }) {
 
   const maxMinor = Math.max(...filteredData.map((point) => point.salesMinor));
   const maxSales = maxMinor / 100;
-  const tickMax = Math.ceil(maxSales / 10) * 10 || 10;
+  const tickMax = Math.ceil((maxSales || 1) / 10) * 10 || 10;
   const maxBills = Math.max(...filteredData.map((point) => point.billCount)) || 1;
   
   const width = 630;
   const height = 188;
   const count = Math.max(1, filteredData.length - 1);
-  const pointsBills = filteredData.map((point, index) => `${(index / count) * width},${height - 16 - ((point.billCount / maxBills) * 136)}`).join(' ');
+  
+  const pointsSales = filteredData.map((point, index) => {
+    const x = (index / count) * width;
+    const y = maxSales ? height - 16 - ((point.salesMinor / 100) / maxSales) * 136 : height - 16;
+    return `${x},${y}`;
+  }).join(' ');
+  const areaSales = `0,${height - 16} ${pointsSales} ${width},${height - 16}`;
+
+  const pointsBills = filteredData.map((point, index) => {
+    const x = (index / count) * width;
+    const y = height - 16 - ((point.billCount / maxBills) * 136);
+    return `${x},${y}`;
+  }).join(' ');
   
   return (
     <div className="px-4 pb-3 relative">
-      <div className="relative h-[205px] w-full">
-        <div className="absolute inset-x-0 top-2 bottom-6 flex flex-col justify-between text-[9px] text-slate-400">
+      <div className="relative h-[205px] w-full motion-safe:animate-in motion-safe:fade-in motion-safe:duration-500">
+        <div className="absolute inset-x-0 top-2 bottom-6 flex flex-col justify-between text-[9px] text-slate-400" aria-hidden="true">
           {[tickMax, tickMax*0.75, tickMax*0.5, tickMax*0.25, 0].map((tick, i) => (
             <div key={i} className="flex items-center gap-2">
               <span className="w-9 text-right font-mono">{formatAxisMoney(Math.round(tick * 100))}</span>
@@ -63,18 +75,38 @@ function SalesChart({ data }: { data: TrendPointDto[] }) {
             </div>
           ))}
         </div>
-        <svg viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="none" className="absolute left-8 right-4 top-2 h-[177px] w-[calc(100%-48px)] overflow-visible">
-          {filteredData.map((point, index) => {
-             const x = (index / count) * width;
-             const h = maxSales ? ((point.salesMinor / 100) / maxSales) * 136 : 0;
-             return <rect key={`bar-${index}`} x={x - 6} y={height - 16 - h} width={12} height={h} fill="#38bdf8" rx="2" className="transition-all" opacity={hoverIndex === null || hoverIndex === index ? 1 : 0.4} />
-          })}
+        <svg 
+          viewBox={`0 0 ${width} ${height}`} 
+          preserveAspectRatio="none" 
+          className="absolute left-8 right-4 top-2 h-[177px] w-[calc(100%-48px)] overflow-visible"
+          role="graphics-document"
+          aria-label="Sales and bills trend chart"
+        >
+          <title>Sales and bills over time</title>
+          <defs>
+            <linearGradient id="salesArea" x1="0" x2="0" y1="0" y2="1">
+              <stop offset="0%" stopColor="#38bdf8" stopOpacity="0.25" />
+              <stop offset="100%" stopColor="#38bdf8" stopOpacity="0" />
+            </linearGradient>
+          </defs>
+
+          <polygon points={areaSales} fill="url(#salesArea)" />
+          <polyline points={pointsSales} fill="none" stroke="#38bdf8" strokeWidth="2.5" className="chart-line" vectorEffect="non-scaling-stroke" />
+
+          <polyline points={pointsBills} fill="none" stroke="#a78bfa" strokeWidth="2" className="chart-line" vectorEffect="non-scaling-stroke" opacity="0.8" />
           
-          <polyline points={pointsBills} fill="none" stroke="#a78bfa" strokeWidth="2.5" className="chart-line" vectorEffect="non-scaling-stroke" />
           {filteredData.map((point, index) => {
              const x = (index / count) * width;
-             const y = height - 16 - ((point.billCount / maxBills) * 136);
-             return <circle key={`dot-${index}`} cx={x} cy={y} r="4" fill="#fff" stroke="#a78bfa" strokeWidth="2" className="transition-all" opacity={hoverIndex === null || hoverIndex === index ? 1 : 0.4} />
+             const ySales = maxSales ? height - 16 - ((point.salesMinor / 100) / maxSales) * 136 : height - 16;
+             const yBills = height - 16 - ((point.billCount / maxBills) * 136);
+             const isHovered = hoverIndex === null || hoverIndex === index;
+             
+             return (
+               <React.Fragment key={`dots-${index}`}>
+                 <circle cx={x} cy={ySales} r="4" fill="#fff" stroke="#38bdf8" strokeWidth="2" className="transition-all" opacity={isHovered ? 1 : 0.4} />
+                 <circle cx={x} cy={yBills} r="3" fill="#fff" stroke="#a78bfa" strokeWidth="1.5" className="transition-all" opacity={isHovered ? 1 : 0.4} />
+               </React.Fragment>
+             );
           })}
 
           {filteredData.map((point, index) => {
@@ -97,7 +129,7 @@ function SalesChart({ data }: { data: TrendPointDto[] }) {
           })}
         </svg>
 
-        <div className="absolute left-8 right-4 bottom-0 h-4">
+        <div className="absolute left-8 right-4 bottom-0 h-4" aria-hidden="true">
           {filteredData.map((point, index) => {
              const x = (index / count) * 100;
              let show = true;
@@ -117,17 +149,24 @@ function SalesChart({ data }: { data: TrendPointDto[] }) {
         </div>
       </div>
       
-      <div className="flex items-center gap-4 pl-8 pt-1 text-[10px] text-slate-500">
+      <div className="flex items-center gap-4 pl-8 pt-1 text-[10px] text-slate-500" aria-hidden="true">
         <span className="flex items-center"><i className="inline-block size-2 rounded-full bg-sky-400 mr-1.5" /> Sales</span>
         <span className="flex items-center"><i className="inline-block size-2 rounded-full bg-violet-400 mr-1.5" /> Bills</span>
       </div>
 
       {hoverIndex !== null && filteredData[hoverIndex] && (
         <div 
-          className="absolute z-20 bg-slate-800 text-white text-[10px] p-2.5 rounded-lg shadow-xl pointer-events-none transform -translate-x-1/2 -translate-y-full transition-all"
+          className={cn(
+            "absolute z-20 bg-slate-800 text-white text-[10px] p-2.5 rounded-lg shadow-xl pointer-events-none transition-all",
+            "-translate-y-full",
+            hoverIndex === 0 ? "translate-x-0" : 
+            hoverIndex === count ? "-translate-x-full" : 
+            "-translate-x-1/2"
+          )}
           style={{ 
             left: `calc(2rem + ${(hoverIndex / count) * (100 - (48/630*100))}%) `,
             top: 'calc(100% - 40px)',
+            marginLeft: hoverIndex === 0 ? '-8px' : hoverIndex === count ? '8px' : '0'
           }}
         >
           <div className="font-bold mb-1.5 text-slate-200 border-b border-slate-600 pb-1">{filteredData[hoverIndex]!.label}</div>
