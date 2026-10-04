@@ -175,3 +175,27 @@ export async function listStoreStockMovements(params: {
 
   return { items, total };
 }
+
+export async function getInventoryFilterOptions(params: { tenantId: string }) {
+  const { tenantId } = params;
+
+  const [categoryData, brandData] = await Promise.all([
+    db.product.findMany({
+      where: { tenantId, category: { not: null } },
+      select: { category: true },
+      distinct: ['category'],
+      orderBy: { category: 'asc' },
+    }),
+    db.product.findMany({
+      where: { tenantId, brand: { not: null } },
+      select: { brand: true },
+      distinct: ['brand'],
+      orderBy: { brand: 'asc' },
+    }),
+  ]);
+
+  const categories = categoryData.map(c => c.category).filter((c): c is string => c !== null);
+  const brands = brandData.map(b => b.brand).filter((b): b is string => b !== null);
+
+  return { categories, brands };
+}

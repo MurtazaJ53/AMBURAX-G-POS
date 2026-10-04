@@ -4,7 +4,7 @@ import Link from "next/link";
 import { env } from "@/lib/env";
 import { resolvePosContext } from "@/server/sales/posContext";
 import { canManageInventory } from "@/server/inventory/inventoryRoles";
-import { getInventoryOverview, listStockLevels, listStoreStockMovements } from "@/server/inventory/inventoryQueries";
+import { getInventoryOverview, listStockLevels, listStoreStockMovements, getInventoryFilterOptions } from "@/server/inventory/inventoryQueries";
 import { Package, Boxes, ArrowRightLeft, AlertTriangle, AlertOctagon, Plus } from "lucide-react";
 
 import { StatusPill } from "@/components/inventory/InventoryUI";
@@ -35,12 +35,17 @@ export default async function InventoryPage(props: { searchParams: Promise<{ [ke
   const brand = typeof searchParams.brand === "string" ? searchParams.brand : undefined;
   const selectedSku = typeof searchParams.selected === "string" ? searchParams.selected : undefined;
   const view = (typeof searchParams.view === "string" ? searchParams.view : "table") as "table" | "grid";
+  
+  const pageRaw = parseInt(typeof searchParams.page === "string" ? searchParams.page : "1", 10);
+  const page = isNaN(pageRaw) || pageRaw < 1 ? 1 : pageRaw;
   const limit = 50;
+  const offset = (page - 1) * limit;
 
-  const [overview, { items, total }, { items: movements }] = await Promise.all([
+  const [overview, { items, total }, { items: movements }, { categories, brands }] = await Promise.all([
     getInventoryOverview({ tenantId, storeId }),
-    listStockLevels({ tenantId, storeId, search, status, category, brand, limit, offset: 0 }),
-    listStoreStockMovements({ tenantId, storeId, limit: 10, offset: 0 })
+    listStockLevels({ tenantId, storeId, search, status, category, brand, limit, offset }),
+    listStoreStockMovements({ tenantId, storeId, limit: 10, offset: 0 }),
+    getInventoryFilterOptions({ tenantId })
   ]);
 
   const selectedItem = selectedSku ? items.find((i) => i.variant.sku === selectedSku) : undefined;
@@ -52,8 +57,20 @@ export default async function InventoryPage(props: { searchParams: Promise<{ [ke
     if (category) p.set("category", category);
     if (brand) p.set("brand", brand);
     if (view !== "table") p.set("view", view);
-    
+    if (page > 1) p.set("page", String(page));
     if (sku) p.set("selected", sku);
+    return `/inventory?${p.toString()}`;
+  };
+
+  const createPageHref = (newPage: number) => {
+    const p = new URLSearchParams();
+    if (search) p.set("q", search);
+    if (status) p.set("status", status);
+    if (category) p.set("category", category);
+    if (brand) p.set("brand", brand);
+    if (view !== "table") p.set("view", view);
+    if (selectedSku) p.set("selected", selectedSku);
+    if (newPage > 1) p.set("page", String(newPage));
     return `/inventory?${p.toString()}`;
   };
 
@@ -125,6 +142,8 @@ export default async function InventoryPage(props: { searchParams: Promise<{ [ke
           category={category}
           brand={brand}
           view={view}
+          categories={categories}
+          brands={brands}
         />
       </div>
 
@@ -139,9 +158,7 @@ export default async function InventoryPage(props: { searchParams: Promise<{ [ke
                     <th className="px-4 py-2 font-semibold">SKU</th>
                     <th className="px-4 py-2 font-semibold">Category</th>
                     <th className="px-4 py-2 font-semibold">Brand</th>
-                    <th className="px-4 py-2 font-semibold text-right">Variants</th>
                     <th className="px-4 py-2 text-right font-semibold">Stock &darr;</th>
-                    <th className="px-4 py-2 text-right font-semibold">Reserved</th>
                     <th className="px-4 py-2 text-right font-semibold">Available</th>
                     <th className="px-4 py-2 font-semibold">Status</th>
                   </tr>
@@ -177,9 +194,7 @@ export default async function InventoryPage(props: { searchParams: Promise<{ [ke
                         <td className="px-4 py-1.5 text-secondary font-mono text-[11px] truncate">{p.variant.sku}</td>
                         <td className="px-4 py-1.5 text-primary truncate">{p.variant.product.category || "—"}</td>
                         <td className="px-4 py-1.5 text-primary truncate">{p.variant.product.brand || "—"}</td>
-                        <td className="px-4 py-1.5 text-right font-mono text-[11px] text-tertiary">&mdash;</td>
                         <td className="px-4 py-1.5 text-right font-mono text-[13px] font-bold text-primary">{p.quantity}</td>
-                        <td className="px-4 py-1.5 text-right font-mono text-[11px] text-tertiary">&mdash;</td>
                         <td className="px-4 py-1.5 text-right font-mono text-[11px] text-tertiary">{p.quantity}</td>
                         <td className="px-4 py-1.5 w-[140px]"><StatusPill status={st} /></td>
                       </tr>
@@ -187,7 +202,7 @@ export default async function InventoryPage(props: { searchParams: Promise<{ [ke
                   })}
                   {items.length === 0 && (
                     <tr>
-                      <td colSpan={9} className="p-12 text-center text-sm text-secondary">
+                      <td colSpan={7} className="p-12 text-center text-sm text-secondary">
                         No products match your filters.
                       </td>
                     </tr>
@@ -196,8 +211,26 @@ export default async function InventoryPage(props: { searchParams: Promise<{ [ke
               </table>
             </div>
             {total > 0 && (
-              <div className="flex-none items-center border-t border-border px-4 py-3 text-[10px] text-secondary bg-slate-50">
-                <span>Showing 1&mdash;{items.length} of {total} products</span>
+              <div className="flex-none flex items-center justify-between border-t border-border px-4 py-3 text-[10px] text-secondary bg-slate-50">
+                <span>Showing {offset + 1}&mdash;{Math.min(offset + limit, total)} of {total} products</span>
+                <div className="flex items-center gap-2">
+                  <Link 
+                    href={createPageHref(page - 1)}
+                    className={`inline-flex h-7 items-center justify-center rounded-[4px] border border-border bg-white px-3 font-medium transition-colors hover:bg-slate-50 ${page <= 1 ? "pointer-events-none opacity-50" : ""}`}
+                    aria-disabled={page <= 1}
+                    tabIndex={page <= 1 ? -1 : 0}
+                  >
+                    Previous
+                  </Link>
+                  <Link 
+                    href={createPageHref(page + 1)}
+                    className={`inline-flex h-7 items-center justify-center rounded-[4px] border border-border bg-white px-3 font-medium transition-colors hover:bg-slate-50 ${offset + limit >= total ? "pointer-events-none opacity-50" : ""}`}
+                    aria-disabled={offset + limit >= total}
+                    tabIndex={offset + limit >= total ? -1 : 0}
+                  >
+                    Next
+                  </Link>
+                </div>
               </div>
             )}
           </div>
