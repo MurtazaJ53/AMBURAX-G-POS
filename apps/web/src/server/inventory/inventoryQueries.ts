@@ -176,18 +176,38 @@ export async function listStoreStockMovements(params: {
   return { items, total };
 }
 
-export async function getInventoryFilterOptions(params: { tenantId: string }) {
-  const { tenantId } = params;
+export async function getInventoryFilterOptions(params: { tenantId: string; storeId: string }) {
+  const { tenantId, storeId } = params;
 
   const [categoryData, brandData] = await Promise.all([
     db.product.findMany({
-      where: { tenantId, category: { not: null } },
+      where: {
+        tenantId,
+        category: { not: null },
+        variants: {
+          some: {
+            stockLevels: {
+              some: { storeId }
+            }
+          }
+        }
+      },
       select: { category: true },
       distinct: ['category'],
       orderBy: { category: 'asc' },
     }),
     db.product.findMany({
-      where: { tenantId, brand: { not: null } },
+      where: {
+        tenantId,
+        brand: { not: null },
+        variants: {
+          some: {
+            stockLevels: {
+              some: { storeId }
+            }
+          }
+        }
+      },
       select: { brand: true },
       distinct: ['brand'],
       orderBy: { brand: 'asc' },

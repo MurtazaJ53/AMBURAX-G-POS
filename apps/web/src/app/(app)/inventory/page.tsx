@@ -45,7 +45,7 @@ export default async function InventoryPage(props: { searchParams: Promise<{ [ke
     getInventoryOverview({ tenantId, storeId }),
     listStockLevels({ tenantId, storeId, search, status, category, brand, limit, offset }),
     listStoreStockMovements({ tenantId, storeId, limit: 10, offset: 0 }),
-    getInventoryFilterOptions({ tenantId })
+    getInventoryFilterOptions({ tenantId, storeId })
   ]);
 
   const selectedItem = selectedSku ? items.find((i) => i.variant.sku === selectedSku) : undefined;
