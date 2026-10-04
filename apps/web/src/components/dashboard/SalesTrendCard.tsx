@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { TREND_RANGES, type TrendRange } from "@/server/dashboard/dashboardTransforms";
+import { TREND_RANGES, formatAxisMoney, type TrendRange } from "@/server/dashboard/dashboardTransforms";
 import { cn } from "@/lib/utils";
 
 export interface TrendPointDto {
@@ -58,7 +58,7 @@ function SalesChart({ data }: { data: TrendPointDto[] }) {
         <div className="absolute inset-x-0 top-2 bottom-6 flex flex-col justify-between text-[9px] text-slate-400">
           {[tickMax, tickMax*0.75, tickMax*0.5, tickMax*0.25, 0].map((tick, i) => (
             <div key={i} className="flex items-center gap-2">
-              <span className="w-5 text-right">{tick >= 1000 ? `${(tick/1000).toFixed(1)}k` : Math.round(tick)}</span>
+              <span className="w-9 text-right font-mono">{formatAxisMoney(Math.round(tick * 100))}</span>
               <span className="h-px flex-1 border-t border-dashed border-slate-200" />
             </div>
           ))}
