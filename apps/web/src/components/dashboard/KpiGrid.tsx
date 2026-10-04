@@ -29,7 +29,7 @@ export function KpiCard({ label, value, icon: Icon, change, hint, toneClass }: K
   const isNegative = change !== undefined && change !== null && change < 0;
   
   return (
-    <div className="surface-card rounded-lg p-4 pb-3.5">
+    <div className="surface-card rounded-lg p-4">
       <div className="flex items-start justify-between">
         <span className="text-[10px] font-semibold uppercase tracking-[.08em] text-slate-500">
           {label}
@@ -38,17 +38,15 @@ export function KpiCard({ label, value, icon: Icon, change, hint, toneClass }: K
           <Icon size={16} />
         </span>
       </div>
-      <div className="mt-2 flex items-center justify-start gap-2">
-        <strong className="data-mono text-[24px] font-bold tracking-tight text-slate-900">
+      <div className="mt-3 flex items-end justify-between gap-2">
+        <strong className="data-mono text-[22px] font-bold text-slate-900">
           {value}
         </strong>
-        {change !== undefined && change !== null ? (
+        {change !== undefined && change !== null && (
           <span className={`flex items-center text-[12px] font-bold ${isNegative ? 'text-rose-500' : 'text-emerald-500'}`}>
             {isNegative ? <ArrowDownRight size={12} /> : <ArrowUpRight size={12} />}
             {Math.abs(change)}%
           </span>
-        ) : (
-           <span className="text-[10px] font-semibold text-slate-400">—</span>
         )}
       </div>
       <p className="mt-2 truncate text-[10px] text-slate-400" title={hint}>{hint}</p>
@@ -83,7 +81,7 @@ export function KpiGrid({
         icon={ShoppingCart}
         change={percentChange(metrics.billCount, metrics.previous.billCount)}
         hint={`Yesterday ${metrics.previous.billCount}`}
-        toneClass="bg-violet-100 text-violet-700"
+        toneClass="bg-teal-100 text-teal-700"
       />
       <KpiCard
         label="ITEMS SOLD"
@@ -95,7 +93,7 @@ export function KpiGrid({
             ? "No bills yet today"
             : `Average ${metrics.averageItemsPerBill} per bill`
         }
-        toneClass="bg-amber-100 text-amber-700"
+        toneClass="bg-violet-100 text-violet-700"
       />
       <KpiCard
         label="NEW CUSTOMERS"
@@ -103,14 +101,14 @@ export function KpiGrid({
         icon={UserPlus}
         change={percentChange(metrics.newCustomers, metrics.previous.newCustomers)}
         hint="Added today"
-        toneClass="bg-emerald-100 text-emerald-700"
+        toneClass="bg-amber-100 text-amber-700"
       />
       <KpiCard
-        label="INVENTORY METRIC"
+        label="TRACKED ITEMS"
         value={String(stock.countedVariants)}
         icon={Package}
-        hint={`${stock.outOfStock} out of stock · ${stock.uncountedVariants} uncounted`}
-        toneClass="bg-teal-100 text-teal-700"
+        hint={`${stock.outOfStock} out of stock • ${stock.uncountedVariants} uncounted`}
+        toneClass="bg-rose-100 text-rose-700"
       />
     </section>
   );
