@@ -1,6 +1,6 @@
 import * as React from "react";
 import Link from "next/link";
-import { ChevronRight, Ellipsis } from "lucide-react";
+import { ChevronRight } from "lucide-react";
 import { formatMinor } from "@/server/sales/saleTotals";
 import { formatStoreTime } from "@/server/dashboard/dashboardTransforms";
 import type { DashboardBreakdown, DashboardStockSignal } from "@/server/dashboard/dashboardQueries";
@@ -19,9 +19,6 @@ export function FastMovingProductsCard({
           <h2 className="text-[13px] font-bold text-slate-800">Fast-moving products</h2>
           <p className="mt-0.5 text-[10px] text-slate-400">Units sold &middot; today</p>
         </div>
-        <button type="button" disabled className="rounded p-1 text-slate-300 opacity-60 cursor-not-allowed" aria-label="More actions">
-          <Ellipsis size={16} />
-        </button>
       </div>
 
       <div className="overflow-x-auto flex-1">
@@ -86,7 +83,7 @@ export function StockSignalCard({ stock }: { stock: DashboardStockSignal }) {
           <table className="dashboard-table w-full min-w-[350px] xl:min-w-0">
             <thead>
               <tr>
-                <th className="w-full">Product</th><th className="whitespace-nowrap">SKU</th><th className="whitespace-nowrap">Stock</th><th className="whitespace-nowrap">Reorder</th>
+                <th className="w-full">Product</th><th className="whitespace-nowrap">SKU</th><th className="whitespace-nowrap">Available</th><th className="whitespace-nowrap">Status</th>
               </tr>
             </thead>
             <tbody>
@@ -96,8 +93,12 @@ export function StockSignalCard({ stock }: { stock: DashboardStockSignal }) {
                   <tr key={row.variantId}>
                     <td className="w-full max-w-[0px]"><div className="flex items-center gap-2"><ProductThumb name={row.productName} imageUrl={row.imageUrl} /><span className="truncate font-semibold text-slate-700" title={row.productName}>{row.productName}</span></div></td>
                     <td className="data-mono text-[9px] text-slate-400">{row.sku}</td>
-                    <td className={`data-mono font-bold ${row.quantity <= 5 ? 'text-rose-600' : 'text-slate-700'}`}>{row.quantity}</td>
-                    <td className="data-mono text-slate-500">20</td>
+                    <td className="data-mono font-bold text-slate-700">{row.quantity}</td>
+                    <td>
+                      <span className={`status-badge ${status === 'Critical' ? 'status-critical' : 'status-low'}`}>
+                        {status}
+                      </span>
+                    </td>
                   </tr>
                 );
               })}
