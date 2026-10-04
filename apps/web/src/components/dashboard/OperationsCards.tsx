@@ -133,10 +133,10 @@ export function RecentSalesCard({ sales }: { sales: SaleListRow[] }) {
             No sales yet.
           </div>
         ) : (
-          <table className="dashboard-table w-full min-w-[420px] xl:min-w-0">
+          <table className="dashboard-table w-full min-w-[460px] xl:min-w-0">
             <thead>
               <tr>
-                <th className="whitespace-nowrap">Time</th><th className="whitespace-nowrap">Bill no.</th><th className="w-full">Customer</th><th className="whitespace-nowrap">Amount</th><th className="whitespace-nowrap">Status</th>
+                <th className="whitespace-nowrap">Time</th><th className="whitespace-nowrap">Bill no.</th><th className="w-full">Customer</th><th className="whitespace-nowrap">Amount</th><th className="whitespace-nowrap">Payment</th><th className="whitespace-nowrap">Status</th>
               </tr>
             </thead>
             <tbody>
@@ -150,12 +150,11 @@ export function RecentSalesCard({ sales }: { sales: SaleListRow[] }) {
                   </td>
                   <td className="w-full max-w-[0px] truncate text-slate-600" title={sale.customerName ?? "Walk-in"}>{sale.customerName ?? "Walk-in"}</td>
                   <td className="data-mono font-semibold text-slate-700">{formatMinor(sale.totalMinor)}</td>
+                  <td className="data-mono text-[9px] font-medium text-slate-500">{sale.paymentMethod || "—"}</td>
                   <td>
-                    {sale.completedAt ? (
-                      <span className="status-badge status-paid uppercase bg-emerald-50 text-emerald-600 border border-emerald-200">Paid</span>
-                    ) : (
-                      <span className="status-badge status-pending uppercase">Pending</span>
-                    )}
+                    <span className={`status-badge ${sale.status === "VOIDED" ? "status-critical" : "status-paid"}`}>
+                      {sale.status === "VOIDED" ? "Voided" : "Completed"}
+                    </span>
                   </td>
                 </tr>
               ))}
