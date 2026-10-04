@@ -48,7 +48,8 @@ export function GlobalSearch() {
         </kbd>
       </div>
 
-      <button onClick={() => setOpen(true)} className="md:hidden flex h-9 w-9 items-center justify-center rounded-md text-slate-500 hover:bg-slate-100">
+      {/* Icon-only, so it needs a name — it announced as an unlabelled button before. */}
+      <button onClick={() => setOpen(true)} aria-label="Open search" className="md:hidden flex h-9 w-9 items-center justify-center rounded-md text-slate-500 hover:bg-slate-100 cursor-pointer">
         <Search size={18} />
       </button>
 

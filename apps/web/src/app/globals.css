@@ -71,6 +71,13 @@ body {
   border-radius: 999px;
 }
 
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
 
 /* F3 Dashboard Custom Styles */
 .surface-card {
@@ -139,4 +146,94 @@ body {
      lets a flex child shrink below its content width so the scroll container can do its job. */
   .tabs-scroll { overflow-x: auto; min-width: 0; max-width: 100%; }
   .workspace-card { border-radius: 5px; }
+}
+
+/* ===========================================================================
+   AMBURAX motion layer
+   ---------------------------------------------------------------------------
+   Zero-dependency on purpose. A till is a latency-sensitive surface, and the
+   rule this follows is responsiveness over smoothness — so motion is CSS
+   (compositor-only) rather than a JS animation runtime that would ship a
+   bundle and a scheduler to every terminal.
+
+   Two hard constraints, both load-bearing:
+     1. Only `transform` and `opacity` are animated. Never width/height/top/left,
+        which force layout and would jeopardise the F8 geometry gates.
+     2. Every animation lives inside `prefers-reduced-motion: no-preference`.
+        A user who asked for less motion gets the final state immediately, not
+        a faster version of the same movement.
+
+   Durations sit at 140-260ms: long enough to read as motion, short enough that
+   a cashier ringing up the tenth item never waits on the interface.
+   =========================================================================== */
+
+:root {
+  --amb-ease-smooth: cubic-bezier(0.22, 1, 0.36, 1);
+  --amb-ease-sharp: cubic-bezier(0.4, 0, 0.2, 1);
+  --amb-dur-fast: 140ms;
+  --amb-dur-base: 190ms;
+  --amb-dur-slow: 260ms;
+}
+
+/* Focus ring, defined once so every interactive surface agrees.
+   Deliberately outside the motion query — focus visibility is not decoration. */
+.amb-focus:focus-visible {
+  outline: 2px solid #2563eb;
+  outline-offset: 2px;
+  border-radius: 0.5rem;
+}
+
+@keyframes amb-pop-in {
+  from { opacity: 0; transform: scale(0.97) translateY(6px); }
+  to   { opacity: 1; transform: scale(1) translateY(0); }
+}
+@keyframes amb-fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+@keyframes amb-line-in {
+  from { opacity: 0; transform: translateX(10px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+@keyframes amb-shimmer {
+  0%, 100% { opacity: 0.55; }
+  50%      { opacity: 1; }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  /* Dialog entrance. Replaces the `animate-in fade-in zoom-in` utilities the
+     POS was already using, which were no-ops: tailwindcss-animate is not
+     installed and `plugins: []`, so those classes rendered nothing at all. */
+  .amb-pop-in { animation: amb-pop-in var(--amb-dur-base) var(--amb-ease-smooth) both; }
+  .amb-fade-in { animation: amb-fade-in var(--amb-dur-fast) var(--amb-ease-sharp) both; }
+
+  /* One cart line arriving. Not staggered — a cashier adds one item at a time,
+     so a stagger would only delay the line they are actually looking at. */
+  .amb-line-in { animation: amb-line-in var(--amb-dur-base) var(--amb-ease-smooth) both; }
+
+  /* Hover lift and press feedback for catalogue tiles. translateY on a
+     composited layer, so neighbouring tiles never reflow. */
+  .amb-lift { transition: transform var(--amb-dur-fast) var(--amb-ease-sharp),
+                          box-shadow var(--amb-dur-fast) var(--amb-ease-sharp),
+                          border-color var(--amb-dur-fast) var(--amb-ease-sharp); }
+  .amb-lift:hover { transform: translateY(-2px); }
+  .amb-press:active { transform: scale(0.975); }
+
+  .amb-skeleton { animation: amb-shimmer 1.4s ease-in-out infinite; }
+}
+
+/* Reduced motion: keep the affordance, drop the movement. Hover and press
+   still change colour and shadow through Tailwind utilities; only the
+   transform is withdrawn. */
+@media (prefers-reduced-motion: reduce) {
+  .amb-lift,
+  .amb-press,
+  .amb-pop-in,
+  .amb-fade-in,
+  .amb-line-in,
+  .amb-skeleton {
+    animation: none !important;
+    transition: none !important;
+    transform: none !important;
+  }
 }

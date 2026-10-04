@@ -486,8 +486,8 @@ export function PosTerminal(props: { storeName: string; storeCode: string; cashi
         {/* Top Tabs */}
         <div className="flex px-4 pt-3 border-b border-slate-200 gap-6 text-[13px] font-medium">
           <button className="pb-2.5 border-b-2 border-blue-600 text-blue-600">Products</button>
-          <button className="pb-2.5 border-b-2 border-transparent text-slate-500 hover:text-slate-700">Barcode Scan</button>
-          <button className="pb-2.5 border-b-2 border-transparent text-slate-500 hover:text-slate-700">Quick Add</button>
+          <button disabled className="pb-2.5 border-b-2 border-transparent text-slate-400 opacity-60 cursor-not-allowed" title="Barcode scan coming soon">Barcode Scan</button>
+          <button disabled className="pb-2.5 border-b-2 border-transparent text-slate-400 opacity-60 cursor-not-allowed" title="Quick add coming soon">Quick Add</button>
         </div>
 
         {/* Filter Toolbar */}
@@ -503,25 +503,44 @@ export function PosTerminal(props: { storeName: string; storeCode: string; cashi
                 className="w-full pl-9 py-2.5 text-[13px] border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
               />
             </div>
-            <button className="flex items-center gap-2 px-4 py-2.5 bg-blue-50 text-blue-700 border border-blue-200 rounded-lg hover:bg-blue-100 transition-colors">
+            <button 
+              className="flex items-center gap-2 px-4 py-2.5 bg-blue-50 text-blue-700 border border-blue-200 rounded-lg hover:bg-blue-100 transition-colors"
+              onClick={() => searchInput.current?.focus()}
+            >
               <Barcode className="w-4 h-4" />
               <span className="text-[13px] font-medium">Scan</span>
             </button>
           </div>
           
           <div className="flex items-center gap-2 overflow-x-auto pb-1 no-scrollbar text-[12px]">
-            <button className="flex items-center gap-1.5 px-3 py-1.5 border border-slate-200 rounded-md text-slate-600 whitespace-nowrap hover:bg-slate-50">All Categories <ChevronDown className="w-3 h-3"/></button>
-            <button className="flex items-center gap-1.5 px-3 py-1.5 border border-slate-200 rounded-md text-slate-600 whitespace-nowrap hover:bg-slate-50">All Brands <ChevronDown className="w-3 h-3"/></button>
-            <button className="flex items-center gap-1.5 px-3 py-1.5 border border-slate-200 rounded-md text-slate-600 whitespace-nowrap hover:bg-slate-50">All Genders <ChevronDown className="w-3 h-3"/></button>
-            <button className="flex items-center gap-1.5 px-3 py-1.5 border border-slate-200 rounded-md text-slate-600 whitespace-nowrap hover:bg-slate-50">All Sizes <ChevronDown className="w-3 h-3"/></button>
-            <button className="flex items-center gap-1.5 px-3 py-1.5 border border-slate-200 rounded-md text-slate-600 whitespace-nowrap hover:bg-slate-50">All Colors <ChevronDown className="w-3 h-3"/></button>
-            <button className="flex items-center gap-1.5 px-3 py-1.5 border border-slate-200 rounded-md text-slate-600 whitespace-nowrap hover:bg-slate-50">Price <ChevronDown className="w-3 h-3"/></button>
-            <button className="flex items-center gap-1.5 px-3 py-1.5 border border-slate-200 rounded-md text-blue-600 font-medium whitespace-nowrap hover:bg-blue-50 ml-auto"><SlidersHorizontal className="w-3 h-3"/> More Filters</button>
+            <button disabled className="flex items-center gap-1.5 px-3 py-1.5 border border-slate-200 rounded-md text-slate-400 opacity-60 cursor-not-allowed whitespace-nowrap">All Categories <ChevronDown className="w-3 h-3"/></button>
+            <button disabled className="flex items-center gap-1.5 px-3 py-1.5 border border-slate-200 rounded-md text-slate-400 opacity-60 cursor-not-allowed whitespace-nowrap">All Brands <ChevronDown className="w-3 h-3"/></button>
+            <button disabled className="flex items-center gap-1.5 px-3 py-1.5 border border-slate-200 rounded-md text-slate-400 opacity-60 cursor-not-allowed whitespace-nowrap">All Genders <ChevronDown className="w-3 h-3"/></button>
+            <button disabled className="flex items-center gap-1.5 px-3 py-1.5 border border-slate-200 rounded-md text-slate-400 opacity-60 cursor-not-allowed whitespace-nowrap">All Sizes <ChevronDown className="w-3 h-3"/></button>
+            <button disabled className="flex items-center gap-1.5 px-3 py-1.5 border border-slate-200 rounded-md text-slate-400 opacity-60 cursor-not-allowed whitespace-nowrap">All Colors <ChevronDown className="w-3 h-3"/></button>
+            <button disabled className="flex items-center gap-1.5 px-3 py-1.5 border border-slate-200 rounded-md text-slate-400 opacity-60 cursor-not-allowed whitespace-nowrap">Price <ChevronDown className="w-3 h-3"/></button>
+            <button disabled className="flex items-center gap-1.5 px-3 py-1.5 border border-slate-200 rounded-md text-slate-400 font-medium opacity-60 cursor-not-allowed whitespace-nowrap ml-auto"><SlidersHorizontal className="w-3 h-3"/> More Filters</button>
             
             <div className="h-4 w-px bg-slate-200 mx-2"></div>
             <span className="text-slate-500 mr-1">View:</span>
-            <button className="p-1.5 text-blue-600 bg-blue-50 rounded"><LayoutGrid className="w-4 h-4"/></button>
-            <button className="p-1.5 text-slate-400 hover:text-slate-600 rounded"><AlignJustify className="w-4 h-4"/></button>
+            {/* Both are genuinely disabled already; they were simply unnamed, so a screen
+                reader announced two anonymous buttons. */}
+            <button
+              disabled
+              aria-label="Grid view (not available yet)"
+              title="Grid view — not available yet"
+              className="p-1.5 text-blue-600 bg-blue-50 opacity-60 cursor-not-allowed rounded"
+            >
+              <LayoutGrid className="w-4 h-4" />
+            </button>
+            <button
+              disabled
+              aria-label="List view (not available yet)"
+              title="List view — not available yet"
+              className="p-1.5 text-slate-400 opacity-60 cursor-not-allowed rounded"
+            >
+              <AlignJustify className="w-4 h-4" />
+            </button>
           </div>
         </div>
 
@@ -538,12 +557,20 @@ export function PosTerminal(props: { storeName: string; storeCode: string; cashi
                { name: 'New Arrivals', icon: Zap },
                { name: 'Offers', icon: Gem },
              ].map(cat => (
-               <div key={cat.name} className="flex flex-col items-center gap-1.5 min-w-[72px] cursor-pointer group">
-                  <div className="w-10 h-10 rounded-lg bg-slate-50 border border-slate-100 flex items-center justify-center text-slate-400 group-hover:border-blue-200 group-hover:bg-blue-50">
+               /* Was a <div>: not focusable, not announced, unreachable by keyboard despite
+                  carrying `cursor-pointer`. A real button, and the icon darkened from
+                  slate-400 to slate-500 so it clears contrast against its tinted chip. */
+               <button
+                 type="button"
+                 key={cat.name}
+                 onClick={() => setQuery(cat.name)}
+                 className="amb-press amb-focus flex flex-col items-center gap-1.5 min-w-[72px] cursor-pointer group shrink-0"
+               >
+                  <div className="w-10 h-10 rounded-lg bg-slate-50 border border-slate-200 flex items-center justify-center text-slate-500 transition-colors group-hover:border-blue-300 group-hover:bg-blue-50 group-hover:text-blue-700">
                     <cat.icon className="w-5 h-5"/>
                   </div>
-                  <span className="text-[11px] font-medium text-slate-600 text-center">{cat.name}</span>
-               </div>
+                  <span className="text-[11px] font-medium text-slate-600 text-center group-hover:text-slate-900 transition-colors">{cat.name}</span>
+               </button>
              ))}
           </div>
 
@@ -551,12 +578,51 @@ export function PosTerminal(props: { storeName: string; storeCode: string; cashi
         <div className="flex-1 overflow-y-auto p-4 bg-slate-50/50">
            {searchError && <p className="text-[13px] text-rose-600 bg-rose-50 p-3 rounded-lg border border-rose-100">{searchError}</p>}
            
+           {/*
+             Skeletons while a search is in flight. The grid used to render empty, so typing
+             looked like "no results" until the response landed. Same tile footprint, so
+             nothing shifts when the real products replace them.
+           */}
+           {searching && results.length === 0 && (
+             <div
+               className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-4"
+               aria-hidden="true"
+             >
+               {Array.from({ length: 10 }).map((_, i) => (
+                 <div key={i} className="amb-skeleton flex flex-col bg-white border border-slate-200 rounded-xl overflow-hidden">
+                   <div className="aspect-square w-full bg-slate-100 border-b border-slate-100" />
+                   <div className="p-3 flex flex-col gap-2">
+                     <div className="h-3 w-4/5 rounded bg-slate-100" />
+                     <div className="h-3 w-3/5 rounded bg-slate-100" />
+                     <div className="h-4 w-1/2 rounded bg-slate-100 mt-1" />
+                   </div>
+                 </div>
+               ))}
+             </div>
+           )}
+           <span className="sr-only" role="status" aria-live="polite">
+             {searching ? "Searching products" : `${results.length} products listed`}
+           </span>
+
+           {!searching && results.length === 0 && !searchError && (
+             <div className="flex flex-col items-center justify-center py-16 text-center">
+               <div className="w-12 h-12 rounded-xl bg-slate-100 border border-slate-200 flex items-center justify-center mb-3">
+                 <Search className="w-5 h-5 text-slate-400" />
+               </div>
+               <p className="text-[13px] font-semibold text-slate-700">No products match that search</p>
+               <p className="text-[12px] text-slate-500 mt-1 max-w-[280px]">
+                 Try a different name, SKU or barcode — or clear the search to browse the full catalogue.
+               </p>
+             </div>
+           )}
+
            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-4">
              {results.map(hit => (
                <button 
                  key={hit.variantId} 
                  onClick={() => addToCart(hit)}
-                 className="flex flex-col bg-white border border-slate-200 rounded-xl overflow-hidden hover:shadow-md transition-shadow text-left group"
+                 aria-label={`Add ${hit.productName} to cart, ${formatMinor(hit.priceMinor)}`}
+                 className="amb-lift amb-press amb-focus flex flex-col bg-white border border-slate-200 rounded-xl overflow-hidden text-left group cursor-pointer hover:border-blue-300 hover:shadow-[0_6px_16px_-6px_rgba(15,23,42,0.18)]"
                >
                  <div className="aspect-square bg-slate-100 relative w-full border-b border-slate-100 flex items-center justify-center">
                     {hit.imageUrl ? (
@@ -573,9 +639,30 @@ export function PosTerminal(props: { storeName: string; storeCode: string; cashi
                        <p className="text-[15px] font-bold text-slate-900 leading-none">{formatMinor(hit.priceMinor)}</p>
                        <p className="text-[11px] text-slate-500 mt-1 truncate max-w-[100px]">{hit.sku}</p>
                      </div>
-                     <div className="flex items-center gap-1">
-                       <div className={`w-1.5 h-1.5 rounded-full ${hit.stockQuantity && hit.stockQuantity > 0 ? 'bg-emerald-500' : 'bg-rose-500'}`}></div>
-                       <span className="text-[10px] font-medium text-slate-600">{hit.stockQuantity ? `In Stock (${hit.stockQuantity})` : 'Out of stock'}</span>
+                     {/*
+                       Three states, not two. `stockQuantity` is nullable — a variant with no
+                       stock-level row is *unknown*, not out of stock, and saying "Out of
+                       stock" for it was telling the cashier something the data does not
+                       support. Colour is paired with text so it never carries the meaning
+                       alone.
+                     */}
+                     <div className="flex items-center gap-1 shrink-0">
+                       <div
+                         className={`w-1.5 h-1.5 rounded-full ${
+                           hit.stockQuantity == null
+                             ? "bg-slate-300"
+                             : hit.stockQuantity > 0
+                               ? "bg-emerald-500"
+                               : "bg-rose-500"
+                         }`}
+                       />
+                       <span className="text-[10px] font-medium text-slate-600">
+                         {hit.stockQuantity == null
+                           ? "Stock unknown"
+                           : hit.stockQuantity > 0
+                             ? `In stock (${hit.stockQuantity})`
+                             : "Out of stock"}
+                       </span>
                      </div>
                    </div>
                  </div>
@@ -593,7 +680,7 @@ export function PosTerminal(props: { storeName: string; storeCode: string; cashi
              <ActionBtn icon={<Users className="w-4 h-4"/>} label="New Customer" hotkey="(F5)" disabled />
              <ActionBtn icon={<Tag className="w-4 h-4"/>} label="Apply Offer" hotkey="(F6)" disabled />
              <ActionBtn icon={<Users className="w-4 h-4"/>} label="Sales Person" hotkey="(F7)" disabled />
-             <ActionBtn icon={<span className="font-bold text-lg leading-none">...</span>} label="More Actions" />
+             <ActionBtn icon={<span className="font-bold text-lg leading-none">...</span>} label="More Actions" disabled />
           </div>
         </div>
       </div>
@@ -608,7 +695,7 @@ export function PosTerminal(props: { storeName: string; storeCode: string; cashi
         </div>
 
         {/* Customer Block (~80px) */}
-        <div className="px-3 h-[80px] flex items-center bg-white border-b border-slate-200 shrink-0 shadow-sm z-10">
+        <div className="px-3 min-h-[80px] h-auto py-2.5 flex items-center bg-white border-b border-slate-200 shrink-0 shadow-sm z-10">
           <CustomerPicker customer={customer} onChange={setCustomer} />
         </div>
 
@@ -618,7 +705,7 @@ export function PosTerminal(props: { storeName: string; storeCode: string; cashi
              <p className="text-[12px] text-rose-700 bg-rose-50 p-2 rounded shrink-0">{cartNotice}</p>
           )}
           {cart.map((line) => (
-             <div key={line.variantId} className="flex gap-2.5 bg-white p-2 min-h-[94px] rounded-[6px] border border-slate-200 shadow-sm relative group shrink-0">
+             <div key={line.variantId} className="amb-line-in flex gap-2.5 bg-white p-2 min-h-[94px] rounded-[6px] border border-slate-200 shadow-sm relative group shrink-0 transition-colors hover:border-slate-300">
                 <div className="w-10 h-10 bg-slate-100 rounded-[4px] border border-slate-100 flex items-center justify-center overflow-hidden shrink-0 mt-0.5">
                    {line.imageUrl ? (
                      /* eslint-disable-next-line @next/next/no-img-element */
@@ -636,21 +723,51 @@ export function PosTerminal(props: { storeName: string; storeCode: string; cashi
                      <p className="text-[12px] font-semibold text-slate-900">{formatMinor(line.unitPriceMinor)}</p>
                      
                      <div className="flex items-center border border-slate-200 rounded text-slate-700 bg-white h-[30px] shrink-0 overflow-hidden shadow-sm">
-                        <button onClick={() => setQuantity(line.variantId, line.quantity - 1)} className="w-7 h-full flex items-center justify-center hover:bg-slate-100 transition-colors bg-slate-50 border-r border-slate-200"><Minus className="w-[14px] h-[14px]"/></button>
-                        <span className="w-8 text-center text-[12px] font-bold flex items-center justify-center h-full">{line.quantity}</span>
-                        <button onClick={() => setQuantity(line.variantId, line.quantity + 1)} className="w-7 h-full flex items-center justify-center hover:bg-slate-100 transition-colors bg-slate-50 border-l border-slate-200"><Plus className="w-[14px] h-[14px]"/></button>
+                        {/* Labelled for screen readers; the icon alone named nothing. Sizes are
+                            unchanged — the checkout column's geometry is an F8 gate. */}
+                        <button
+                          type="button"
+                          onClick={() => setQuantity(line.variantId, line.quantity - 1)}
+                          aria-label={`Decrease quantity of ${line.productName}`}
+                          className="amb-focus w-7 h-full flex items-center justify-center hover:bg-slate-100 active:bg-slate-200 transition-colors bg-slate-50 border-r border-slate-200 cursor-pointer"
+                        >
+                          <Minus className="w-[14px] h-[14px]" />
+                        </button>
+                        <span aria-live="polite" className="w-8 text-center text-[12px] font-bold flex items-center justify-center h-full tabular-nums">
+                          {line.quantity}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => setQuantity(line.variantId, line.quantity + 1)}
+                          aria-label={`Increase quantity of ${line.productName}`}
+                          className="amb-focus w-7 h-full flex items-center justify-center hover:bg-slate-100 active:bg-slate-200 transition-colors bg-slate-50 border-l border-slate-200 cursor-pointer"
+                        >
+                          <Plus className="w-[14px] h-[14px]" />
+                        </button>
                      </div>
                    </div>
                 </div>
-                <button onClick={() => setQuantity(line.variantId, 0)} className="absolute top-2 right-2 text-slate-300 hover:text-rose-500 transition-colors">
-                  <Trash2 className="w-[16px] h-[16px]"/>
+                <button
+                  type="button"
+                  onClick={() => setQuantity(line.variantId, 0)}
+                  aria-label={`Remove ${line.productName} from cart`}
+                  className="amb-focus absolute top-1 right-1 p-1.5 rounded text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
+                >
+                  <Trash2 className="w-[16px] h-[16px]" />
                 </button>
              </div>
           ))}
           {cart.length === 0 && (
-            <div className="flex-1 flex flex-col items-center justify-center text-slate-400">
-               <Package className="w-10 h-10 mb-2 text-slate-300 opacity-50" />
-               <p className="text-[12px] font-medium">Cart is empty</p>
+            /* An empty till is the most common state of this panel, so it says what to do
+               next rather than only reporting that nothing is here. */
+            <div className="flex-1 flex flex-col items-center justify-center text-center px-6">
+               <div className="w-12 h-12 rounded-xl bg-white border border-slate-200 flex items-center justify-center mb-3 shadow-sm">
+                 <Package className="w-5 h-5 text-slate-300" />
+               </div>
+               <p className="text-[13px] font-semibold text-slate-700">Cart is empty</p>
+               <p className="text-[11px] text-slate-500 mt-1 leading-relaxed">
+                 Scan a barcode or pick a product to start a sale.
+               </p>
             </div>
           )}
         </div>
@@ -662,10 +779,10 @@ export function PosTerminal(props: { storeName: string; storeCode: string; cashi
            <div className="flex gap-2">
              <input disabled placeholder="Add Discount" className="flex-1 text-[12px] border border-slate-200 rounded-[6px] px-2.5 h-[34px] bg-slate-50 text-slate-500 outline-none" />
              <div className="flex border border-slate-200 rounded-[6px] overflow-hidden bg-white">
-               <button disabled className="px-2.5 h-[34px] border-r border-slate-200 text-[12px] font-medium text-slate-600 bg-slate-50">%</button>
-               <button disabled className="px-2.5 h-[34px] text-[12px] font-bold text-slate-700 bg-white">₹</button>
+               <button disabled className="px-2.5 h-[34px] border-r border-slate-200 text-[12px] font-medium text-slate-600 bg-slate-50 opacity-60 cursor-not-allowed">%</button>
+               <button disabled className="px-2.5 h-[34px] text-[12px] font-medium text-slate-600 bg-slate-50 opacity-60 cursor-not-allowed">₹</button>
              </div>
-             <button disabled className="px-4 h-[34px] bg-slate-100 border border-slate-200 rounded-[6px] text-[12px] font-semibold text-slate-400">Apply</button>
+             <button disabled className="px-4 h-[34px] bg-slate-100 border border-slate-200 rounded-[6px] text-[12px] font-semibold text-slate-400 opacity-60 cursor-not-allowed">Apply</button>
            </div>
            
            <div className="h-px bg-slate-100 w-full my-1.5"></div>
@@ -678,15 +795,20 @@ export function PosTerminal(props: { storeName: string; storeCode: string; cashi
               </div>
               <div className="flex justify-between items-center h-[24px] text-slate-600">
                 <span>Discount</span>
-                <span className="text-slate-400">—</span>
+                <span className={totals.discountMinor > 0 ? "text-emerald-700 font-medium" : "text-slate-400"}>{totals.discountMinor > 0 ? `−${formatMinor(totals.discountMinor)}` : "—"}</span>
               </div>
-              <div className="flex justify-between items-center h-[24px] text-slate-600">
-                <span>Subtotal</span>
-                <span className="text-slate-400">—</span>
-              </div>
+              {/* Only meaningful once a discount exists. With no discount it repeated the
+                  Items row to the paisa, so the panel showed the same number twice under two
+                  different names — the cashier had to work out that they were the same. */}
+              {totals.discountMinor > 0 && (
+                <div className="flex justify-between items-center h-[24px] text-slate-600">
+                  <span>Subtotal</span>
+                  <span className="font-semibold text-slate-900">{formatMinor(totals.subtotalMinor - totals.discountMinor)}</span>
+                </div>
+              )}
               <div className="flex justify-between items-center h-[24px] text-slate-600">
                 <span>GST / Tax</span>
-                <span className="text-slate-400">—</span>
+                <span className="text-slate-600">{formatMinor(totals.taxMinor)}</span>
               </div>
               
               <div className="flex justify-between items-center h-[30px] border-t border-slate-100 mt-1 pt-1">
@@ -711,7 +833,7 @@ export function PosTerminal(props: { storeName: string; storeCode: string; cashi
                        setAmountReceived(null);
                      }
                    }}
-                   className={`flex-1 text-[11px] font-bold rounded-[6px] border transition-colors ${method === m.value ? 'bg-[#10b981] border-[#10b981] text-white shadow-sm' : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'}`}
+                   className={`amb-press amb-focus flex-1 text-[11px] font-bold rounded-[6px] border transition-colors cursor-pointer ${method === m.value ? 'bg-[#10b981] border-[#10b981] text-white shadow-sm' : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50 hover:border-slate-300'}`}
                  >
                    {m.label}
                  </button>
@@ -730,24 +852,45 @@ export function PosTerminal(props: { storeName: string; storeCode: string; cashi
                     type="number"
                     value={amountReceived ?? ''}
                     onChange={(e) => setAmountReceived(e.target.value ? parseFloat(e.target.value) : null)}
-                    placeholder={formatMinor(totals.totalMinor)}
-                    className="w-28 text-right text-[13px] font-bold border border-slate-200 rounded-[6px] px-2 h-[34px] focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none"
+                    /* The placeholder used to render the exact total in grey, so an empty
+                       field looked like it already held the right amount. It now reads as a
+                       prompt, and the total stays one tap away on `Exact`. */
+                    placeholder="0.00"
+                    inputMode="decimal"
+                    className="w-28 text-right text-[13px] font-bold border border-slate-200 rounded-[6px] px-2 h-[34px] transition-colors placeholder:font-normal placeholder:text-slate-400 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none"
                   />
                 </div>
                 <div className="flex gap-1 h-[30px] mb-1.5">
-                  <button onClick={() => setAmountReceived((totals.totalMinor/100) + 1)} className="flex-1 text-[11px] border border-slate-200 text-slate-700 bg-white hover:bg-slate-50 rounded-[6px] font-semibold">+1</button>
-                  <button onClick={() => setAmountReceived((totals.totalMinor/100) + 10)} className="flex-1 text-[11px] border border-slate-200 text-slate-700 bg-white hover:bg-slate-50 rounded-[6px] font-semibold">+10</button>
-                  <button onClick={() => setAmountReceived((totals.totalMinor/100) + 100)} className="flex-1 text-[11px] border border-slate-200 text-slate-700 bg-white hover:bg-slate-50 rounded-[6px] font-semibold">+100</button>
-                  <button onClick={() => setAmountReceived(totals.totalMinor/100)} className="flex-[1.2] text-[11px] border border-blue-200 text-blue-700 bg-blue-50 hover:bg-blue-100 rounded-[6px] font-bold">Exact</button>
+                  <button onClick={() => setAmountReceived((totals.totalMinor/100) + 1)} className="amb-press amb-focus flex-1 text-[11px] border border-slate-200 text-slate-700 bg-white hover:bg-slate-50 hover:border-slate-300 transition-colors rounded-[6px] font-semibold cursor-pointer">+1</button>
+                  <button onClick={() => setAmountReceived((totals.totalMinor/100) + 10)} className="amb-press amb-focus flex-1 text-[11px] border border-slate-200 text-slate-700 bg-white hover:bg-slate-50 hover:border-slate-300 transition-colors rounded-[6px] font-semibold cursor-pointer">+10</button>
+                  <button onClick={() => setAmountReceived((totals.totalMinor/100) + 100)} className="amb-press amb-focus flex-1 text-[11px] border border-slate-200 text-slate-700 bg-white hover:bg-slate-50 hover:border-slate-300 transition-colors rounded-[6px] font-semibold cursor-pointer">+100</button>
+                  <button onClick={() => setAmountReceived(totals.totalMinor/100)} className="amb-press amb-focus flex-[1.2] text-[11px] border border-blue-200 text-blue-700 bg-blue-50 hover:bg-blue-100 transition-colors rounded-[6px] font-bold cursor-pointer">Exact</button>
                 </div>
-                <div className="flex justify-between items-center text-[13px] h-[26px]">
-                  <span className="font-semibold text-slate-500">Balance</span>
-                  <span className="font-bold text-slate-900">
-                    {amountReceived && amountReceived * 100 >= totals.totalMinor 
-                      ? formatMinor(Math.round(amountReceived * 100) - totals.totalMinor) 
-                      : "—"}
-                  </span>
-                </div>
+                {/*
+                  Was always labelled "Balance" and showed "—" until an amount was typed,
+                  which reads as owing rather than as change. The label now follows the
+                  number: short while the tendered amount is under the total, change when it
+                  is over, and settled when it matches exactly. Colour is paired with words,
+                  never carrying the meaning on its own.
+                */}
+                {(() => {
+                  const tenderedMinor = amountReceived == null ? null : Math.round(amountReceived * 100);
+                  const deltaMinor = tenderedMinor == null ? null : tenderedMinor - totals.totalMinor;
+                  const label = deltaMinor == null ? "Change due" : deltaMinor > 0 ? "Change due" : deltaMinor < 0 ? "Short by" : "Exact — no change";
+                  const tone = deltaMinor == null ? "text-slate-400" : deltaMinor > 0 ? "text-emerald-700" : deltaMinor < 0 ? "text-rose-600" : "text-slate-900";
+                  return (
+                    <div className="flex justify-between items-center text-[13px] h-[26px]" aria-live="polite">
+                      <span className="font-semibold text-slate-500">{label}</span>
+                      <span className={`font-bold tabular-nums ${tone}`}>
+                        {deltaMinor == null
+                          ? "Enter amount"
+                          : deltaMinor === 0
+                            ? formatMinor(0)
+                            : formatMinor(Math.abs(deltaMinor))}
+                      </span>
+                    </div>
+                  );
+                })()}
              </div>
            )}
 
@@ -848,9 +991,15 @@ export function PosTerminal(props: { storeName: string; storeCode: string; cashi
              id="complete-sale-btn"
              type="button"
              disabled={submitting || cart.length === 0 || splitBlocked}
-             className="w-full h-[50px] bg-[#10b981] hover:bg-[#059669] text-white font-bold text-[14px] rounded-[8px] flex items-center justify-center gap-2 shadow-sm disabled:opacity-50 disabled:cursor-not-allowed transition-colors mt-3"
+             className="amb-press amb-focus w-full h-[50px] bg-[#10b981] hover:bg-[#059669] text-white font-bold text-[14px] rounded-[8px] flex items-center justify-center gap-2 shadow-sm disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-[#10b981] transition-colors mt-3 cursor-pointer"
            >
-             <Package className="w-5 h-5"/>
+             {/* A spinner while the sale is in flight. The label already changed, but a
+                 stalled network looked identical to a frozen till. */}
+             {submitting ? (
+               <span className="w-5 h-5 rounded-full border-2 border-white/40 border-t-white animate-spin" aria-hidden="true" />
+             ) : (
+               <Package className="w-5 h-5" />
+             )}
              {submitting ? "Completing..." : "Complete Sale"}
            </button>
         </div>
@@ -1172,7 +1321,7 @@ function SaleSuccess(props: {
       inner box with `min-h-full`, which can grow past the viewport instead of being cut.
     */
     <div
-      className="fixed inset-0 z-50 overflow-y-auto bg-slate-900/40 backdrop-blur-sm print:static print:block print:overflow-visible print:bg-transparent print:backdrop-blur-none"
+      className="amb-fade-in fixed inset-0 z-50 overflow-y-auto bg-slate-900/40 backdrop-blur-sm print:static print:block print:overflow-visible print:bg-transparent print:backdrop-blur-none"
       data-testid="sale-success"
     >
       <div className="flex min-h-full items-center justify-center p-4 print:block print:p-0">
@@ -1182,7 +1331,9 @@ function SaleSuccess(props: {
         aria-modal="true"
         aria-labelledby="sale-success-heading"
         tabIndex={-1}
-        className="relative grid w-full max-w-4xl focus:outline-none animate-in fade-in zoom-in duration-200 overflow-hidden rounded-2xl bg-white shadow-2xl lg:grid-cols-2 print:block print:max-w-none print:animate-none print:rounded-none print:shadow-none"
+        /* `amb-pop-in` replaces `animate-in fade-in zoom-in`, which rendered nothing:
+           tailwindcss-animate is not installed and tailwind.config has `plugins: []`. */
+        className="amb-pop-in relative grid w-full max-w-4xl focus:outline-none overflow-hidden rounded-2xl bg-white shadow-2xl lg:grid-cols-2 print:block print:max-w-none print:animate-none print:rounded-none print:shadow-none"
       >
         {/*
           The close control belongs to the dialog, not to either column. At `lg` that puts it

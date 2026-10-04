@@ -181,11 +181,11 @@ export function SalesWorkspace({ page, summary, analytics, carriedParams }: Sale
                 <tr>
                   <th className="w-[34px] text-center"><input type="checkbox" /></th>
                   <th className="w-[34px]">#</th>
-                  <th className="w-[126px]">Date &amp; Time</th>
-                  <th className="w-[98px]">Bill No.</th>
+                  <th className="w-[146px]">Date &amp; Time</th>
+                  <th className="w-[118px]">Bill No.</th>
                   <th>Customer</th>
                   <th className="w-[52px]">Items</th>
-                  <th className="w-[78px] text-right">Amount</th>
+                  <th className="w-[88px] text-right">Amount</th>
                   <th className="w-[83px]">Payment</th>
                   <th className="w-[74px]">Status</th>
                   <th className="w-[43px]">Action</th>
@@ -202,7 +202,7 @@ export function SalesWorkspace({ page, summary, analytics, carriedParams }: Sale
                       <td className="text-center"><input type="checkbox" checked={row.id === selectedTxId} readOnly /></td>
                       <td className="amb-number text-[hsl(var(--muted-foreground))]">{(page.page - 1) * 20 + index + 1}</td>
                       <td className="text-[10px] text-[#5e7187]">{localDate}</td>
-                      <td><button className="font-mono text-[10px] font-bold text-[hsl(var(--primary))] hover:underline">{row.billNumber}</button></td>
+                      <td><Link href={`/sales/${row.id}`} className="font-mono text-[10px] font-bold text-[hsl(var(--primary))] hover:underline" onClick={(e: React.MouseEvent) => e.stopPropagation()}>{row.billNumber}</Link></td>
                       <td className="font-medium text-[#3b526c]" title={row.customerName ?? "Walk-in Customer"}>{row.customerName ?? "Walk-in"}</td>
                       <td className="amb-number text-[hsl(var(--muted-foreground))]">{row.itemsCount}</td>
                       <td className="amb-number text-right font-bold text-[#293f5b]">{formatMinor(row.totalMinor)}</td>
@@ -306,7 +306,7 @@ export function SalesWorkspace({ page, summary, analytics, carriedParams }: Sale
                 </div>
 
                 <div className="flex gap-2 pb-4">
-                  <button className="amb-control flex-1 justify-center text-[10px] font-bold text-[hsl(var(--primary))]" onClick={() => handleNotice("Print preview prepared.")}><ArrowDownToLine size={13} /> Print Bill</button>
+                  <Link href={`/sales/${txDetail.id}`} className="amb-control flex-1 justify-center text-[10px] font-bold text-[hsl(var(--primary))]"><ArrowDownToLine size={13} /> View / Print Bill</Link>
                   {/* Same reasoning as the Returns tab: not built, so actually disabled. */}
                   <button
                     type="button"
