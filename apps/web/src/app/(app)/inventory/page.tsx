@@ -5,9 +5,10 @@ import { env } from "@/lib/env";
 import { resolvePosContext } from "@/server/sales/posContext";
 import { canManageInventory } from "@/server/inventory/inventoryRoles";
 import { getInventoryOverview, listStockLevels, listStoreStockMovements } from "@/server/inventory/inventoryQueries";
-import { Package, Boxes, ShoppingBag, CircleHelp } from "lucide-react";
+import { Package, Boxes, ArrowRightLeft, AlertTriangle, AlertOctagon, Plus } from "lucide-react";
 
-import { StatusPill, KpiCard } from "@/components/inventory/InventoryUI";
+import { StatusPill } from "@/components/inventory/InventoryUI";
+import { KpiCard } from "@/components/dashboard/KpiGrid";
 import { InventoryDetailPanel } from "@/components/inventory/InventoryDetailPanel";
 import { InventoryToolbar } from "@/components/inventory/InventoryToolbar";
 import { InventoryAnalytics } from "@/components/inventory/InventoryAnalytics";
@@ -57,31 +58,25 @@ export default async function InventoryPage(props: { searchParams: Promise<{ [ke
   };
 
   return (
-    <div className="flex-1 p-6 flex flex-col min-w-0 min-h-0 overflow-hidden max-h-[calc(100vh-56px)]">
-      <div className="flex-none flex flex-col md:flex-row md:items-end justify-between gap-4">
+    <main className="flex-1 w-full p-4 pb-12 sm:p-6 lg:p-8 flex flex-col min-w-0">
+      <header className="mb-6 flex flex-col justify-between gap-4 md:flex-row md:items-end">
         <div>
-          <div className="text-[10px] font-bold uppercase tracking-wider text-secondary mb-1">Workspace / Inventory</div>
-          <h1 className="text-2xl font-bold text-primary">Inventory</h1>
-          <p className="text-sm text-secondary mt-1">Track your stock, variants and keep your store always ready</p>
+          <div className="text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1">Workspace / Inventory</div>
+          <h1 className="text-[22px] font-bold tracking-[-0.01em] text-slate-900">Inventory</h1>
+          <p className="mt-1 text-[11.5px] text-slate-500">Track your stock, variants and keep your store always ready.</p>
         </div>
         <div className="flex items-center gap-2">
-          <button disabled className="hidden sm:inline-flex h-8 items-center justify-center rounded-[4px] border border-slate-300 bg-white px-3 text-[11px] font-semibold text-primary opacity-50 cursor-not-allowed shadow-sm">
-            Import
-          </button>
-          <button disabled className="hidden sm:inline-flex h-8 items-center justify-center rounded-[4px] border border-slate-300 bg-white px-3 text-[11px] font-semibold text-primary opacity-50 cursor-not-allowed shadow-sm">
-            Export
-          </button>
           {canManage ? (
-            <Link href="/products/new" className="inline-flex h-8 items-center justify-center rounded-[4px] bg-blue-600 px-3 text-[11px] font-semibold text-white shadow-sm hover:bg-blue-700 transition-colors">
-              Add Product
+            <Link href="/products/new" className="inline-flex h-8 items-center justify-center rounded-[4px] bg-slate-900 px-3 text-[11px] font-semibold text-white shadow-sm hover:bg-slate-800 transition-colors">
+              <Plus size={13} className="mr-1.5" /> Add Product
             </Link>
           ) : (
-            <button disabled className="inline-flex h-8 items-center justify-center rounded-[4px] bg-blue-600 px-3 text-[11px] font-semibold text-white opacity-50 cursor-not-allowed shadow-sm">
-              Add Product
+            <button disabled className="inline-flex h-8 items-center justify-center rounded-[4px] bg-slate-900 px-3 text-[11px] font-semibold text-white opacity-50 cursor-not-allowed shadow-sm">
+              <Plus size={13} className="mr-1.5" /> Add Product
             </button>
           )}
         </div>
-      </div>
+      </header>
 
       <div className="flex-none mt-6 border-b border-border">
         <div className="flex items-center gap-1 overflow-x-auto scrollbar-hide">
@@ -115,12 +110,12 @@ export default async function InventoryPage(props: { searchParams: Promise<{ [ke
         </div>
       </div>
 
-      <div className="flex-none grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 mt-5 mb-5">
-        <KpiCard icon={Package} label="Total Products" value={String(overview.totalItems)} note="Across this store" />
-        <KpiCard icon={Boxes} label="Total Stock (Units)" value={String(overview.totalUnits)} note="Current on-hand units" />
-        <KpiCard icon={ShoppingBag} label="Stock Value" value="Not connected" note="Valuation unavailable" muted={true} />
-        <KpiCard icon={CircleHelp} label="Low Stock Items" value={String(overview.lowStock)} note="Across this store" />
-        <KpiCard icon={Package} label="Out of Stock" value={String(overview.outOfStock)} note="Across this store" />
+      <div className="flex-none grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-5 mt-5 mb-5">
+        <KpiCard icon={Package} label="TOTAL TRACKED" value={String(overview.totalItems)} hint="Across this store" toneClass="bg-violet-100 text-violet-700" />
+        <KpiCard icon={Boxes} label="TOTAL UNITS" value={String(overview.totalUnits)} hint="Current on-hand units" toneClass="bg-sky-100 text-sky-700" />
+        <KpiCard icon={ArrowRightLeft} label="RECENT ACTIVITY (7D)" value={String(overview.recentMovements)} hint="Movements in last 7 days" toneClass="bg-teal-100 text-teal-700" />
+        <KpiCard icon={AlertTriangle} label="LOW STOCK" value={String(overview.lowStock)} hint="Across this store" toneClass="bg-amber-100 text-amber-700" />
+        <KpiCard icon={AlertOctagon} label="OUT OF STOCK" value={String(overview.outOfStock)} hint="Across this store" toneClass="bg-rose-100 text-rose-700" />
       </div>
 
       <div className="flex-none">
@@ -251,6 +246,6 @@ export default async function InventoryPage(props: { searchParams: Promise<{ [ke
           recentMovements={movements}
         />
       </div>
-    </div>
+    </main>
   );
 }
