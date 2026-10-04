@@ -19,7 +19,7 @@ export function FastMovingProductsCard({
           <h2 className="text-[13px] font-bold text-slate-800">Fast-moving products</h2>
           <p className="mt-0.5 text-[10px] text-slate-400">Units sold &middot; today</p>
         </div>
-        <button type="button" className="rounded p-1 text-slate-400 hover:bg-slate-100" aria-label="More actions">
+        <button type="button" disabled className="rounded p-1 text-slate-300 opacity-60 cursor-not-allowed" aria-label="More actions">
           <Ellipsis size={16} />
         </button>
       </div>
@@ -54,7 +54,7 @@ export function FastMovingProductsCard({
       </div>
 
       <Link href="/products" className="flex w-full items-center justify-end gap-1 border-t border-slate-100 px-4 py-2 text-[10px] font-semibold text-sky-700 hover:bg-slate-50 shrink-0">
-        View full report <ChevronRight size={12} />
+        View all products <ChevronRight size={12} />
       </Link>
     </div>
   );

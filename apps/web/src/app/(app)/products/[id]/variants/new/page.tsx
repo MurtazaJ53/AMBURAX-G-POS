@@ -20,8 +20,8 @@ export default async function NewVariantPage(props: { params: Promise<{ id: stri
   return (
     <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
       <PageHeader
-        title="Add Product"
-        subtitle="Create a new product in your catalogue."
+        title="Add Variant"
+        subtitle="Add a new SKU variant (size, colour, barcode, price) to this product."
       />
       <Card className="mt-6 p-4 sm:p-6">
         <VariantForm productId={id} />

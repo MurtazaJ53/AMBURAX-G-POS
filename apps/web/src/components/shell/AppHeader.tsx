@@ -66,7 +66,7 @@ export function AppHeader({
   }, [router, canSell]);
 
   return (
-    <header className="sticky top-0 z-30 flex h-[68px] shrink-0 items-center gap-3 border-b border-slate-200/80 bg-white/95 px-4 backdrop-blur md:px-6">
+    <header className="sticky top-0 z-30 flex h-[68px] shrink-0 items-center gap-3 border-b border-slate-200/80 bg-white/95 px-4 backdrop-blur md:px-6 print:hidden">
       <button
         type="button"
         onClick={onMobileMenuToggle}
@@ -87,12 +87,12 @@ export function AppHeader({
           <i className={cn("size-1.5 rounded-full", online ? "bg-emerald-500" : "bg-slate-400")} /> {online ? "Store Online" : "Store Offline"}
         </span>
 
-        <button type="button" className="hidden h-9 items-center gap-2 rounded-md border border-slate-200 bg-white px-3 text-[10px] lg:flex">
+        <div className="hidden h-9 items-center gap-2 rounded-md border border-slate-200 bg-slate-50 px-3 text-[10px] lg:flex">
           <span className="text-left leading-tight">
-            <b className="block font-bold text-slate-700">{tillOpen ? 'Shift #02' : 'Shift'}</b>
+            <b className="block font-bold text-slate-700">{tillOpen ? 'Shift Active' : 'Shift'}</b>
             <small className="text-slate-400 font-semibold text-[9px] leading-none">{tillOpen ? 'Live' : 'No shift'}</small>
           </span>
-        </button>
+        </div>
 
         {canSell && (
           <Link
@@ -105,9 +105,8 @@ export function AppHeader({
           </Link>
         )}
 
-        <button type="button" className="relative rounded-md p-2 text-slate-500 hover:bg-slate-100" aria-label="Notifications">
+        <button type="button" disabled className="relative rounded-md p-2 text-slate-300 opacity-60 cursor-not-allowed" aria-label="Notifications" title="Notifications coming soon">
           <Bell size={17} />
-          <i className="absolute right-[5px] top-[5px] flex size-3 items-center justify-center rounded-full border-2 border-white bg-rose-500 text-[8px] font-bold text-white">1</i>
         </button>
 
         <UserMenu userName={userName} roleLabel={roleLabel} />

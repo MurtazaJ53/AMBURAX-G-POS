@@ -17,6 +17,7 @@ import {
   ReceiptText
 } from "lucide-react";
 
+import { CopyButton } from "./CopyButton";
 import { resolvePosContext } from "@/server/sales/posContext";
 import { getSaleDetail } from "@/server/sales/saleQueries";
 import { formatMinor } from "@/server/sales/saleTotals";
@@ -89,20 +90,23 @@ export default async function SaleDetailPage({ params }: { params: Promise<{ id:
             <div className="amb-label mb-1">Bill No.</div>
             <div className="flex items-center gap-2">
               <span className="text-base font-bold">{sale.billNumber}</span>
-              <button className="text-slate-400 hover:text-blue-600 transition-colors" title="Copy Bill Number">
-                <Copy className="w-3.5 h-3.5" />
-              </button>
+              <CopyButton text={sale.billNumber} title="Copy Bill Number" />
             </div>
             <div className="text-slate-500 mt-0.5">{formatDateTime(sale.completedAt)}</div>
           </div>
           
           <div>
             <div className="amb-label mb-1">POS Invoice</div>
-            {isPosted && sale.erpInvoiceId ? (
-              <span className="text-sm font-medium text-blue-600">{sale.erpInvoiceId}</span>
-            ) : (
-              <span className="text-sm text-amber-600">Pending Sync</span>
-            )}
+            <div className="flex items-center gap-2">
+              {isPosted && sale.erpInvoiceId ? (
+                <>
+                  <span className="text-sm font-medium text-blue-600">{sale.erpInvoiceId}</span>
+                  <CopyButton text={sale.erpInvoiceId} title="Copy POS Invoice" />
+                </>
+              ) : (
+                <span className="text-sm text-amber-600">Pending Sync</span>
+              )}
+            </div>
           </div>
           
           <div>

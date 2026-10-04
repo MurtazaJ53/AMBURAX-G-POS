@@ -57,8 +57,8 @@ export default async function InventoryPage(props: { searchParams: Promise<{ [ke
   };
 
   return (
-    <div className="flex-1 p-6 overflow-x-hidden">
-      <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
+    <div className="flex-1 p-6 flex flex-col min-w-0 min-h-0 overflow-hidden max-h-[calc(100vh-56px)]">
+      <div className="flex-none flex flex-col md:flex-row md:items-end justify-between gap-4">
         <div>
           <div className="text-[10px] font-bold uppercase tracking-wider text-secondary mb-1">Workspace / Inventory</div>
           <h1 className="text-2xl font-bold text-primary">Inventory</h1>
@@ -83,7 +83,7 @@ export default async function InventoryPage(props: { searchParams: Promise<{ [ke
         </div>
       </div>
 
-      <div className="mt-6 border-b border-border">
+      <div className="flex-none mt-6 border-b border-border">
         <div className="flex items-center gap-1 overflow-x-auto scrollbar-hide">
           <div className="border-b-2 border-primary px-3 py-2 text-[11px] font-semibold text-primary whitespace-nowrap">
             Stock Overview
@@ -115,7 +115,7 @@ export default async function InventoryPage(props: { searchParams: Promise<{ [ke
         </div>
       </div>
 
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 mt-5 mb-5">
+      <div className="flex-none grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 mt-5 mb-5">
         <KpiCard icon={Package} label="Total Products" value={String(overview.totalItems)} note="Across this store" />
         <KpiCard icon={Boxes} label="Total Stock (Units)" value={String(overview.totalUnits)} note="Current on-hand units" />
         <KpiCard icon={ShoppingBag} label="Stock Value" value="Not connected" note="Valuation unavailable" muted={true} />
@@ -123,18 +123,20 @@ export default async function InventoryPage(props: { searchParams: Promise<{ [ke
         <KpiCard icon={Package} label="Out of Stock" value={String(overview.outOfStock)} note="Across this store" />
       </div>
 
-      <InventoryToolbar 
-        search={search}
-        status={status}
-        category={category}
-        brand={brand}
-        view={view}
-      />
+      <div className="flex-none">
+        <InventoryToolbar 
+          search={search}
+          status={status}
+          category={category}
+          brand={brand}
+          view={view}
+        />
+      </div>
 
-      <div className={`grid min-w-0 min-h-0 gap-4 h-[calc(100dvh-340px)] min-h-[450px] ${selectedItem ? "xl:grid-cols-[minmax(0,1fr)_380px]" : "grid-cols-1"}`}>
+      <div className={`flex-1 min-w-0 min-h-0 grid gap-4 mt-4 ${selectedItem ? "xl:grid-cols-[minmax(0,1fr)_380px]" : "grid-cols-1"}`}>
         {view === "table" ? (
-          <div className="flex flex-col min-w-0 min-h-0 overflow-hidden rounded-lg border border-border bg-background-card shadow-sm">
-            <div className="flex-1 overflow-x-auto overflow-y-auto relative">
+          <div className="flex flex-col min-w-0 min-h-0 overflow-hidden rounded-[6px] border border-border bg-background-card shadow-sm">
+            <div className="flex-1 overflow-x-auto overflow-y-auto relative bg-white">
               <table className="w-full min-w-[1000px] border-collapse text-left text-[12px]">
                 <thead className="bg-slate-50 text-[10px] uppercase tracking-wider text-secondary sticky top-0 z-10 shadow-[0_1px_0_0_var(--border)]">
                   <tr>
@@ -149,13 +151,13 @@ export default async function InventoryPage(props: { searchParams: Promise<{ [ke
                     <th className="px-4 py-2 font-semibold">Status</th>
                   </tr>
                 </thead>
-                <tbody>
+                <tbody className="divide-y divide-slate-100">
                   {items.map(p => {
                     const st = p.quantity > 10 ? "In Stock" : p.quantity > 0 ? "Low Stock" : p.quantity < 0 ? "Negative" : "Out of Stock";
                     return (
                       <tr 
                         key={p.variant.sku} 
-                        className={`h-9 border-b border-slate-100 last:border-0 hover:bg-slate-50 transition-colors ${selectedSku === p.variant.sku ? "bg-slate-50" : ""}`}
+                        className={`h-9 hover:bg-slate-50 transition-colors ${selectedSku === p.variant.sku ? "bg-slate-50" : ""}`}
                       >
                         <td className="px-4 py-1.5 min-w-0">
                           <Link href={createSelectHref(p.variant.sku)} className="flex items-center gap-2 group">
@@ -199,13 +201,13 @@ export default async function InventoryPage(props: { searchParams: Promise<{ [ke
               </table>
             </div>
             {total > 0 && (
-              <div className="flex items-center border-t border-border px-4 py-3 text-[10px] text-secondary bg-slate-50">
+              <div className="flex-none items-center border-t border-border px-4 py-3 text-[10px] text-secondary bg-slate-50">
                 <span>Showing 1&mdash;{items.length} of {total} products</span>
               </div>
             )}
           </div>
         ) : (
-          <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-4">
+          <div className="flex-1 overflow-y-auto grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-4 content-start pr-1">
             {items.map(p => {
               const st = p.quantity > 10 ? "In Stock" : p.quantity > 0 ? "Low Stock" : p.quantity < 0 ? "Negative" : "Out of Stock";
               return (
@@ -239,14 +241,16 @@ export default async function InventoryPage(props: { searchParams: Promise<{ [ke
         )}
       </div>
 
-      <InventoryAnalytics 
-        totalUnits={overview.totalUnits}
-        inStock={overview.inStock}
-        lowStock={overview.lowStock}
-        outOfStock={overview.outOfStock}
-        stockByCategory={overview.stockByCategory}
-        recentMovements={movements}
-      />
+      <div className="flex-none">
+        <InventoryAnalytics 
+          totalUnits={overview.totalUnits}
+          inStock={overview.inStock}
+          lowStock={overview.lowStock}
+          outOfStock={overview.outOfStock}
+          stockByCategory={overview.stockByCategory}
+          recentMovements={movements}
+        />
+      </div>
     </div>
   );
 }

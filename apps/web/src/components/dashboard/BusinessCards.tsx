@@ -1,6 +1,7 @@
 import * as React from "react";
 import Link from "next/link";
 import { Activity, ChevronRight, Package } from "lucide-react";
+import { formatMinor } from "@/server/sales/saleTotals";
 import type {
   DashboardShiftActivity,
   DashboardStockSignal,
@@ -48,11 +49,11 @@ export function TargetsCard() {
           <span className="text-[10px] font-bold text-slate-700">0%</span>
         </div>
         <div>
-          <p className="text-[12px] font-bold text-slate-800">₹0 / ₹0</p>
+          <p className="text-[12px] font-bold text-slate-800">{formatMinor(0)} / {formatMinor(0)}</p>
           <p className="text-[9px] text-slate-400">Sales Target</p>
         </div>
-        <div className="ml-auto text-[10px] font-semibold text-sky-600">
-          View Targets &rarr;
+        <div className="ml-auto text-[9px] font-semibold text-slate-400 uppercase tracking-wide bg-slate-100 px-1.5 py-0.5 rounded">
+          Planned
         </div>
       </div>
     </div>

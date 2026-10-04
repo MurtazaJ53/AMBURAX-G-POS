@@ -157,7 +157,7 @@ export default async function DashboardPage() {
       <div className="mb-5 flex flex-col justify-between gap-4 xl:flex-row xl:items-start">
         <div>
           <h1 className="text-[24px] font-bold tracking-[-0.02em] text-slate-900">
-            Good Evening, {context.userName.split(' ')[0]} 👋
+            {greetingFor()}, {context.userName.split(' ')[0]} 👋
           </h1>
           <p className="mt-0.5 text-[13px] text-slate-500">
             Here&apos;s what&apos;s happening at {context.storeName} today
@@ -175,11 +175,10 @@ export default async function DashboardPage() {
         */}
         <div className="flex flex-wrap items-center gap-x-4 gap-y-3">
           <div className="flex items-center gap-3 sm:border-r sm:border-slate-200 sm:pr-4">
-            <div className="flex items-center gap-1.5 rounded-md border border-slate-200 px-3 py-1.5 text-sm font-medium cursor-pointer hover:bg-slate-50">
+            <span className="flex items-center gap-1.5 rounded-md border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs font-medium text-slate-600">
               <Calendar size={14} className="text-sky-600" />
               Today (Live)
-              <ChevronDown size={14} className="text-slate-400 ml-1" />
-            </div>
+            </span>
             <span className="text-[13px] text-slate-500 font-medium">
               {formatTradingDay(startOfStoreDay())}
             </span>
@@ -195,8 +194,8 @@ export default async function DashboardPage() {
             <Link href="/inventory/receipts/new" className="flex items-center gap-1.5 rounded-md border border-slate-200 px-3 py-1.5 text-[13px] font-medium text-slate-600 hover:bg-slate-50">
               <ArrowDownToLine size={14} className="text-sky-600" /> Receive Stock
             </Link>
-            <Link href="/reports" className="flex items-center gap-1.5 rounded-md border border-slate-200 px-3 py-1.5 text-[13px] font-medium text-slate-600 hover:bg-slate-50">
-              <FileText size={14} className="text-sky-600" /> Generate Report
+            <Link href="/sales" className="flex items-center gap-1.5 rounded-md border border-slate-200 px-3 py-1.5 text-[13px] font-medium text-slate-600 hover:bg-slate-50">
+              <FileText size={14} className="text-sky-600" /> Sales History
             </Link>
           </div>
         </div>

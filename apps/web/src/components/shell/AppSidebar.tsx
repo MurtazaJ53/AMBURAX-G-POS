@@ -45,7 +45,7 @@ export function AppSidebar({
 
   const SidebarContent = (
     <aside className={cn(
-      "fixed inset-y-0 left-0 z-40 flex w-[238px] flex-col border-r border-slate-200 bg-white text-slate-700 shadow-xl shadow-slate-900/5 transition-transform duration-200 lg:translate-x-0",
+      "fixed inset-y-0 left-0 z-40 flex w-[238px] flex-col border-r border-slate-200 bg-white text-slate-700 shadow-xl shadow-slate-900/5 transition-transform duration-200 lg:translate-x-0 print:hidden",
       isMobileOpen ? "translate-x-0" : "-translate-x-full"
     )}>
       <div className="relative flex h-[68px] items-center justify-between border-b border-slate-200 px-5">

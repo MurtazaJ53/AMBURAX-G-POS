@@ -417,7 +417,7 @@ export function ProductDetailPanel({ detail, filters, canManage }: ProductDetail
 
       <div className="border-t border-border px-4 py-3">
         <p className="mb-2 text-xs font-semibold text-secondary">Quick actions</p>
-        <div className="grid grid-cols-2 gap-1.5">
+        <div className={canManage ? "grid grid-cols-2 gap-1.5" : "grid grid-cols-1 gap-1.5"}>
           <Link
             href="/inventory"
             className="flex flex-col items-center gap-1 rounded-xl border border-border px-1 py-2 text-[10px] font-medium text-secondary hover:bg-background-hover"

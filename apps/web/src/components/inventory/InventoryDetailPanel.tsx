@@ -3,6 +3,7 @@ import Link from "next/link";
 import { X, Package, ExternalLink } from "lucide-react";
 import { type StockLevel, type ProductVariant, type Product } from "@prisma/client";
 import { StatusPill, type Status } from "./InventoryUI";
+import { formatMinor } from "@/server/sales/saleTotals";
 import { useState } from "react";
 
 type DetailStock = StockLevel & {
@@ -26,7 +27,7 @@ export function InventoryDetailPanel({
 
   const st: Status = item.quantity > 10 ? "In Stock" : item.quantity > 0 ? "Low Stock" : item.quantity < 0 ? "Negative" : "Out of Stock";
 
-  const currency = (value: number) => `Rs. ${(value / 100).toLocaleString('en-IN', { minimumFractionDigits: 2 })}`;
+  const currency = (value: number) => formatMinor(value);
 
   return (
     <aside className="flex h-full min-h-0 w-full xl:w-[380px] shrink-0 flex-col overflow-hidden rounded-lg border border-border bg-background-card shadow-md">

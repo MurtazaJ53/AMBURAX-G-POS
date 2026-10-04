@@ -88,10 +88,10 @@ export default async function ProductsPage(props: { searchParams: Promise<Search
       <div className="shrink-0 border-b border-border bg-background-card px-4 py-3 sm:px-5">
         <nav aria-label="Breadcrumb" className="mb-1 text-xs text-tertiary">
           <Link href="/dashboard" className="hover:underline">
-            Products
+            Dashboard
           </Link>
           <span aria-hidden="true"> / </span>
-          <span className="text-secondary">Catalog</span>
+          <span className="text-secondary">Products</span>
         </nav>
 
         <div className="flex flex-wrap items-start justify-between gap-3">
@@ -119,7 +119,7 @@ export default async function ProductsPage(props: { searchParams: Promise<Search
       </div>
 
       <div className="flex min-h-0 flex-1 overflow-hidden">
-        <aside className="hidden w-60 shrink-0 overflow-y-auto border-r border-border bg-background-card md:block">
+        <aside className="hidden w-60 shrink-0 border-r border-border bg-background-card md:block">
           <CatalogFilterPanel filters={filters} facets={facets} />
         </aside>
 

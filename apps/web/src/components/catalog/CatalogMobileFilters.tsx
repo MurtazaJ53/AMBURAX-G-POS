@@ -29,7 +29,7 @@ export function CatalogMobileFilters({
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="inline-flex items-center gap-1.5 rounded border border-border bg-background-card px-3 py-2 text-xs font-medium text-secondary hover:bg-background-hover lg:hidden"
+        className="inline-flex items-center gap-1.5 rounded border border-border bg-background-card px-3 py-2 text-xs font-medium text-secondary hover:bg-background-hover md:hidden"
       >
         <SlidersHorizontal aria-hidden="true" className="h-3.5 w-3.5" />
         Filters

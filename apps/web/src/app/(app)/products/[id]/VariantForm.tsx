@@ -126,32 +126,38 @@ export function VariantForm(props: {
 
         <div>
           <label htmlFor="priceMinor" className="block text-sm font-medium text-slate-700">
-            Price (e.g. 99.99)
+            Price (₹)
           </label>
-          <input
-            id="priceMinor"
-            name="priceMinor"
-            type="number"
-            step="0.01"
-            min="0"
-            defaultValue={v?.priceMinor ? (v.priceMinor / 100).toFixed(2) : ""}
-            className="mt-1 block w-full rounded-md border border-slate-300 px-3 py-2 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-          />
+          <div className="relative mt-1">
+            <span className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3 text-slate-400">₹</span>
+            <input
+              id="priceMinor"
+              name="priceMinor"
+              type="number"
+              step="0.01"
+              min="0"
+              defaultValue={v?.priceMinor ? (v.priceMinor / 100).toFixed(2) : ""}
+              className="block w-full rounded-md border border-slate-300 pl-7 px-3 py-2 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+            />
+          </div>
         </div>
 
         <div>
           <label htmlFor="mrpMinor" className="block text-sm font-medium text-slate-700">
-            MRP (e.g. 129.99)
+            MRP (₹)
           </label>
-          <input
-            id="mrpMinor"
-            name="mrpMinor"
-            type="number"
-            step="0.01"
-            min="0"
-            defaultValue={v?.mrpMinor ? (v.mrpMinor / 100).toFixed(2) : ""}
-            className="mt-1 block w-full rounded-md border border-slate-300 px-3 py-2 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-          />
+          <div className="relative mt-1">
+            <span className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3 text-slate-400">₹</span>
+            <input
+              id="mrpMinor"
+              name="mrpMinor"
+              type="number"
+              step="0.01"
+              min="0"
+              defaultValue={v?.mrpMinor ? (v.mrpMinor / 100).toFixed(2) : ""}
+              className="block w-full rounded-md border border-slate-300 pl-7 px-3 py-2 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+            />
+          </div>
         </div>
       </div>
 
