@@ -1,6 +1,5 @@
 import { redirect } from "next/navigation";
-import Link from "next/link";
-import { Calendar, ChevronDown, Monitor, Plus, ArrowDownToLine, FileText } from "lucide-react";
+import { Calendar } from "lucide-react";
 import { cookies } from "next/headers";
 import { env } from "@/lib/env";
 import { logError } from "@/lib/safeLog";
@@ -25,7 +24,6 @@ import {
 } from "@/server/dashboard/dashboardAccess";
 import { formatTradingDay, greetingFor } from "@/server/dashboard/dashboardTransforms";
 import { listSales } from "@/server/sales/saleQueries";
-import { DashboardHeader } from "@/components/dashboard/DashboardHeader";
 import { KpiGrid } from "@/components/dashboard/KpiGrid";
 import { SalesTrendCard } from "@/components/dashboard/SalesTrendCard";
 import { CategorySalesCard, PaymentMethodsCard } from "@/components/dashboard/AnalyticsCards";
@@ -153,60 +151,24 @@ export default async function DashboardPage() {
   const showPaymentMix = showAnalytics && hasRetail;
 
   return (
-      <div className="w-full px-4 py-6 md:px-6 lg:px-8">
-      <div className="mb-8 flex flex-col justify-between gap-5 xl:flex-row xl:items-end">
+    <main className="flex-1 w-full p-4 pb-12 sm:p-6 lg:p-8">
+      <header className="mb-6 flex flex-col justify-between gap-4 md:flex-row md:items-end">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight text-slate-900">
-            {greetingFor()}, {context.userName.split(' ')[0]} 👋
+          <h1 className="text-[22px] font-bold tracking-[-0.01em] text-slate-900">
+            {greetingFor()}, {context.userName.split(' ')[0]} <span aria-hidden="true">👋</span>
           </h1>
-          <p className="mt-1 text-sm text-slate-500">
-            Here&apos;s what&apos;s happening at {context.storeName} today
+          <p className="mt-1 text-[11.5px] text-slate-500">
+            Here&apos;s what&apos;s happening at {context.storeName} today.
           </p>
         </div>
         
-        <div className="flex flex-wrap items-center gap-4">
-          <div className="flex items-center gap-3 sm:border-r sm:border-slate-200 sm:pr-4">
-            <button
-              type="button"
-              className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500"
-            >
-              <Calendar size={16} className="text-sky-600" />
-              Today (Live)
-              <ChevronDown size={14} className="ml-1 text-slate-400" />
-            </button>
-            <span className="text-sm font-medium text-slate-500">
-              {formatTradingDay(startOfStoreDay())}
-            </span>
-          </div>
-
-          <div className="flex flex-wrap items-center gap-2.5">
-            <Link
-              href="/pos"
-              className="flex items-center gap-1.5 rounded-lg border border-sky-200 bg-sky-50 px-3.5 py-2 text-sm font-semibold text-sky-700 transition-colors hover:bg-sky-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500"
-            >
-              <Monitor size={16} /> POS (F2)
-            </Link>
-            <Link
-              href="/products/new"
-              className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3.5 py-2 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500"
-            >
-              <Plus size={16} className="text-slate-400" /> Add Item
-            </Link>
-            <Link
-              href="/inventory/receipts/new"
-              className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3.5 py-2 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500"
-            >
-              <ArrowDownToLine size={16} className="text-slate-400" /> Receive Stock
-            </Link>
-            <Link
-              href="/reports"
-              className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3.5 py-2 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500"
-            >
-              <FileText size={16} className="text-slate-400" /> Generate Report
-            </Link>
+        <div className="flex items-center gap-2.5">
+          <div className="flex items-center gap-1.5 rounded-md border border-slate-200 bg-white px-2.5 py-1.5 text-[11px] font-semibold text-slate-600 shadow-sm">
+            <Calendar size={13} className="text-slate-400" />
+            {formatTradingDay(startOfStoreDay())}
           </div>
         </div>
-      </div>
+      </header>
 
       <KpiGrid metrics={metrics} stock={stock} />
 
@@ -262,6 +224,6 @@ export default async function DashboardPage() {
         Figures cover today&apos;s trading day in {context.storeName} and update as sales are
         completed.
       </p>
-    </div>
+    </main>
   );
 }
