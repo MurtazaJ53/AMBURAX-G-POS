@@ -38,7 +38,7 @@ export function CategorySalesCard({
                   {formatMinor(category.amountMinor)} <b className="ml-1 text-slate-400">{category.sharePct ?? 0}%</b>
                 </span>
               </div>
-              <div className="h-1.5 overflow-hidden rounded-full bg-slate-100">
+              <div className="h-1.5 overflow-hidden rounded-full bg-slate-100" aria-hidden="true">
                 <div className="h-full rounded-full transition-all" style={{ width: `${category.sharePct ?? 0}%`, background: seriesColour(index) }} />
               </div>
             </div>
@@ -93,9 +93,16 @@ export function PaymentMethodsCard({
         </div>
       ) : (
         <div className="flex items-center gap-4 px-4 pb-4 pt-2">
-          <div className="relative size-[112px] shrink-0 rounded-full" style={{ background: paymentGradient(slices) }}>
+          <div 
+            className="relative size-[112px] shrink-0 rounded-full bg-slate-100" 
+            style={{ background: paymentGradient(slices) }}
+            role="img"
+            aria-label="Payment method breakdown"
+          >
             <div className="absolute inset-[13px] flex flex-col items-center justify-center rounded-full bg-white">
-              <strong className="data-mono text-[13px] font-bold text-slate-800">{formatMinor(totalMinor)}</strong>
+              <strong className="data-mono text-[13px] font-bold text-slate-800">
+                {formatMinor(totalMinor).slice(0, -3)}
+              </strong>
               <span className="text-[8px] text-slate-400">Total sales</span>
             </div>
           </div>
@@ -103,7 +110,7 @@ export function PaymentMethodsCard({
             {slices.map((payment) => (
               <div key={payment.label} className="flex items-center justify-between gap-4 text-[10px]">
                 <span className="flex items-center gap-1.5 text-slate-500">
-                  <i className="size-1.5 rounded-full" style={{ background: payment.colour }} />
+                  <i className="size-1.5 rounded-full" style={{ background: payment.colour }} aria-hidden="true" />
                   {payment.label}
                 </span>
                 <b className="text-slate-700">{payment.sharePct}%</b>
