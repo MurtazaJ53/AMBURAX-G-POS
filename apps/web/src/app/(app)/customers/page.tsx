@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { Users, Banknote, UserCheck, Star, Receipt } from "lucide-react";
 import { redirect } from "next/navigation";
 import { cookies } from "next/headers";
 import { env } from "@/lib/env";
@@ -73,24 +74,32 @@ export default async function CustomersPage({
   return (
     <div className="px-4 py-6 sm:px-6">
       <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
-        <PageHeader title="Customer Due & Khata" subtitle="Track customers and view basic metrics" />
+        <PageHeader title="Customer Due & Khata" subtitle="Track outstanding dues, manage khata and follow up with customers" />
         <CustomerActions />
       </div>
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4 mb-6">
-        <KpiCard label="Total Customers" value={String(summary.total)} tone="blue" />
-        <KpiCard label="Active Customers" value={String(summary.active)} hint="Not archived" tone="violet" />
-        <KpiCard
-          label="Repeat Customers"
-          value={String(summary.repeat)}
-          hint=">1 purchase"
-          tone="emerald"
-        />
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 mb-6">
+        <KpiCard label="Total Customers" value={String(summary.total)} tone="blue" icon={<Users className="h-5 w-5" />} />
         <KpiCard
           label="Attributed Sales"
           value={formatMinor(summary.attributedSalesMinor)}
           hint="Sales linked to customers"
           tone="amber"
+          icon={<Banknote className="h-5 w-5" />}
+        />
+        <KpiCard label="Active Customers" value={String(summary.active)} hint="Not archived" tone="violet" icon={<UserCheck className="h-5 w-5" />} />
+        <KpiCard
+          label="Repeat Customers"
+          value={String(summary.repeat)}
+          hint=">1 purchase"
+          tone="emerald"
+          icon={<Star className="h-5 w-5" />}
+        />
+        <KpiCard
+          label="Outstanding Dues"
+          value="--"
+          hint="ERP receivables not connected"
+          icon={<Receipt className="h-5 w-5" />}
         />
       </div>
 

@@ -2,7 +2,7 @@
 
 import { useActionState, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Plus, X, Search, Filter, ChevronLeft, ChevronRight, ChevronDown, MoreHorizontal } from "lucide-react";
+import { Plus, X, Search, Filter, ChevronLeft, ChevronRight, ChevronDown, MoreHorizontal, Send, Download, FileText } from "lucide-react";
 import { createCustomerAction } from "./actions";
 
 // Assume standard UI components exist in amubrax codebase, actually AMBURAX UI components are in `../_components/ui.tsx`
@@ -69,13 +69,15 @@ export function CustomerActions() {
   const [open, setOpen] = useState(false);
 
   return (
-    <div className="flex flex-wrap gap-2">
+    <div className="flex flex-wrap items-center gap-2">
       <button
         type="button"
         className={buttonClass("secondary")}
         disabled
-        title="ERP connection unavailable"
+        aria-disabled="true"
+        title="Reminders are managed in ERPNext (Not connected)"
       >
+        <Send className="mr-2 h-4 w-4 inline opacity-50" />
         Send Reminder
       </button>
       <button
@@ -83,14 +85,27 @@ export function CustomerActions() {
         className={buttonClass("primary")}
         onClick={() => setOpen(true)}
       >
-        <Plus className="mr-2 h-4 w-4 inline" /> Add Customer
+        <Plus className="mr-2 h-4 w-4 inline" />
+        Add Customer
       </button>
       <button
         type="button"
         className={buttonClass("secondary")}
         disabled
-        title="ERP connection unavailable"
+        aria-disabled="true"
+        title="Export is not currently available"
       >
+        <Download className="mr-2 h-4 w-4 inline opacity-50" />
+        Export
+      </button>
+      <button
+        type="button"
+        className={buttonClass("secondary")}
+        disabled
+        aria-disabled="true"
+        title="Khata ledgers are managed in ERPNext (Not connected)"
+      >
+        <FileText className="mr-2 h-4 w-4 inline opacity-50" />
         New Khata
       </button>
       <CustomerCreateDialog open={open} onClose={() => setOpen(false)} />
