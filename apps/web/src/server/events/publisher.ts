@@ -109,7 +109,7 @@ export class ConsoleOutboxPublisher implements OutboxPublisher {
 
 /** What this process would actually do with an event right now. */
 export interface OutboxTransportDescription {
-  kind: "console" | "none";
+  kind: "console" | "none" | "erpnext";
   /** True only when a consumer outside this process could genuinely receive the event. */
   deliversForReal: boolean;
   reason: string;
@@ -143,6 +143,14 @@ export function describeOutboxTransport(
     };
   }
 
+  if (configured === "erpnext") {
+    return {
+      kind: "erpnext",
+      deliversForReal: true,
+      reason: "Events are pushed directly to the configured ERPNext API via ErpClient.",
+    };
+  }
+
   return {
     kind: "none",
     deliversForReal: false,
@@ -152,6 +160,8 @@ export function describeOutboxTransport(
         : `Unknown OUTBOX_TRANSPORT value "${configured}". Treated as no transport.`,
   };
 }
+
+import { ErpOutboxPublisher } from "@/server/erp/outboxPublisher";
 
 /**
  * Resolve the publisher for this process.
@@ -164,7 +174,11 @@ export function describeOutboxTransport(
 export function resolveOutboxPublisher(
   environment: NodeJS.ProcessEnv = process.env,
 ): OutboxPublisher {
-  return describeOutboxTransport(environment).kind === "console"
+  const kind = describeOutboxTransport(environment).kind;
+  if (kind === "erpnext") {
+    return new ErpOutboxPublisher();
+  }
+  return kind === "console"
     ? new ConsoleOutboxPublisher()
     : new UnconfiguredOutboxPublisher();
 }
