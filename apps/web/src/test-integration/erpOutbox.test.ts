@@ -39,11 +39,10 @@ describe("ERPNext Vertical Slice (Outbox)", () => {
     process.env["ERP_SITE_TEST_SITE_LOCAL_SECRET"] = "test-secret";
 
     // 2. Prepare fake transport responses
-    transport.script({
-      kind: "respond",
-      status: 200,
-      body: { data: { name: "SINV-00001" } },
-    });
+    transport.script(
+      { kind: "respond", status: 200, body: { data: [] } }, // 1. Initial lookup
+      { kind: "respond", status: 200, body: { data: { name: "SINV-00001" } } } // 2. Create
+    );
 
     // 3. Make a sale
     await db.store.update({
@@ -93,8 +92,13 @@ describe("ERPNext Vertical Slice (Outbox)", () => {
     expect(publishedEvent?.lastError).toBeNull();
 
     // 5. Verify ERP transport received the correct payload
-    expect(transport.sent).toHaveLength(1);
-    const call = transport.sent[0]!;
+    expect(transport.sent).toHaveLength(2);
+    
+    // First call is GET (lookup)
+    expect(transport.sent[0]!.method).toBe("GET");
+    
+    // Second call is POST (create)
+    const call = transport.sent[1]!;
     expect(call.method).toBe("POST");
     expect(call.path).toBe("/api/resource/Sales Invoice"); 
 
