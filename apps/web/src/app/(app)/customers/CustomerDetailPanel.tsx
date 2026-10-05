@@ -128,7 +128,7 @@ export function CustomerDetailPanel({ detail }: { detail: CustomerDetail }) {
               <b className="text-[13px] text-slate-900">{detail.lastPurchaseAt ? formatDateOnly(detail.lastPurchaseAt) : "Never"}</b>
             </div>
             <div className="p-3 flex flex-col items-center text-center justify-center">
-              <span className="block text-[10px] uppercase tracking-wider text-slate-500 mb-0.5">Avg Order Val</span>
+              <span className="block text-[10px] uppercase tracking-wider text-slate-500 mb-0.5">Avg Order Value</span>
               <b className="text-[13px] text-slate-900">{avgOrderValue !== null ? formatMinor(avgOrderValue) : "--"}</b>
             </div>
           </div>
