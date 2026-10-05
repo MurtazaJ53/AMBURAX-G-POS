@@ -155,7 +155,7 @@ export default async function CustomersPage({
                 <FileText className="h-4 w-4" />
               </div>
               <div className="flex-1 min-w-0">
-                <div className="text-[12px] font-semibold text-slate-900 truncate leading-tight">View All Dues</div>
+                <div className="text-[12px] font-semibold text-slate-900 truncate leading-tight">View All Dues <span className="sr-only">(Unavailable: Requires ERP Connection)</span></div>
                 <div className="text-[10px] text-slate-500 truncate leading-tight mt-0.5">See complete pending dues</div>
               </div>
             </button>
@@ -169,7 +169,7 @@ export default async function CustomersPage({
                 <MessageSquare className="h-4 w-4" />
               </div>
               <div className="flex-1 min-w-0">
-                <div className="text-[12px] font-semibold text-slate-900 truncate leading-tight">Send Due Reminder</div>
+                <div className="text-[12px] font-semibold text-slate-900 truncate leading-tight">Send Due Reminder <span className="sr-only">(Unavailable: Requires ERP Connection)</span></div>
                 <div className="text-[10px] text-slate-500 truncate leading-tight mt-0.5">WhatsApp / SMS / Call</div>
               </div>
             </button>
@@ -183,7 +183,7 @@ export default async function CustomersPage({
                 <BookOpen className="h-4 w-4" />
               </div>
               <div className="flex-1 min-w-0">
-                <div className="text-[12px] font-semibold text-slate-900 truncate leading-tight">Create Khata</div>
+                <div className="text-[12px] font-semibold text-slate-900 truncate leading-tight">Create Khata <span className="sr-only">(Unavailable: Requires ERP Connection)</span></div>
                 <div className="text-[10px] text-slate-500 truncate leading-tight mt-0.5">Open new khata for customer</div>
               </div>
             </button>
@@ -197,7 +197,7 @@ export default async function CustomersPage({
                 <CreditCard className="h-4 w-4" />
               </div>
               <div className="flex-1 min-w-0">
-                <div className="text-[12px] font-semibold text-slate-900 truncate leading-tight">Collect Payment</div>
+                <div className="text-[12px] font-semibold text-slate-900 truncate leading-tight">Collect Payment <span className="sr-only">(Unavailable: Requires ERP Connection)</span></div>
                 <div className="text-[10px] text-slate-500 truncate leading-tight mt-0.5">Record customer payment</div>
               </div>
             </button>
