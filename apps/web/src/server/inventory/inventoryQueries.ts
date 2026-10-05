@@ -10,6 +10,30 @@ import { db } from "@/server/db";
  */
 export const LOW_STOCK_MAX_UNITS = 10;
 
+export type StockStatusFilter = "in_stock" | "low_stock" | "out_of_stock";
+
+/**
+ * The quantity condition behind each status filter option. The same bands the overview counts
+ * and the row pills use, so filtering by "In Stock" returns exactly the SKUs the KPI and the
+ * analytics call in stock. Unknown values mean "no status filter".
+ */
+export function stockStatusQuantityFilter(
+  status: string | undefined,
+): { gt?: number; lte?: number } | undefined {
+  if (status === "in_stock") return { gt: LOW_STOCK_MAX_UNITS };
+  if (status === "low_stock") return { gt: 0, lte: LOW_STOCK_MAX_UNITS };
+  if (status === "out_of_stock") return { lte: 0 };
+  return undefined;
+}
+
+/** The status pill label for one stock level, on the same bands as the filter above. */
+export function stockStatusLabel(quantity: number): "In Stock" | "Low Stock" | "Out of Stock" | "Negative" {
+  if (quantity > LOW_STOCK_MAX_UNITS) return "In Stock";
+  if (quantity > 0) return "Low Stock";
+  if (quantity < 0) return "Negative";
+  return "Out of Stock";
+}
+
 export async function getInventoryOverview(params: { tenantId: string; storeId: string }) {
   const { tenantId, storeId } = params;
   
@@ -106,10 +130,7 @@ export async function listStockLevels(params: {
 }) {
   const { tenantId, storeId, search, status, category, brand, limit = 50, offset = 0 } = params;
 
-  let quantityFilter: any = undefined;
-  if (status === "in_stock") quantityFilter = { gt: 0 };
-  else if (status === "low_stock") quantityFilter = { gt: 0, lte: 10 };
-  else if (status === "out_of_stock") quantityFilter = { lte: 0 };
+  const quantityFilter = stockStatusQuantityFilter(status);
 
   const productConditions: any[] = [];
   

@@ -10,6 +10,7 @@ export function InventoryToolbar({
   category,
   brand,
   view,
+  page,
   categories,
   brands,
 }: {
@@ -18,6 +19,7 @@ export function InventoryToolbar({
   category?: string;
   brand?: string;
   view: string;
+  page: number;
   categories: string[];
   brands: string[];
 }) {
@@ -37,6 +39,9 @@ export function InventoryToolbar({
     if (newCat) p.set("category", newCat);
     if (newBrand) p.set("brand", newBrand);
     if (newView && newView !== "table") p.set("view", newView);
+    // Switching between table and grid shows the same rows, so it keeps the page; a new search
+    // or filter changes the result set and starts again from page 1.
+    if (updates.view !== undefined && page > 1) p.set("page", String(page));
 
     router.push(`/inventory?${p.toString()}`);
   };

@@ -4,7 +4,7 @@ import Link from "next/link";
 import { env } from "@/lib/env";
 import { resolvePosContext } from "@/server/sales/posContext";
 import { canManageInventory } from "@/server/inventory/inventoryRoles";
-import { getInventoryOverview, listStockLevels, listStoreStockMovements, getInventoryFilterOptions } from "@/server/inventory/inventoryQueries";
+import { getInventoryOverview, listStockLevels, listStoreStockMovements, getInventoryFilterOptions, stockStatusLabel } from "@/server/inventory/inventoryQueries";
 import { Package, Boxes, ArrowRightLeft, AlertTriangle, AlertOctagon, Plus } from "lucide-react";
 
 import { StatusPill } from "@/components/inventory/InventoryUI";
@@ -74,6 +74,32 @@ export default async function InventoryPage(props: { searchParams: Promise<{ [ke
     return `/inventory?${p.toString()}`;
   };
 
+  // One footer for both views: the same page, range and filter-preserving links, so grid view
+  // reaches every page the table does.
+  const pagination = total > 0 ? (
+    <div className="flex-none flex items-center justify-between border-t border-border px-4 py-3 text-[10px] text-secondary bg-slate-50">
+      <span>Showing {offset + 1}&mdash;{Math.min(offset + limit, total)} of {total} products</span>
+      <div className="flex items-center gap-2">
+        <Link 
+          href={createPageHref(page - 1)}
+          className={`inline-flex h-7 items-center justify-center rounded-[4px] border border-border bg-white px-3 font-medium transition-colors hover:bg-slate-50 ${page <= 1 ? "pointer-events-none opacity-50" : ""}`}
+          aria-disabled={page <= 1}
+          tabIndex={page <= 1 ? -1 : 0}
+        >
+          Previous
+        </Link>
+        <Link 
+          href={createPageHref(page + 1)}
+          className={`inline-flex h-7 items-center justify-center rounded-[4px] border border-border bg-white px-3 font-medium transition-colors hover:bg-slate-50 ${offset + limit >= total ? "pointer-events-none opacity-50" : ""}`}
+          aria-disabled={offset + limit >= total}
+          tabIndex={offset + limit >= total ? -1 : 0}
+        >
+          Next
+        </Link>
+      </div>
+    </div>
+  ) : null;
+
   return (
     <main className="flex-1 w-full p-4 pb-12 sm:p-6 lg:p-8 flex flex-col min-w-0">
       <header className="mb-6 flex flex-col justify-between gap-4 md:flex-row md:items-end">
@@ -142,6 +168,7 @@ export default async function InventoryPage(props: { searchParams: Promise<{ [ke
           category={category}
           brand={brand}
           view={view}
+          page={page}
           categories={categories}
           brands={brands}
         />
@@ -158,14 +185,14 @@ export default async function InventoryPage(props: { searchParams: Promise<{ [ke
                     <th className="px-4 py-2 font-semibold">SKU</th>
                     <th className="px-4 py-2 font-semibold">Category</th>
                     <th className="px-4 py-2 font-semibold">Brand</th>
-                    <th className="px-4 py-2 text-right font-semibold">Stock &darr;</th>
+                    <th className="px-4 py-2 text-right font-semibold">Stock</th>
                     <th className="px-4 py-2 text-right font-semibold">Available</th>
                     <th className="px-4 py-2 font-semibold">Status</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
                   {items.map(p => {
-                    const st = p.quantity > 10 ? "In Stock" : p.quantity > 0 ? "Low Stock" : p.quantity < 0 ? "Negative" : "Out of Stock";
+                    const st = stockStatusLabel(p.quantity);
                     return (
                       <tr 
                         key={p.variant.sku} 
@@ -210,57 +237,44 @@ export default async function InventoryPage(props: { searchParams: Promise<{ [ke
                 </tbody>
               </table>
             </div>
-            {total > 0 && (
-              <div className="flex-none flex items-center justify-between border-t border-border px-4 py-3 text-[10px] text-secondary bg-slate-50">
-                <span>Showing {offset + 1}&mdash;{Math.min(offset + limit, total)} of {total} products</span>
-                <div className="flex items-center gap-2">
-                  <Link 
-                    href={createPageHref(page - 1)}
-                    className={`inline-flex h-7 items-center justify-center rounded-[4px] border border-border bg-white px-3 font-medium transition-colors hover:bg-slate-50 ${page <= 1 ? "pointer-events-none opacity-50" : ""}`}
-                    aria-disabled={page <= 1}
-                    tabIndex={page <= 1 ? -1 : 0}
-                  >
-                    Previous
-                  </Link>
-                  <Link 
-                    href={createPageHref(page + 1)}
-                    className={`inline-flex h-7 items-center justify-center rounded-[4px] border border-border bg-white px-3 font-medium transition-colors hover:bg-slate-50 ${offset + limit >= total ? "pointer-events-none opacity-50" : ""}`}
-                    aria-disabled={offset + limit >= total}
-                    tabIndex={offset + limit >= total ? -1 : 0}
-                  >
-                    Next
-                  </Link>
-                </div>
-              </div>
-            )}
+            {pagination}
           </div>
         ) : (
-          <div className="flex-1 overflow-y-auto grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-4 content-start pr-1">
-            {items.map(p => {
-              const st = p.quantity > 10 ? "In Stock" : p.quantity > 0 ? "Low Stock" : p.quantity < 0 ? "Negative" : "Out of Stock";
-              return (
-                <Link 
-                  key={p.variant.sku} 
-                  href={createSelectHref(p.variant.sku)} 
-                  className={`rounded-lg border bg-background-card p-3 text-left shadow-sm hover:border-primary transition-colors ${selectedSku === p.variant.sku ? "border-primary ring-1 ring-primary" : "border-border"}`}
-                >
-                  <div className="h-32 w-full rounded-md bg-background-app mb-3 flex items-center justify-center overflow-hidden">
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    {p.variant.product.imageUrl ? (
-                      <img src={p.variant.product.imageUrl} alt="" className="h-full w-full object-cover" />
-                    ) : (
-                      <Package className="h-8 w-8 text-tertiary" />
-                    )}
-                  </div>
-                  <b className="block text-sm text-primary truncate">{p.variant.product.name}</b>
-                  <span className="text-[11px] text-secondary truncate block font-mono">{p.variant.sku}</span>
-                  <div className="mt-2 flex items-center justify-between">
-                    <span className="text-[12px] font-bold text-primary font-mono">{p.quantity} <span className="font-sans font-medium text-[10px] text-secondary">units</span></span>
-                    <StatusPill status={st} />
-                  </div>
-                </Link>
-              );
-            })}
+          <div className="flex flex-col min-w-0 min-h-0 gap-3">
+            <div className="flex-1 overflow-y-auto grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-4 content-start pr-1">
+              {items.length === 0 ? (
+                <p className="col-span-full rounded-[6px] border border-border bg-background-card p-12 text-center text-sm text-secondary">
+                  No products match your filters.
+                </p>
+              ) : items.map(p => {
+                const st = stockStatusLabel(p.quantity);
+                return (
+                  <Link 
+                    key={p.variant.sku} 
+                    href={createSelectHref(p.variant.sku)} 
+                    className={`rounded-lg border bg-background-card p-3 text-left shadow-sm hover:border-primary transition-colors ${selectedSku === p.variant.sku ? "border-primary ring-1 ring-primary" : "border-border"}`}
+                  >
+                    <div className="h-32 w-full rounded-md bg-background-app mb-3 flex items-center justify-center overflow-hidden">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      {p.variant.product.imageUrl ? (
+                        <img src={p.variant.product.imageUrl} alt="" className="h-full w-full object-cover" />
+                      ) : (
+                        <Package className="h-8 w-8 text-tertiary" />
+                      )}
+                    </div>
+                    <b className="block text-sm text-primary truncate">{p.variant.product.name}</b>
+                    <span className="text-[11px] text-secondary truncate block font-mono">{p.variant.sku}</span>
+                    <div className="mt-2 flex items-center justify-between">
+                      <span className="text-[12px] font-bold text-primary font-mono">{p.quantity} <span className="font-sans font-medium text-[10px] text-secondary">units</span></span>
+                      <StatusPill status={st} />
+                    </div>
+                  </Link>
+                );
+              })}
+            </div>
+            {pagination ? (
+              <div className="overflow-hidden rounded-[6px] border border-border">{pagination}</div>
+            ) : null}
           </div>
         )}
 
