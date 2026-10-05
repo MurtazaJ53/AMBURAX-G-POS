@@ -1,6 +1,7 @@
 import { Prisma, TenantRole } from "@prisma/client";
 import { db } from "@/server/db";
 import { writeAuditLog } from "@/server/identity/audit";
+import { enqueueOutboxEvent } from "@/server/events/outbox";
 import { canManageCatalog } from "@/server/catalog/catalogRoles";
 
 export interface CatalogActor {
@@ -158,18 +159,31 @@ export async function createVariant(input: CreateVariantInput): Promise<CreateVa
     if (existingBarcode) return { status: "conflict" };
   }
 
-  const variant = await db.productVariant.create({
-    data: {
+  const variant = await db.$transaction(async (tx) => {
+    const v = await tx.productVariant.create({
+      data: {
+        tenantId: input.actor.tenantId,
+        productId: input.productId,
+        sku: input.sku,
+        barcode: input.barcode,
+        size: input.size,
+        colour: input.colour,
+        priceMinor: input.priceMinor,
+        mrpMinor: input.mrpMinor,
+        isActive: input.isActive,
+      }
+    });
+    
+    await enqueueOutboxEvent(tx, {
       tenantId: input.actor.tenantId,
-      productId: input.productId,
-      sku: input.sku,
-      barcode: input.barcode,
-      size: input.size,
-      colour: input.colour,
-      priceMinor: input.priceMinor,
-      mrpMinor: input.mrpMinor,
-      isActive: input.isActive,
-    }
+      eventType: "ProductVariantCreated",
+      actorUserId: input.actor.userId,
+      correlationId: input.correlationId,
+      entityId: v.id,
+      payload: { variantId: v.id },
+    });
+    
+    return v;
   });
 
   await writeAuditLog({
@@ -224,17 +238,29 @@ export async function updateVariant(input: UpdateVariantInput): Promise<UpdateVa
     if (existingBarcode) return { status: "conflict" };
   }
 
-  await db.productVariant.update({
-    where: { id: input.variantId, tenantId: input.actor.tenantId },
-    data: {
-      sku: input.sku,
-      barcode: input.barcode === undefined ? existing.barcode : input.barcode,
-      size: input.size === undefined ? existing.size : input.size,
-      colour: input.colour === undefined ? existing.colour : input.colour,
-      priceMinor: input.priceMinor,
-      mrpMinor: input.mrpMinor === undefined ? existing.mrpMinor : input.mrpMinor,
-      isActive: input.isActive,
-    }
+  await db.$transaction(async (tx) => {
+    await tx.productVariant.update({
+      where: { id: input.variantId, tenantId: input.actor.tenantId },
+      data: {
+        sku: input.sku,
+        barcode: input.barcode === undefined ? existing.barcode : input.barcode,
+        size: input.size === undefined ? existing.size : input.size,
+        colour: input.colour === undefined ? existing.colour : input.colour,
+        priceMinor: input.priceMinor,
+        mrpMinor: input.mrpMinor === undefined ? existing.mrpMinor : input.mrpMinor,
+        isActive: input.isActive,
+      }
+    });
+
+    await enqueueOutboxEvent(tx, {
+      tenantId: input.actor.tenantId,
+      eventType: "ProductVariantUpdated",
+      actorUserId: input.actor.userId,
+      correlationId: input.correlationId,
+      entityId: input.variantId,
+      payload: { variantId: input.variantId },
+      discriminator: Date.now().toString(),
+    });
   });
 
   await writeAuditLog({

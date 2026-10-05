@@ -762,6 +762,8 @@ model ProductVariant {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  erpSyncStatus ErpSyncStatus @default(PENDING)
+
   // Composite. A variant of one tenant hanging off another tenant's product would put a
   // foreign product's name and unit on this tenant's sale lines.
   product        Product         @relation(fields: [productId, tenantId], references: [id, tenantId])

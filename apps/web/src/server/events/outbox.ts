@@ -29,6 +29,8 @@ export const OUTBOX_EVENT_TYPES = [
   "PosDeviceDisabled",
   "InvitationAccepted",
   "OnboardingCompleted",
+  "ProductVariantCreated",
+  "ProductVariantUpdated",
 ] as const;
 
 export type OutboxEventType = (typeof OUTBOX_EVENT_TYPES)[number];
