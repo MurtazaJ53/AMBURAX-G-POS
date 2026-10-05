@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Users, Banknote, UserCheck, Star, Receipt } from "lucide-react";
+import { Users, Receipt, FileText, MessageSquare, BookOpen, CreditCard, CalendarClock, PieChart, TrendingUp, Bell, FileSpreadsheet, Clock } from "lucide-react";
 import { redirect } from "next/navigation";
 import { cookies } from "next/headers";
 import { env } from "@/lib/env";
@@ -82,63 +82,84 @@ export default async function CustomersPage({
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 mb-6">
         <KpiCard label="Total Customers" value={String(summary.total)} tone="blue" icon={<Users className="h-5 w-5" />} />
-        <KpiCard
-          label="Attributed Sales"
-          value={formatMinor(summary.attributedSalesMinor)}
-          hint="Sales linked to customers"
-          tone="amber"
-          icon={<Banknote className="h-5 w-5" />}
-        />
-        <KpiCard label="Active Customers" value={String(summary.active)} hint="Not archived" tone="violet" icon={<UserCheck className="h-5 w-5" />} />
-        <KpiCard
-          label="Repeat Customers"
-          value={String(summary.repeat)}
-          hint=">1 purchase"
-          tone="emerald"
-          icon={<Star className="h-5 w-5" />}
-        />
-        <KpiCard
-          label="Outstanding Dues"
-          value="--"
-          hint="ERP receivables not connected"
-          icon={<Receipt className="h-5 w-5" />}
-        />
+        <KpiCard label="Total Due Amount" value="--" hint="ERP not connected" tone="emerald" icon={<Receipt className="h-5 w-5" />} />
+        <KpiCard label="Active Khata" value="--" hint="ERP not connected" tone="blue" icon={<FileSpreadsheet className="h-5 w-5" />} />
+        <KpiCard label="Overdue Customers" value="--" hint="ERP not connected" tone="rose" icon={<Clock className="h-5 w-5" />} />
+        <KpiCard label="Avg. Days Pending" value="--" hint="ERP not connected" tone="violet" icon={<CalendarClock className="h-5 w-5" />} />
       </div>
 
-      <div className="grid gap-6 xl:grid-cols-3 mb-6">
-        <Card className="flex flex-col">
+      <div className="grid gap-6 grid-cols-1 lg:grid-cols-4 mb-6">
+        {/* Customer Due Overview (Pie Chart replacement) */}
+        <Card className="flex flex-col col-span-1 border border-slate-200 shadow-sm rounded-xl overflow-hidden bg-white">
           <div className="border-b border-slate-100 p-4">
-            <h2 className="text-sm font-bold text-slate-900">Due Amount Trend</h2>
+            <h2 className="text-sm font-bold text-slate-900">Customer Due Overview</h2>
           </div>
-          <div className="flex-1 p-6">
+          <div className="flex-1 p-6 flex flex-col items-center justify-center">
+            <PieChart className="h-12 w-12 text-slate-200 mb-3" />
             <EmptyState
-              title="ERP receivables data not connected"
-              description="Authoritative trend data is managed in ERPNext."
+              title="No Overview Data"
+              description="Connect ERP receivables to view due segments."
             />
           </div>
         </Card>
         
-        <Card className="flex flex-col">
-          <div className="border-b border-slate-100 p-4">
-            <h2 className="text-sm font-bold text-slate-900">Recent Payments</h2>
+        {/* Due Amount Trend (Line Chart replacement) */}
+        <Card className="flex flex-col col-span-1 lg:col-span-2 border border-slate-200 shadow-sm rounded-xl overflow-hidden bg-white">
+          <div className="border-b border-slate-100 p-4 flex justify-between items-center">
+            <h2 className="text-sm font-bold text-slate-900">Due Amount Trend</h2>
+            <span className="text-xs font-medium text-slate-500 bg-slate-100 px-2 py-1 rounded">Last 6 Months</span>
           </div>
-          <div className="flex-1 p-6">
+          <div className="flex-1 p-6 flex flex-col items-center justify-center">
+            <TrendingUp className="h-12 w-12 text-slate-200 mb-3" />
             <EmptyState
-              title="ERP receivables data not connected"
-              description="Payment ledgers and recent receipts are managed in ERPNext."
+              title="No Trend Data"
+              description="Authoritative trend data is managed in ERPNext."
             />
           </div>
         </Card>
 
-        <Card className="flex flex-col">
+        {/* Quick Actions */}
+        <Card className="flex flex-col col-span-1 border border-slate-200 shadow-sm rounded-xl overflow-hidden bg-white">
           <div className="border-b border-slate-100 p-4">
-            <h2 className="text-sm font-bold text-slate-900">Top Due Customers</h2>
+            <h2 className="text-sm font-bold text-slate-900">Quick Actions</h2>
           </div>
-          <div className="flex-1 p-6">
-            <EmptyState
-              title="ERP receivables data not connected"
-              description="Receivables and outstanding balances are managed in ERPNext."
-            />
+          <div className="flex-1 p-4 grid grid-cols-1 gap-2">
+            <button className="flex items-center gap-3 p-3 rounded-lg border border-slate-100 hover:bg-slate-50 transition-colors text-left group">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-blue-50 text-blue-600 group-hover:bg-blue-100">
+                <FileText className="h-5 w-5" />
+              </div>
+              <div>
+                <div className="text-sm font-semibold text-slate-900">View All Dues</div>
+                <div className="text-xs text-slate-500">See complete pending dues</div>
+              </div>
+            </button>
+            <button className="flex items-center gap-3 p-3 rounded-lg border border-slate-100 hover:bg-slate-50 transition-colors text-left group">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-green-50 text-green-600 group-hover:bg-green-100">
+                <MessageSquare className="h-5 w-5" />
+              </div>
+              <div>
+                <div className="text-sm font-semibold text-slate-900">Send Due Reminder</div>
+                <div className="text-xs text-slate-500">WhatsApp / SMS / Call</div>
+              </div>
+            </button>
+            <button className="flex items-center gap-3 p-3 rounded-lg border border-slate-100 hover:bg-slate-50 transition-colors text-left group">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-amber-50 text-amber-600 group-hover:bg-amber-100">
+                <BookOpen className="h-5 w-5" />
+              </div>
+              <div>
+                <div className="text-sm font-semibold text-slate-900">Create Khata</div>
+                <div className="text-xs text-slate-500">Open new khata for customer</div>
+              </div>
+            </button>
+            <button className="flex items-center gap-3 p-3 rounded-lg border border-slate-100 hover:bg-slate-50 transition-colors text-left group">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-purple-50 text-purple-600 group-hover:bg-purple-100">
+                <CreditCard className="h-5 w-5" />
+              </div>
+              <div>
+                <div className="text-sm font-semibold text-slate-900">Collect Payment</div>
+                <div className="text-xs text-slate-500">Record customer payment</div>
+              </div>
+            </button>
           </div>
         </Card>
       </div>
@@ -272,6 +293,56 @@ export default async function CustomersPage({
             </Card>
           )}
         </div>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mt-6">
+        {/* Recent Payments */}
+        <Card className="flex flex-col border border-slate-200 shadow-sm rounded-xl overflow-hidden bg-white">
+          <div className="border-b border-slate-100 p-4 flex justify-between items-center">
+            <h2 className="text-sm font-bold text-slate-900">Recent Payments</h2>
+            <Link href="#" className="text-xs font-semibold text-blue-600 hover:text-blue-800">View All</Link>
+          </div>
+          <div className="flex-1 p-6 flex flex-col items-center justify-center">
+            <Receipt className="h-10 w-10 text-slate-200 mb-3" />
+            <EmptyState
+              title="No Payment Data"
+              description="Payment ledgers are managed in ERPNext."
+            />
+          </div>
+        </Card>
+
+        {/* Top Due Customers */}
+        <Card className="flex flex-col border border-slate-200 shadow-sm rounded-xl overflow-hidden bg-white">
+          <div className="border-b border-slate-100 p-4 flex justify-between items-center">
+            <h2 className="text-sm font-bold text-slate-900">Top Due Customers</h2>
+            <Link href="#" className="text-xs font-semibold text-blue-600 hover:text-blue-800">View All</Link>
+          </div>
+          <div className="flex-1 p-6 flex flex-col items-center justify-center">
+            <Users className="h-10 w-10 text-slate-200 mb-3" />
+            <EmptyState
+              title="No Due Data"
+              description="Receivables are managed in ERPNext."
+            />
+          </div>
+        </Card>
+
+        {/* Send Due Reminders (Blue Action Card) */}
+        <Card className="flex flex-col border border-blue-100 shadow-sm rounded-xl overflow-hidden bg-blue-50/50">
+          <div className="p-6 flex-1 flex flex-row items-start gap-4">
+            <div className="p-3 bg-white rounded-xl shadow-sm shrink-0 text-blue-600">
+              <CalendarClock className="h-7 w-7" />
+            </div>
+            <div className="flex flex-col items-start">
+              <h2 className="text-[15px] font-bold text-slate-900 mb-1">Send Due Reminders</h2>
+              <p className="text-slate-500 text-xs mb-4 leading-relaxed">
+                Automatically remind customers about pending dues via WhatsApp, SMS or Call.
+              </p>
+              <button className="bg-blue-600 text-white hover:bg-blue-700 text-sm font-semibold py-2 px-5 rounded-lg shadow-sm transition-colors mt-auto">
+                Send Reminders
+              </button>
+            </div>
+          </div>
+        </Card>
       </div>
     </div>
   );
