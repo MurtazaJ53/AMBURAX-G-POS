@@ -1,4 +1,4 @@
-﻿import { describe, test, expect, beforeAll, afterAll } from "vitest";
+import { describe, test, expect, beforeAll, afterAll } from "vitest";
 import { db } from "../server/db";
 import { listCustomers } from "../server/sales/customers";
 import { resetDatabase, seedTwoTenants, IDS } from "./db";
@@ -36,12 +36,12 @@ describe("Customers List", () => {
     // Test segment filter (WHOLESALE)
     const wholesale = await listCustomers({ tenantId: tenantAId, customerType: "WHOLESALE" });
     expect(wholesale.total).toBe(1);
-    expect(wholesale.rows[0].name).toBe("Neha Jain");
+    expect(wholesale.rows[0]!.name).toBe("Neha Jain");
 
     // Test search query only
     const search = await listCustomers({ tenantId: tenantAId, query: "Karan" });
     expect(search.total).toBe(1);
-    expect(search.rows[0].name).toBe("Karan Singh");
+    expect(search.rows[0]!.name).toBe("Karan Singh");
 
     // Test search + segment (No match)
     const noMatch = await listCustomers({ tenantId: tenantAId, query: "Karan", customerType: "RETAIL" });
@@ -50,6 +50,6 @@ describe("Customers List", () => {
     // Test search + segment (Match)
     const match = await listCustomers({ tenantId: tenantAId, query: "Ali", customerType: "RETAIL" });
     expect(match.total).toBe(1);
-    expect(match.rows[0].name).toBe("Ali Khan");
+    expect(match.rows[0]!.name).toBe("Ali Khan");
   });
 });

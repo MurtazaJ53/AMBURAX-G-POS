@@ -168,7 +168,7 @@ export default async function CustomersPage({
             ) : (
               <>
                 <DataTable caption="Customers">
-                  <thead className="border-b border-slate-100 bg-slate-50/50">
+                  <thead className="border-b border-slate-100 bg-slate-50">
                     <tr>
                       <Th>Customer</Th>
                       <Th>Phone</Th>
@@ -176,12 +176,24 @@ export default async function CustomersPage({
                       <Th align="right">Total spend</Th>
                       <Th>Last purchase</Th>
                       <Th>Status</Th>
-                      <Th>Action</Th>
+                      <Th align="right">Action</Th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-50">
+                  <tbody className="divide-y divide-slate-100">
                     {result.rows.map((customer) => {
                       const isSelected = selectedId === customer.id;
+                      
+                      // Deterministic avatar colors
+                      const colors = [
+                        "bg-blue-100 text-blue-700",
+                        "bg-emerald-100 text-emerald-700",
+                        "bg-amber-100 text-amber-700",
+                        "bg-rose-100 text-rose-700",
+                        "bg-indigo-100 text-indigo-700",
+                      ];
+                      const colorIndex = customer.name.length % colors.length;
+                      const avatarClass = colors[colorIndex];
+                      
                       return (
                         <tr key={customer.id} className={`transition-colors ${isSelected ? "bg-blue-50/50" : "hover:bg-slate-50/80"}`}>
                           <Td>
@@ -189,7 +201,7 @@ export default async function CustomersPage({
                               {/* Avoid img for now to match CRM truth, use soft initials */}
                               <span
                                 aria-hidden="true"
-                                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-blue-50 text-xs font-semibold text-blue-700"
+                                className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-xs font-semibold ${avatarClass}`}
                               >
                                 {customer.name.slice(0, 2).toUpperCase()}
                               </span>
@@ -199,9 +211,9 @@ export default async function CustomersPage({
                               </span>
                             </span>
                           </Td>
-                          <Td className="whitespace-nowrap text-slate-600">{customer.phone ?? "—"}</Td>
-                          <Td align="right">{customer.purchaseCount}</Td>
-                          <Td align="right" className="font-medium text-slate-900">
+                          <Td className="whitespace-nowrap text-slate-500">{customer.phone ?? "—"}</Td>
+                          <Td align="right" className="text-slate-600">{customer.purchaseCount}</Td>
+                          <Td align="right" className="font-semibold text-slate-900">
                             {formatMinor(customer.totalSpentMinor)}
                           </Td>
                           <Td className="whitespace-nowrap text-slate-500">
@@ -214,7 +226,7 @@ export default async function CustomersPage({
                               <StatusBadge tone="neutral">Archived</StatusBadge>
                             )}
                           </Td>
-                          <Td>
+                          <Td align="right">
                             <Link 
                               href={`/customers?page=${page}${query ? `&q=${encodeURIComponent(query)}` : ""}${customerType ? `&customerType=${customerType}` : ""}&selected=${customer.id}`}
                               className="text-blue-600 hover:text-blue-800 text-sm font-medium"
@@ -229,14 +241,16 @@ export default async function CustomersPage({
                   </tbody>
                 </DataTable>
 
-                <Pagination
-                  basePath="/customers"
-                  page={result.page}
-                  pageCount={result.pageCount}
-                  total={result.total}
-                  pageSize={CUSTOMER_PAGE_SIZE}
-                  params={{ q: query || undefined, customerType: customerType || undefined }}
-                />
+                <div className="bg-white rounded-b-xl">
+                  <Pagination
+                    basePath="/customers"
+                    page={result.page}
+                    pageCount={result.pageCount}
+                    total={result.total}
+                    pageSize={CUSTOMER_PAGE_SIZE}
+                    params={{ q: query || undefined, customerType: customerType || undefined }}
+                  />
+                </div>
               </>
             )}
           </Card>
