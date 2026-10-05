@@ -6,6 +6,7 @@ import { X, Package } from "lucide-react";
 import { type StockLevel, type ProductVariant, type Product } from "@prisma/client";
 import { StatusPill, type Status } from "./InventoryUI";
 import { formatMinor } from "@/server/sales/saleTotals";
+import { restoreInspectorFocus } from "./inspectorFocus";
 
 type DetailStock = StockLevel & {
   variant: ProductVariant & {
@@ -61,6 +62,33 @@ export function InventoryDetailPanel({
   useEffect(() => {
     if (isOverlay) closeRef.current?.focus();
   }, [isOverlay, v.sku]);
+
+  /**
+   * Closing hands focus back to the product that opened the panel.
+   *
+   * Every close path is a navigation that unmounts this panel, taking the focused Close link
+   * with it, so the hand-back runs on unmount — after the re-rendered rows are in the DOM — and
+   * reads the SKU shown last, so switching products while open restores to the latest one.
+   * `restoreInspectorFocus` leaves focus alone when the user has it somewhere real (a filter
+   * or pagination change also unmounts the panel) and never targets a detached node. The
+   * `isConnected` check skips React's development-only simulated unmount, where the panel is
+   * still on screen.
+   */
+  const skuRef = useRef(v.sku);
+  useEffect(() => {
+    skuRef.current = v.sku;
+  }, [v.sku]);
+  useEffect(() => {
+    const sku = skuRef;
+    const panel = panelRef.current;
+    return () => {
+      const last = sku.current;
+      requestAnimationFrame(() => {
+        if (panel?.isConnected) return;
+        restoreInspectorFocus(last);
+      });
+    };
+  }, []);
 
   /**
    * Escape closes, in both modes, by navigating to the same href the close control uses — so
