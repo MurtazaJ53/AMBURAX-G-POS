@@ -341,7 +341,9 @@ export default async function CustomersPage({
         <Card className="flex flex-col border border-slate-200 shadow-sm rounded-xl overflow-hidden bg-white h-[140px]">
           <div className="border-b border-slate-100 p-3 flex justify-between items-center bg-slate-50/50">
             <h2 className="text-[13px] font-bold text-slate-900">Recent Payments</h2>
-            <Link href="#" className="text-[11px] font-semibold text-blue-600 hover:text-blue-800">View All</Link>
+            <button type="button" disabled title="Requires ERP Connection" className="text-[11px] font-semibold text-blue-600 opacity-60 cursor-not-allowed">
+              View All <span className="sr-only">(Unavailable: Requires ERP Connection)</span>
+            </button>
           </div>
           <div className="flex-1 flex flex-col items-center justify-center p-3">
             <Receipt className="h-6 w-6 text-slate-300 mb-1" />
@@ -354,7 +356,9 @@ export default async function CustomersPage({
         <Card className="flex flex-col border border-slate-200 shadow-sm rounded-xl overflow-hidden bg-white h-[140px]">
           <div className="border-b border-slate-100 p-3 flex justify-between items-center bg-slate-50/50">
             <h2 className="text-[13px] font-bold text-slate-900">Top Due Customers</h2>
-            <Link href="#" className="text-[11px] font-semibold text-blue-600 hover:text-blue-800">View All</Link>
+            <button type="button" disabled title="Requires ERP Connection" className="text-[11px] font-semibold text-blue-600 opacity-60 cursor-not-allowed">
+              View All <span className="sr-only">(Unavailable: Requires ERP Connection)</span>
+            </button>
           </div>
           <div className="flex-1 flex flex-col items-center justify-center p-3">
             <Users className="h-6 w-6 text-slate-300 mb-1" />
@@ -374,8 +378,8 @@ export default async function CustomersPage({
               <p className="text-slate-500 text-[11px] mb-3 leading-snug">
                 Remind customers about pending dues.
               </p>
-              <button className="bg-blue-600 text-white hover:bg-blue-700 text-[11px] font-semibold py-1.5 px-4 rounded-md shadow-sm transition-colors mt-auto self-start">
-                Send Reminders
+              <button type="button" disabled title="Requires ERP Connection" className="bg-blue-600 text-white text-[11px] font-semibold py-1.5 px-4 rounded-md shadow-sm opacity-60 cursor-not-allowed mt-auto self-start">
+                Send Reminders <span className="sr-only">(Unavailable: Requires ERP Connection)</span>
               </button>
             </div>
           </div>
