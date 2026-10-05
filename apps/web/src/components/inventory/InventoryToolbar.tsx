@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Search, SlidersHorizontal, RotateCcw, List, Grid2X2 } from "lucide-react";
 import Link from "next/link";
@@ -24,6 +25,14 @@ export function InventoryToolbar({
   brands: string[];
 }) {
   const router = useRouter();
+  
+  const [query, setQuery] = useState(search || "");
+  const [prevSearch, setPrevSearch] = useState(search);
+
+  if (search !== prevSearch) {
+    setPrevSearch(search);
+    setQuery(search || "");
+  }
 
   const apply = (updates: { q?: string; status?: string; category?: string; brand?: string; view?: string }) => {
     const p = new URLSearchParams();
@@ -57,8 +66,7 @@ export function InventoryToolbar({
       <form 
         onSubmit={(e) => {
           e.preventDefault();
-          const q = new FormData(e.currentTarget).get("q") as string;
-          apply({ q });
+          apply({ q: query });
         }}
         className="relative min-w-full md:min-w-0 flex-1 md:max-w-[320px]"
       >
@@ -66,7 +74,8 @@ export function InventoryToolbar({
         <input
           name="q"
           type="text"
-          defaultValue={search}
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
           placeholder="Search by product name, SKU..."
           className="block w-full h-8 rounded border border-border bg-background-card pl-8 pr-3 text-[13px] text-primary placeholder:text-secondary focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary shadow-sm"
           aria-label="Search inventory"
