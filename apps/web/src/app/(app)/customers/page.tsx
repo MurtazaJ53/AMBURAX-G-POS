@@ -205,9 +205,15 @@ export default async function CustomersPage({
                               >
                                 {customer.name.slice(0, 2).toUpperCase()}
                               </span>
-                              <span className="flex flex-col gap-0.5">
-                                <span className="font-medium text-slate-900">{customer.name}</span>
-                                <span className="text-[11px] font-medium text-slate-500 uppercase tracking-wider">{customer.customerType}</span>
+                              <span className="flex flex-col items-start gap-0.5">
+                                <span className="font-medium text-slate-900 leading-tight">{customer.name}</span>
+                                <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium capitalize ${
+                                  customer.customerType === "RETAIL" ? "bg-blue-50 text-blue-600" :
+                                  customer.customerType === "WHOLESALE" ? "bg-purple-50 text-purple-600" :
+                                  "bg-emerald-50 text-emerald-600"
+                                }`}>
+                                  {customer.customerType.toLowerCase()}
+                                </span>
                               </span>
                             </span>
                           </Td>
@@ -221,9 +227,9 @@ export default async function CustomersPage({
                           </Td>
                           <Td>
                             {customer.isActive ? (
-                              <StatusBadge tone="success">Active</StatusBadge>
+                              <span className="inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium bg-emerald-50 text-emerald-700 ring-1 ring-inset ring-emerald-600/20">Active</span>
                             ) : (
-                              <StatusBadge tone="neutral">Archived</StatusBadge>
+                              <span className="inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium bg-slate-50 text-slate-600 ring-1 ring-inset ring-slate-500/20">Archived</span>
                             )}
                           </Td>
                           <Td align="right">
