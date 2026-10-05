@@ -152,11 +152,14 @@ describe("runner startup safety", () => {
   });
 
   it("the worker entry point exits 78 rather than 0 when there is no transport", async () => {
+    const original = process.env.OUTBOX_TRANSPORT;
+    delete process.env.OUTBOX_TRANSPORT;
     const stderr = vi.spyOn(console, "error").mockImplementation(() => {});
     const code = await main();
     expect(code).toBe(EXIT_NO_TRANSPORT);
     expect(mockDb.$queryRaw).not.toHaveBeenCalled();
     stderr.mockRestore();
+    process.env.OUTBOX_TRANSPORT = original;
   });
 
   it("startup line states the transport and that it does not deliver for real", () => {
