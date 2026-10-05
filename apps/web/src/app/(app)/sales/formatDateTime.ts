@@ -27,3 +27,10 @@ export function formatTime(value: Date): string {
     timeZone: "Asia/Kolkata",
   }).format(value);
 }
+
+export function formatDateOnly(value: Date): string {
+  return new Intl.DateTimeFormat('en-IN', {
+    dateStyle: 'medium',
+    timeZone: 'Asia/Kolkata',
+  }).format(value);
+}

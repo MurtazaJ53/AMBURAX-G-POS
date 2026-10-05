@@ -143,9 +143,9 @@ export default async function CustomersPage({
         </Card>
       </div>
 
-      <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_340px]">
+      <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_380px]">
         <div className="min-w-0">
-          <Card>
+          <Card className="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden">
             <CustomerToolbar initialQuery={query} initialType={customerType} />
 
             {result.rows.length === 0 ? (
@@ -263,7 +263,7 @@ export default async function CustomersPage({
         </div>
 
         {/* Aside Panel */}
-        <div className="w-full">
+        <div className={detail ? "" : "hidden xl:block"}>
           {detail ? (
             <CustomerDetailPanel detail={detail} />
           ) : (

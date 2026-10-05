@@ -119,6 +119,7 @@ model Tenant {
   defaultPriceListId String?
   defaultPriceList   PriceList?   @relation("TenantDefaultPriceList", fields: [defaultPriceListId, id], references: [id, tenantId])
   StockLevel         StockLevel[]
+  heldBills          HeldBill[]
 
   @@map("tenants")
 }
@@ -204,6 +205,7 @@ model Store {
   priceList      PriceList?        @relation("StorePriceList", fields: [priceListId, tenantId], references: [id, tenantId])
   orders         Order[]
   OutboxEvent    OutboxEvent[]
+  heldBills      HeldBill[]
 
   @@unique([tenantId, code])
   // Same purpose as User's: the referencable half of StoreMembership's composite foreign
@@ -333,6 +335,9 @@ model User {
   salesRung           Sale[]               @relation("SalesRung")
   ordersCreated       Order[]              @relation("OrdersCreated")
   posSessionsRun      PosSession[]         @relation("PosSessionsRun")
+  heldBills           HeldBill[]           @relation("HeldBillsByUser")
+  resumedBills        HeldBill[]           @relation("HeldBillsResumedByUser")
+  discardedBills      HeldBill[]           @relation("HeldBillsDiscardedByUser")
 
   // Target for StoreMembership's composite foreign key. `id` alone is already the primary
   // key, so this adds no new integrity rule about users — it exists solely so PostgreSQL
@@ -765,6 +770,7 @@ model ProductVariant {
   stockLevels    StockLevel[]
   stockMovements StockMovement[]
   priceListItems PriceListItem[]
+  heldBillItems  HeldBillItem[]
 
   // SKU and barcode are unique per tenant, not globally: two businesses may legitimately
   // use the same SKU string, and a global constraint would leak one tenant's namespace
@@ -1628,6 +1634,7 @@ model PosSession {
   cashier   User        @relation("PosSessionsRun", fields: [cashierUserId, tenantId], references: [id, tenantId])
   sales     Sale[]
   activeOn  PosDevice[] @relation("PosDeviceActiveSession")
+  heldBills HeldBill[]
 
   // Referencable half for Sale's and PosDevice's composite foreign keys (invariant I-4).
   @@unique([id, tenantId])
@@ -1647,4 +1654,53 @@ model AuditLog {
 
   @@index([tenantId, createdAt])
   @@map("audit_logs")
+}
+
+model HeldBill {
+  id           String  @id @default(cuid())
+  tenantId     String
+  storeId      String
+  heldByUserId String
+  posSessionId String?
+
+  idempotencyKey String
+
+  createdAt         DateTime  @default(now())
+  expiresAt         DateTime
+  resumedAt         DateTime?
+  resumedByUserId   String?
+  discardedAt       DateTime?
+  discardedByUserId String?
+
+  version Int @default(0)
+
+  tenant          Tenant      @relation(fields: [tenantId], references: [id])
+  store           Store       @relation(fields: [storeId, tenantId], references: [id, tenantId])
+  heldByUser      User        @relation("HeldBillsByUser", fields: [heldByUserId, tenantId], references: [id, tenantId])
+  resumedByUser   User?       @relation("HeldBillsResumedByUser", fields: [resumedByUserId, tenantId], references: [id, tenantId])
+  discardedByUser User?       @relation("HeldBillsDiscardedByUser", fields: [discardedByUserId, tenantId], references: [id, tenantId])
+  posSession      PosSession? @relation(fields: [posSessionId, tenantId], references: [id, tenantId])
+
+  items HeldBillItem[]
+
+  @@unique([id, tenantId])
+  @@unique([tenantId, idempotencyKey])
+  @@index([tenantId, storeId, createdAt])
+  @@map("held_bills")
+}
+
+model HeldBillItem {
+  id         String @id @default(cuid())
+  tenantId   String
+  heldBillId String
+
+  variantId String
+  quantity  Int
+
+  heldBill HeldBill       @relation(fields: [heldBillId, tenantId], references: [id, tenantId], onDelete: Cascade)
+  variant  ProductVariant @relation(fields: [variantId, tenantId], references: [id, tenantId])
+
+  @@unique([heldBillId, variantId])
+  @@index([tenantId, heldBillId])
+  @@map("held_bill_items")
 }

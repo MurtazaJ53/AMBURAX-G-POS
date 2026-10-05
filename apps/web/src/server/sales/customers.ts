@@ -216,6 +216,12 @@ export type CustomerDetail = CustomerRow & {
   gstin: string | null;
   priceListId: string | null;
   addressCount: number;
+  recentSales: Array<{
+    id: string;
+    completedAt: Date | null;
+    totalMinor: number;
+    status: string;
+  }>;
 };
 
 export async function getCustomerDetail(params: {
@@ -244,12 +250,25 @@ export async function getCustomerDetail(params: {
 
   if (!customer) return null;
 
-  const stats = await db.sale.aggregate({
-    where: { tenantId: params.tenantId, customerId: params.id, status: "COMPLETED" },
-    _sum: { totalMinor: true },
-    _count: { _all: true },
-    _max: { completedAt: true },
-  });
+  const [stats, recentSales] = await Promise.all([
+    db.sale.aggregate({
+      where: { tenantId: params.tenantId, customerId: params.id, status: "COMPLETED" },
+      _sum: { totalMinor: true },
+      _count: { _all: true },
+      _max: { completedAt: true },
+    }),
+    db.sale.findMany({
+      where: { tenantId: params.tenantId, customerId: params.id },
+      orderBy: { createdAt: "desc" },
+      take: 5,
+      select: {
+        id: true,
+        completedAt: true,
+        totalMinor: true,
+        status: true,
+      }
+    })
+  ]);
 
   return {
     id: customer.id,
@@ -267,5 +286,6 @@ export async function getCustomerDetail(params: {
     purchaseCount: stats._count._all ?? 0,
     totalSpentMinor: stats._sum.totalMinor ?? 0,
     lastPurchaseAt: stats._max.completedAt ?? null,
+    recentSales,
   };
 }

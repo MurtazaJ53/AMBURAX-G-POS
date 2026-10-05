@@ -149,7 +149,7 @@ export function CustomerToolbar({ initialQuery, initialType }: { initialQuery: s
   return (
     <div className="flex flex-col sm:flex-row items-center justify-between gap-4 border-b border-slate-100 p-4 bg-white rounded-t-xl">
       <div className="flex items-center w-full sm:w-auto">
-        <h2 className="text-base font-bold text-slate-900 hidden sm:block mr-6">Customers</h2>
+        <h2 id="customer-toolbar-title" className="text-base font-bold text-slate-900 hidden sm:block mr-6 outline-none">Customers</h2>
       </div>
 
       <div className="flex flex-wrap sm:flex-nowrap items-center gap-3 w-full sm:w-auto justify-end">
