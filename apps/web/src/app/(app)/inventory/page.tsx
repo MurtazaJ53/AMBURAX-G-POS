@@ -101,7 +101,7 @@ export default async function InventoryPage(props: { searchParams: Promise<{ [ke
   ) : null;
 
   return (
-    <main className="flex-1 w-full p-4 pb-12 sm:p-6 lg:p-8 flex flex-col min-w-0">
+    <div className="flex-1 w-full p-4 pb-12 sm:p-6 lg:p-8 flex flex-col min-w-0">
       <header className="mb-6 flex flex-col justify-between gap-4 md:flex-row md:items-end">
         <div>
           <div className="text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1">Workspace / Inventory</div>
@@ -142,7 +142,7 @@ export default async function InventoryPage(props: { searchParams: Promise<{ [ke
             Stock Adjustments
           </Link>
           <Link href="/inventory/receipts/new" className="border-b-2 border-transparent px-3 py-2 text-[11px] font-semibold text-secondary hover:text-primary transition-colors whitespace-nowrap">
-            Stock Take
+            Receive Stock
           </Link>
           <span className="border-b-2 border-transparent px-3 py-2 text-[11px] font-semibold text-tertiary whitespace-nowrap cursor-not-allowed" title="Not available">
             Low Stock
@@ -295,6 +295,6 @@ export default async function InventoryPage(props: { searchParams: Promise<{ [ke
           recentMovements={movements}
         />
       </div>
-    </main>
+    </div>
   );
 }
