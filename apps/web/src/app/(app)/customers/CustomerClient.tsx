@@ -112,3 +112,100 @@ export function CustomerActions() {
     </div>
   );
 }
+
+export function CustomerToolbar({ initialQuery, initialType }: { initialQuery: string; initialType: string }) {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const [query, setQuery] = useState(initialQuery);
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setQuery(searchParams.get("q") ?? "");
+  }, [searchParams]);
+
+  function handleSearch(e: React.FormEvent) {
+    e.preventDefault();
+    const params = new URLSearchParams(searchParams as any);
+    if (query.trim()) {
+      params.set("q", query.trim());
+    } else {
+      params.delete("q");
+    }
+    params.delete("page");
+    router.push(`/customers?${params.toString()}`);
+  }
+
+  function handleTypeChange(e: React.ChangeEvent<HTMLSelectElement>) {
+    const params = new URLSearchParams(searchParams as any);
+    if (e.target.value) {
+      params.set("customerType", e.target.value);
+    } else {
+      params.delete("customerType");
+    }
+    params.delete("page");
+    router.push(`/customers?${params.toString()}`);
+  }
+
+  return (
+    <div className="flex flex-col sm:flex-row items-center justify-between gap-4 border-b border-slate-100 p-4">
+      <div className="flex items-center gap-3 w-full sm:w-auto">
+        <h2 className="text-lg font-bold text-slate-900 hidden sm:block mr-4">Customers</h2>
+        
+        <div className="relative">
+          <label htmlFor="segment-filter" className="sr-only">Filter by Segment</label>
+          <select
+            id="segment-filter"
+            value={initialType}
+            onChange={handleTypeChange}
+            className="h-9 appearance-none rounded-md border border-slate-200 bg-white pl-3 pr-8 text-sm font-medium text-slate-700 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+          >
+            <option value="">All Segments</option>
+            <option value="RETAIL">Retail</option>
+            <option value="WHOLESALE">Wholesale</option>
+            <option value="DISTRIBUTOR">Distributor</option>
+          </select>
+          <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+        </div>
+
+        <div className="relative">
+          <label htmlFor="group-filter" className="sr-only">Filter by Group</label>
+          <select
+            id="group-filter"
+            disabled
+            title="Customer groups are not configured"
+            className="h-9 appearance-none rounded-md border border-slate-200 bg-slate-50 pl-3 pr-8 text-sm font-medium text-slate-400 cursor-not-allowed opacity-70"
+          >
+            <option value="">All Groups</option>
+          </select>
+          <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-300" />
+        </div>
+      </div>
+
+      <div className="flex w-full sm:w-auto flex-1 sm:flex-none items-center gap-2">
+        <form onSubmit={handleSearch} className="relative flex-1 sm:w-64">
+          <label htmlFor="search-customers" className="sr-only">Search customers</label>
+          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+          <input
+            id="search-customers"
+            type="text"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Search customer..."
+            className="h-9 w-full rounded-md border border-slate-200 pl-9 pr-3 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+          />
+        </form>
+        
+        <button
+          type="button"
+          disabled
+          aria-disabled="true"
+          title="Advanced filters not available"
+          className="flex h-9 w-9 items-center justify-center rounded-md border border-slate-200 bg-white text-slate-400 opacity-70 cursor-not-allowed"
+        >
+          <Filter className="h-4 w-4" />
+          <span className="sr-only">Filter options</span>
+        </button>
+      </div>
+    </div>
+  );
+}

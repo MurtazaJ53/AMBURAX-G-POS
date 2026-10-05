@@ -29,19 +29,21 @@ import {
   Th,
   buttonClass,
 } from "../_components/ui";
-import { CustomerActions } from "./CustomerClient";
+import { CustomerActions, CustomerToolbar } from "./CustomerClient";
 import { CustomerDetailPanel } from "./CustomerDetailPanel";
+import type { CustomerType } from "@prisma/client";
 
 export default async function CustomersPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string; page?: string; selected?: string }>;
+  searchParams: Promise<{ q?: string; page?: string; selected?: string; customerType?: string }>;
 }) {
   const token = (await cookies()).get(env.SESSION_COOKIE_NAME)?.value;
   const sp = await searchParams;
   const query = (sp.q ?? "").slice(0, 100);
   const page = Number.parseInt(sp.page ?? "1", 10) || 1;
   const selectedId = sp.selected;
+  const customerType = (sp.customerType as CustomerType) || "";
 
   let resolved: PosContextResult;
   try {
@@ -60,7 +62,7 @@ export default async function CustomersPage({
   let detail: CustomerDetail | null = null;
   try {
     [result, summary] = await Promise.all([
-      listCustomers({ tenantId: context.tenantId, query, page }),
+      listCustomers({ tenantId: context.tenantId, query, customerType: customerType || undefined, page }),
       getCustomerSummary({ tenantId: context.tenantId }),
     ]);
     if (selectedId) {
@@ -144,29 +146,7 @@ export default async function CustomersPage({
       <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_340px]">
         <div className="min-w-0">
           <Card>
-            <form
-              method="get"
-              className="flex flex-wrap items-center gap-2 border-b border-slate-100 p-4"
-            >
-              <label htmlFor="customer-q" className="sr-only">
-                Search customers
-              </label>
-              <input
-                id="customer-q"
-                name="q"
-                defaultValue={query}
-                placeholder="Search by name, phone or email"
-                className="min-w-0 flex-1 rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
-              />
-              <button type="submit" className={buttonClass("primary")}>
-                Search
-              </button>
-              {query && (
-                <Link href="/customers" className={buttonClass("secondary")}>
-                  Clear
-                </Link>
-              )}
-            </form>
+            <CustomerToolbar initialQuery={query} initialType={customerType} />
 
             {result.rows.length === 0 ? (
               query ? (
@@ -174,7 +154,7 @@ export default async function CustomersPage({
                   title={`No customers match “${query}”`}
                   description="Try a name, phone number or email address."
                   action={
-                    <Link href="/customers" className={buttonClass("secondary")}>
+                    <Link href={`/customers${customerType ? `?customerType=${customerType}` : ""}`} className={buttonClass("secondary")}>
                       Clear search
                     </Link>
                   }
@@ -203,16 +183,20 @@ export default async function CustomersPage({
                     {result.rows.map((customer) => {
                       const isSelected = selectedId === customer.id;
                       return (
-                        <tr key={customer.id} className={isSelected ? "bg-blue-50/50" : "hover:bg-slate-50"}>
+                        <tr key={customer.id} className={`transition-colors ${isSelected ? "bg-blue-50/50" : "hover:bg-slate-50/80"}`}>
                           <Td>
-                            <span className="flex items-center gap-2.5">
+                            <span className="flex items-center gap-3">
+                              {/* Avoid img for now to match CRM truth, use soft initials */}
                               <span
                                 aria-hidden="true"
-                                className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-slate-100 text-xs font-semibold text-slate-500"
+                                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-blue-50 text-xs font-semibold text-blue-700"
                               >
                                 {customer.name.slice(0, 2).toUpperCase()}
                               </span>
-                              <span className="font-medium text-slate-900">{customer.name}</span>
+                              <span className="flex flex-col gap-0.5">
+                                <span className="font-medium text-slate-900">{customer.name}</span>
+                                <span className="text-[11px] font-medium text-slate-500 uppercase tracking-wider">{customer.customerType}</span>
+                              </span>
                             </span>
                           </Td>
                           <Td className="whitespace-nowrap text-slate-600">{customer.phone ?? "—"}</Td>
@@ -232,8 +216,9 @@ export default async function CustomersPage({
                           </Td>
                           <Td>
                             <Link 
-                              href={`/customers?page=${page}${query ? `&q=${encodeURIComponent(query)}` : ""}&selected=${customer.id}`}
+                              href={`/customers?page=${page}${query ? `&q=${encodeURIComponent(query)}` : ""}${customerType ? `&customerType=${customerType}` : ""}&selected=${customer.id}`}
                               className="text-blue-600 hover:text-blue-800 text-sm font-medium"
+                              aria-label={`View details for ${customer.name}`}
                             >
                               View
                             </Link>
@@ -250,7 +235,7 @@ export default async function CustomersPage({
                   pageCount={result.pageCount}
                   total={result.total}
                   pageSize={CUSTOMER_PAGE_SIZE}
-                  params={{ q: query || undefined }}
+                  params={{ q: query || undefined, customerType: customerType || undefined }}
                 />
               </>
             )}

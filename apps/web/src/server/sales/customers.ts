@@ -43,6 +43,8 @@ export async function searchCustomers(params: {
 
 export const CUSTOMER_PAGE_SIZE = 20;
 
+import type { CustomerType } from "@prisma/client";
+
 export interface CustomerRow {
   id: string;
   name: string;
@@ -55,6 +57,7 @@ export interface CustomerRow {
   /** Lifetime spend in minor units. */
   totalSpentMinor: number;
   lastPurchaseAt: Date | null;
+  customerType: CustomerType;
 }
 
 export interface CustomerPage {
@@ -76,11 +79,13 @@ export interface CustomerPage {
 export async function listCustomers(params: {
   tenantId: string;
   query?: string;
+  customerType?: CustomerType;
   page?: number;
 }): Promise<CustomerPage> {
   const trimmed = (params.query ?? "").trim();
   const where = {
     tenantId: params.tenantId,
+    ...(params.customerType ? { customerType: params.customerType } : {}),
     ...(trimmed.length === 0
       ? {}
       : {
@@ -98,7 +103,7 @@ export async function listCustomers(params: {
 
   const customers = await db.customer.findMany({
     where,
-    select: { id: true, name: true, phone: true, email: true, isActive: true, createdAt: true },
+    select: { id: true, name: true, phone: true, email: true, isActive: true, createdAt: true, customerType: true },
     orderBy: { name: "asc" },
     skip: (page - 1) * CUSTOMER_PAGE_SIZE,
     take: CUSTOMER_PAGE_SIZE,
