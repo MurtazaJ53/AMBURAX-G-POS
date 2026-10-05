@@ -109,8 +109,8 @@ export function CustomerDetailPanel({ detail }: { detail: CustomerDetail }) {
                   </span>
                 </div>
                 <div className="mt-2 space-y-0.5 text-[11px] text-slate-500">
-                  <p>Phone: <span className="text-slate-700">{detail.phone || "—"}</span></p>
-                  <p>Email: <span className="text-slate-700">{detail.email || "—"}</span></p>
+                  <p>Phone: <span className="text-slate-700">{detail.phone || "--"}</span></p>
+                  <p>Email: <span className="text-slate-700">{detail.email || "--"}</span></p>
                   <p>Since: <span className="text-slate-700">{formatDateOnly(detail.createdAt)}</span></p>
                 </div>
               </div>
@@ -120,8 +120,8 @@ export function CustomerDetailPanel({ detail }: { detail: CustomerDetail }) {
           {/* Metrics */}
           <div className="grid grid-cols-3 border-y border-slate-100 bg-slate-50/50">
             <div className="border-r border-slate-100 p-3 flex flex-col items-center text-center justify-center">
-              <span className="block text-[10px] uppercase tracking-wider text-slate-500 mb-0.5">Lifetime Spend</span>
-              <b className="text-[13px] text-slate-900">{formatMinor(detail.totalSpentMinor)}</b>
+              <span className="block text-[10px] uppercase tracking-wider text-slate-500 mb-0.5">Total Due</span>
+              <b className="text-[13px] text-slate-900" title="ERP receivables not connected">--</b>
             </div>
             <div className="border-r border-slate-100 p-3 flex flex-col items-center text-center justify-center">
               <span className="block text-[10px] uppercase tracking-wider text-slate-500 mb-0.5">Last Purchase</span>
@@ -129,7 +129,7 @@ export function CustomerDetailPanel({ detail }: { detail: CustomerDetail }) {
             </div>
             <div className="p-3 flex flex-col items-center text-center justify-center">
               <span className="block text-[10px] uppercase tracking-wider text-slate-500 mb-0.5">Avg Order Val</span>
-              <b className="text-[13px] text-slate-900">{avgOrderValue !== null ? formatMinor(avgOrderValue) : "—"}</b>
+              <b className="text-[13px] text-slate-900">{avgOrderValue !== null ? formatMinor(avgOrderValue) : "--"}</b>
             </div>
           </div>
 
