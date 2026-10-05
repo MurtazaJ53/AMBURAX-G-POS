@@ -70,7 +70,7 @@ export function CustomerDetailPanel({ detail }: { detail: CustomerDetail }) {
         aria-modal="true"
         aria-labelledby="customer-dialog-title"
         tabIndex={-1}
-        className="fixed inset-y-0 right-0 z-50 w-full sm:w-[400px] xl:relative xl:w-auto xl:inset-auto xl:z-auto bg-white xl:rounded-xl xl:border xl:border-slate-200 shadow-2xl xl:shadow-sm flex flex-col focus:outline-none transition-transform duration-200"
+        className="fixed inset-y-0 right-0 z-50 w-full sm:w-[360px] xl:relative xl:w-auto xl:inset-auto xl:z-auto bg-white xl:rounded-xl xl:border xl:border-slate-200 shadow-2xl xl:shadow-sm flex flex-col focus:outline-none transition-transform duration-200"
       >
         <div className="flex items-center justify-between border-b border-slate-100 p-4 shrink-0">
           <h2 id="customer-dialog-title" className="text-sm font-bold text-slate-900">Customer Details</h2>
@@ -96,19 +96,19 @@ export function CustomerDetailPanel({ detail }: { detail: CustomerDetail }) {
 
         <div className="overflow-y-auto flex-1">
           {/* Identity Header */}
-          <div className="p-5">
+          <div className="p-4">
             <div className="flex items-start gap-4">
-              <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-slate-100 text-lg font-bold text-slate-600">
+              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-slate-100 text-lg font-bold text-slate-600">
                 {initial}
               </span>
               <div className="min-w-0 flex-1">
                 <div className="flex flex-col items-start gap-1">
-                  <b className="truncate text-base text-slate-900 leading-tight">{detail.name}</b>
+                  <b className="truncate text-sm text-slate-900 leading-tight">{detail.name}</b>
                   <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-semibold bg-blue-50 text-blue-700 capitalize">
                     {detail.customerType.toLowerCase()}
                   </span>
                 </div>
-                <div className="mt-3 space-y-1 text-xs text-slate-500">
+                <div className="mt-2 space-y-0.5 text-[11px] text-slate-500">
                   <p>Phone: <span className="text-slate-700">{detail.phone || "—"}</span></p>
                   <p>Email: <span className="text-slate-700">{detail.email || "—"}</span></p>
                   <p>Since: <span className="text-slate-700">{formatDateOnly(detail.createdAt)}</span></p>

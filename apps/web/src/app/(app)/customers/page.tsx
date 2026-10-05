@@ -33,6 +33,27 @@ import { CustomerActions, CustomerToolbar } from "./CustomerClient";
 import { CustomerDetailPanel } from "./CustomerDetailPanel";
 import type { CustomerType } from "@prisma/client";
 
+function CompactKpiCard({ label, value, hint, tone, icon }: { label: string, value: string, hint?: string, tone: string, icon: React.ReactNode }) {
+  const toneClasses: Record<string, string> = {
+    blue: "bg-blue-50 text-blue-600",
+    emerald: "bg-emerald-50 text-emerald-600",
+    rose: "bg-rose-50 text-rose-600",
+    violet: "bg-violet-50 text-violet-600",
+  };
+  return (
+    <Card className="p-4 flex items-center gap-4 h-[100px] shadow-sm border-slate-200">
+      <div className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl ${toneClasses[tone] || toneClasses.blue}`}>
+        {icon}
+      </div>
+      <div className="flex flex-col justify-center overflow-hidden">
+        <p className="text-[12px] font-medium text-slate-500 mb-0.5 truncate">{label}</p>
+        <p className="text-[20px] font-bold text-slate-900 leading-tight mb-0.5 truncate">{value}</p>
+        {hint && <p className="text-[11px] font-medium text-slate-400 truncate">{hint}</p>}
+      </div>
+    </Card>
+  );
+}
+
 export default async function CustomersPage({
   searchParams,
 }: {
@@ -74,97 +95,96 @@ export default async function CustomersPage({
   }
 
   return (
-    <div className="px-4 py-6 sm:px-6">
-      <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
-        <PageHeader title="Customer Due & Khata" subtitle="Track outstanding dues, manage khata and follow up with customers" />
+    <div className="px-4 py-6 sm:px-6 max-w-[1600px] mx-auto">
+      <div className="mb-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+        <div>
+          <h1 className="text-xl font-bold text-slate-900">Customer Due & Khata</h1>
+          <p className="text-sm text-slate-500 mt-1">Track outstanding dues, manage khata and follow up with customers</p>
+        </div>
         <CustomerActions />
       </div>
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 mb-6">
-        <KpiCard label="Total Customers" value={String(summary.total)} tone="blue" icon={<Users className="h-5 w-5" />} />
-        <KpiCard label="Total Due Amount" value="--" hint="ERP not connected" tone="emerald" icon={<Receipt className="h-5 w-5" />} />
-        <KpiCard label="Active Khata" value="--" hint="ERP not connected" tone="blue" icon={<FileSpreadsheet className="h-5 w-5" />} />
-        <KpiCard label="Overdue Customers" value="--" hint="ERP not connected" tone="rose" icon={<Clock className="h-5 w-5" />} />
-        <KpiCard label="Avg. Days Pending" value="--" hint="ERP not connected" tone="violet" icon={<CalendarClock className="h-5 w-5" />} />
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 mb-5">
+        <CompactKpiCard label="Total Customers" value={String(summary.total)} hint="Active records" tone="blue" icon={<Users className="h-5 w-5" />} />
+        <CompactKpiCard label="Total Due Amount" value="--" hint="ERP not connected" tone="emerald" icon={<Receipt className="h-5 w-5" />} />
+        <CompactKpiCard label="Active Khata" value="--" hint="ERP not connected" tone="blue" icon={<FileSpreadsheet className="h-5 w-5" />} />
+        <CompactKpiCard label="Overdue Customers" value="--" hint="ERP not connected" tone="rose" icon={<Clock className="h-5 w-5" />} />
+        <CompactKpiCard label="Avg. Days Pending" value="--" hint="ERP not connected" tone="violet" icon={<CalendarClock className="h-5 w-5" />} />
       </div>
 
-      <div className="grid gap-6 grid-cols-1 lg:grid-cols-4 mb-6">
+      <div className="grid gap-4 grid-cols-1 lg:grid-cols-4 mb-5">
         {/* Customer Due Overview (Pie Chart replacement) */}
-        <Card className="flex flex-col col-span-1 border border-slate-200 shadow-sm rounded-xl overflow-hidden bg-white">
-          <div className="border-b border-slate-100 p-4">
-            <h2 className="text-sm font-bold text-slate-900">Customer Due Overview</h2>
+        <Card className="flex flex-col col-span-1 border border-slate-200 shadow-sm rounded-xl overflow-hidden bg-white h-[200px]">
+          <div className="border-b border-slate-100 p-3">
+            <h2 className="text-[13px] font-bold text-slate-900">Customer Due Overview</h2>
           </div>
-          <div className="flex-1 p-6 flex flex-col items-center justify-center">
-            <PieChart className="h-12 w-12 text-slate-200 mb-3" />
-            <EmptyState
-              title="No Overview Data"
-              description="Connect ERP receivables to view due segments."
-            />
+          <div className="flex-1 flex flex-col items-center justify-center p-4">
+            <PieChart className="h-8 w-8 text-slate-200 mb-2" />
+            <p className="text-[13px] font-medium text-slate-900">No Overview Data</p>
+            <p className="text-[11px] text-slate-500 text-center mt-1">Connect ERP receivables to view due segments.</p>
           </div>
         </Card>
         
         {/* Due Amount Trend (Line Chart replacement) */}
-        <Card className="flex flex-col col-span-1 lg:col-span-2 border border-slate-200 shadow-sm rounded-xl overflow-hidden bg-white">
-          <div className="border-b border-slate-100 p-4 flex justify-between items-center">
-            <h2 className="text-sm font-bold text-slate-900">Due Amount Trend</h2>
-            <span className="text-xs font-medium text-slate-500 bg-slate-100 px-2 py-1 rounded">Last 6 Months</span>
+        <Card className="flex flex-col col-span-1 lg:col-span-2 border border-slate-200 shadow-sm rounded-xl overflow-hidden bg-white h-[200px]">
+          <div className="border-b border-slate-100 p-3 flex justify-between items-center">
+            <h2 className="text-[13px] font-bold text-slate-900">Due Amount Trend</h2>
+            <span className="text-[11px] font-medium text-slate-500 bg-slate-100 px-2 py-0.5 rounded">Last 6 Months</span>
           </div>
-          <div className="flex-1 p-6 flex flex-col items-center justify-center">
-            <TrendingUp className="h-12 w-12 text-slate-200 mb-3" />
-            <EmptyState
-              title="No Trend Data"
-              description="Authoritative trend data is managed in ERPNext."
-            />
+          <div className="flex-1 flex flex-col items-center justify-center p-4">
+            <TrendingUp className="h-8 w-8 text-slate-200 mb-2" />
+            <p className="text-[13px] font-medium text-slate-900">No Trend Data</p>
+            <p className="text-[11px] text-slate-500 text-center mt-1">Authoritative trend data is managed in ERPNext.</p>
           </div>
         </Card>
 
         {/* Quick Actions */}
-        <Card className="flex flex-col col-span-1 border border-slate-200 shadow-sm rounded-xl overflow-hidden bg-white">
-          <div className="border-b border-slate-100 p-4">
-            <h2 className="text-sm font-bold text-slate-900">Quick Actions</h2>
+        <Card className="flex flex-col col-span-1 border border-slate-200 shadow-sm rounded-xl overflow-hidden bg-white h-[200px]">
+          <div className="border-b border-slate-100 p-3">
+            <h2 className="text-[13px] font-bold text-slate-900">Quick Actions</h2>
           </div>
-          <div className="flex-1 p-4 grid grid-cols-1 gap-2">
-            <button className="flex items-center gap-3 p-3 rounded-lg border border-slate-100 hover:bg-slate-50 transition-colors text-left group">
-              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-blue-50 text-blue-600 group-hover:bg-blue-100">
-                <FileText className="h-5 w-5" />
+          <div className="flex-1 p-2 flex flex-col justify-between">
+            <button className="flex items-center gap-3 p-1.5 rounded hover:bg-slate-50 transition-colors text-left group">
+              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-blue-50 text-blue-600">
+                <FileText className="h-4 w-4" />
               </div>
-              <div>
-                <div className="text-sm font-semibold text-slate-900">View All Dues</div>
-                <div className="text-xs text-slate-500">See complete pending dues</div>
-              </div>
-            </button>
-            <button className="flex items-center gap-3 p-3 rounded-lg border border-slate-100 hover:bg-slate-50 transition-colors text-left group">
-              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-green-50 text-green-600 group-hover:bg-green-100">
-                <MessageSquare className="h-5 w-5" />
-              </div>
-              <div>
-                <div className="text-sm font-semibold text-slate-900">Send Due Reminder</div>
-                <div className="text-xs text-slate-500">WhatsApp / SMS / Call</div>
+              <div className="flex-1 min-w-0">
+                <div className="text-[12px] font-semibold text-slate-900 truncate leading-tight">View All Dues</div>
+                <div className="text-[10px] text-slate-500 truncate leading-tight mt-0.5">See complete pending dues</div>
               </div>
             </button>
-            <button className="flex items-center gap-3 p-3 rounded-lg border border-slate-100 hover:bg-slate-50 transition-colors text-left group">
-              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-amber-50 text-amber-600 group-hover:bg-amber-100">
-                <BookOpen className="h-5 w-5" />
+            <button className="flex items-center gap-3 p-1.5 rounded hover:bg-slate-50 transition-colors text-left group">
+              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-emerald-50 text-emerald-600">
+                <MessageSquare className="h-4 w-4" />
               </div>
-              <div>
-                <div className="text-sm font-semibold text-slate-900">Create Khata</div>
-                <div className="text-xs text-slate-500">Open new khata for customer</div>
+              <div className="flex-1 min-w-0">
+                <div className="text-[12px] font-semibold text-slate-900 truncate leading-tight">Send Due Reminder</div>
+                <div className="text-[10px] text-slate-500 truncate leading-tight mt-0.5">WhatsApp / SMS / Call</div>
               </div>
             </button>
-            <button className="flex items-center gap-3 p-3 rounded-lg border border-slate-100 hover:bg-slate-50 transition-colors text-left group">
-              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-purple-50 text-purple-600 group-hover:bg-purple-100">
-                <CreditCard className="h-5 w-5" />
+            <button className="flex items-center gap-3 p-1.5 rounded hover:bg-slate-50 transition-colors text-left group">
+              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-amber-50 text-amber-600">
+                <BookOpen className="h-4 w-4" />
               </div>
-              <div>
-                <div className="text-sm font-semibold text-slate-900">Collect Payment</div>
-                <div className="text-xs text-slate-500">Record customer payment</div>
+              <div className="flex-1 min-w-0">
+                <div className="text-[12px] font-semibold text-slate-900 truncate leading-tight">Create Khata</div>
+                <div className="text-[10px] text-slate-500 truncate leading-tight mt-0.5">Open new khata for customer</div>
+              </div>
+            </button>
+            <button className="flex items-center gap-3 p-1.5 rounded hover:bg-slate-50 transition-colors text-left group">
+              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-violet-50 text-violet-600">
+                <CreditCard className="h-4 w-4" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="text-[12px] font-semibold text-slate-900 truncate leading-tight">Collect Payment</div>
+                <div className="text-[10px] text-slate-500 truncate leading-tight mt-0.5">Record customer payment</div>
               </div>
             </button>
           </div>
         </Card>
       </div>
 
-      <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_380px]">
+      <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
         <div className="min-w-0">
           <Card className="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden">
             <CustomerToolbar initialQuery={query} initialType={customerType} />
@@ -288,56 +308,52 @@ export default async function CustomersPage({
           {detail ? (
             <CustomerDetailPanel detail={detail} />
           ) : (
-            <Card className="flex h-full min-h-[300px] flex-col items-center justify-center p-6 text-center text-slate-500">
+            <Card className="flex h-full min-h-[200px] flex-col items-center justify-center p-6 text-center text-slate-500">
               <p className="text-sm">Select a customer to view details</p>
             </Card>
           )}
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mt-6">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mt-4 mb-8">
         {/* Recent Payments */}
-        <Card className="flex flex-col border border-slate-200 shadow-sm rounded-xl overflow-hidden bg-white">
-          <div className="border-b border-slate-100 p-4 flex justify-between items-center">
-            <h2 className="text-sm font-bold text-slate-900">Recent Payments</h2>
-            <Link href="#" className="text-xs font-semibold text-blue-600 hover:text-blue-800">View All</Link>
+        <Card className="flex flex-col border border-slate-200 shadow-sm rounded-xl overflow-hidden bg-white h-[140px]">
+          <div className="border-b border-slate-100 p-3 flex justify-between items-center bg-slate-50/50">
+            <h2 className="text-[13px] font-bold text-slate-900">Recent Payments</h2>
+            <Link href="#" className="text-[11px] font-semibold text-blue-600 hover:text-blue-800">View All</Link>
           </div>
-          <div className="flex-1 p-6 flex flex-col items-center justify-center">
-            <Receipt className="h-10 w-10 text-slate-200 mb-3" />
-            <EmptyState
-              title="No Payment Data"
-              description="Payment ledgers are managed in ERPNext."
-            />
+          <div className="flex-1 flex flex-col items-center justify-center p-3">
+            <Receipt className="h-6 w-6 text-slate-300 mb-1" />
+            <p className="text-[12px] font-medium text-slate-900">No Payment Data</p>
+            <p className="text-[10px] text-slate-500 mt-0.5">Managed in ERPNext.</p>
           </div>
         </Card>
 
         {/* Top Due Customers */}
-        <Card className="flex flex-col border border-slate-200 shadow-sm rounded-xl overflow-hidden bg-white">
-          <div className="border-b border-slate-100 p-4 flex justify-between items-center">
-            <h2 className="text-sm font-bold text-slate-900">Top Due Customers</h2>
-            <Link href="#" className="text-xs font-semibold text-blue-600 hover:text-blue-800">View All</Link>
+        <Card className="flex flex-col border border-slate-200 shadow-sm rounded-xl overflow-hidden bg-white h-[140px]">
+          <div className="border-b border-slate-100 p-3 flex justify-between items-center bg-slate-50/50">
+            <h2 className="text-[13px] font-bold text-slate-900">Top Due Customers</h2>
+            <Link href="#" className="text-[11px] font-semibold text-blue-600 hover:text-blue-800">View All</Link>
           </div>
-          <div className="flex-1 p-6 flex flex-col items-center justify-center">
-            <Users className="h-10 w-10 text-slate-200 mb-3" />
-            <EmptyState
-              title="No Due Data"
-              description="Receivables are managed in ERPNext."
-            />
+          <div className="flex-1 flex flex-col items-center justify-center p-3">
+            <Users className="h-6 w-6 text-slate-300 mb-1" />
+            <p className="text-[12px] font-medium text-slate-900">No Due Data</p>
+            <p className="text-[10px] text-slate-500 mt-0.5">Managed in ERPNext.</p>
           </div>
         </Card>
 
         {/* Send Due Reminders (Blue Action Card) */}
-        <Card className="flex flex-col border border-blue-100 shadow-sm rounded-xl overflow-hidden bg-blue-50/50">
-          <div className="p-6 flex-1 flex flex-row items-start gap-4">
-            <div className="p-3 bg-white rounded-xl shadow-sm shrink-0 text-blue-600">
-              <CalendarClock className="h-7 w-7" />
+        <Card className="flex flex-col border border-blue-100 shadow-sm rounded-xl overflow-hidden bg-blue-50 h-[140px]">
+          <div className="p-4 flex-1 flex flex-row items-start gap-4">
+            <div className="p-2.5 bg-white rounded-lg shadow-sm shrink-0 text-blue-600">
+              <CalendarClock className="h-5 w-5" />
             </div>
-            <div className="flex flex-col items-start">
-              <h2 className="text-[15px] font-bold text-slate-900 mb-1">Send Due Reminders</h2>
-              <p className="text-slate-500 text-xs mb-4 leading-relaxed">
-                Automatically remind customers about pending dues via WhatsApp, SMS or Call.
+            <div className="flex flex-col items-start w-full">
+              <h2 className="text-[13px] font-bold text-slate-900 mb-1">Send Due Reminders</h2>
+              <p className="text-slate-500 text-[11px] mb-3 leading-snug">
+                Remind customers about pending dues.
               </p>
-              <button className="bg-blue-600 text-white hover:bg-blue-700 text-sm font-semibold py-2 px-5 rounded-lg shadow-sm transition-colors mt-auto">
+              <button className="bg-blue-600 text-white hover:bg-blue-700 text-[11px] font-semibold py-1.5 px-4 rounded-md shadow-sm transition-colors mt-auto self-start">
                 Send Reminders
               </button>
             </div>
