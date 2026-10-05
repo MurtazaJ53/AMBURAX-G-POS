@@ -1,5 +1,15 @@
 import { db } from "@/server/db";
 
+/**
+ * The operational low-stock rule: a stock level holding 1..LOW_STOCK_MAX_UNITS units is "low".
+ *
+ * A single store-wide number, not a per-product reorder level — the schema has no reorder
+ * field, so nothing may describe this as a reorder point or a forecast. Exported so that the
+ * overview's counts and the label that explains them ("Low (≤ 10 units)") read one value and
+ * cannot drift apart.
+ */
+export const LOW_STOCK_MAX_UNITS = 10;
+
 export async function getInventoryOverview(params: { tenantId: string; storeId: string }) {
   const { tenantId, storeId } = params;
   
@@ -14,15 +24,22 @@ export async function getInventoryOverview(params: { tenantId: string; storeId: 
   const totalUnits = aggregates._sum.quantity || 0;
   
   const inStock = await db.stockLevel.count({
-    where: { tenantId, storeId, quantity: { gt: 10 } },
+    where: { tenantId, storeId, quantity: { gt: LOW_STOCK_MAX_UNITS } },
   });
 
   const lowStock = await db.stockLevel.count({
-    where: { tenantId, storeId, quantity: { gt: 0, lte: 10 } },
+    where: { tenantId, storeId, quantity: { gt: 0, lte: LOW_STOCK_MAX_UNITS } },
   });
-  
+
   const outOfStock = await db.stockLevel.count({
     where: { tenantId, storeId, quantity: { lte: 0 } },
+  });
+
+  // The oversold subset of `outOfStock`: a balance below zero means more was sold than was
+  // recorded on hand. Reported alongside `outOfStock`, never subtracted from it — the two are
+  // nested, not exclusive, so subtracting would make "out of stock" stop meaning "cannot sell".
+  const oversold = await db.stockLevel.count({
+    where: { tenantId, storeId, quantity: { lt: 0 } },
   });
   
   // Recent movements in last 7 days
@@ -58,7 +75,23 @@ export async function getInventoryOverview(params: { tenantId: string; storeId: 
     .sort((a, b) => b.count - a.count)
     .slice(0, 5); // top 5
 
-  return { totalItems, totalUnits, inStock, lowStock, outOfStock, recentMovements, stockByCategory };
+  // Every category holding positive stock, before the top-5 cut above. Taken from the same map
+  // in the same scope, so "Other (N categories)" counts exactly the categories whose units make
+  // up the remainder — a count from a wider scope (zero-stock categories, say) would name
+  // categories that contribute nothing to the share beside it.
+  const categoryCount = categoryMap.size;
+
+  return {
+    totalItems,
+    totalUnits,
+    inStock,
+    lowStock,
+    outOfStock,
+    recentMovements,
+    stockByCategory,
+    oversold,
+    categoryCount,
+  };
 }
 
 export async function listStockLevels(params: {

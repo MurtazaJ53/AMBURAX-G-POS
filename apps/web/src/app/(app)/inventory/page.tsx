@@ -275,7 +275,9 @@ export default async function InventoryPage(props: { searchParams: Promise<{ [ke
           inStock={overview.inStock}
           lowStock={overview.lowStock}
           outOfStock={overview.outOfStock}
+          oversold={overview.oversold}
           stockByCategory={overview.stockByCategory}
+          categoryCount={overview.categoryCount}
           recentMovements={movements}
         />
       </div>
