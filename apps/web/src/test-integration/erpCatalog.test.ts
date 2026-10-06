@@ -42,6 +42,7 @@ describe("ERPNext Catalog Sync (Outbox)", () => {
       actor: { tenantId, userId, tenantRole: "OWNER" },
       name: "T-Shirt",
       category: "Apparel",
+      brand: null,
       baseUomId: null, // "nos" doesn't exist in seed
       isActive: true,
       correlationId: "test-corr-1",
@@ -72,8 +73,8 @@ describe("ERPNext Catalog Sync (Outbox)", () => {
 
     let pending = await db.outboxEvent.findMany({ where: { tenantId } });
     expect(pending.length).toBe(1);
-    expect(pending[0].eventType).toBe("ProductVariantCreated");
-    expect(pending[0].entityId).toBe(variantId);
+    expect(pending[0]?.eventType).toBe("ProductVariantCreated");
+    expect(pending[0]?.entityId).toBe(variantId);
 
     // Dispatch outbox
     await dispatchOutboxOnce({
@@ -97,13 +98,13 @@ describe("ERPNext Catalog Sync (Outbox)", () => {
     const requests = transport.sent;
     expect(requests.length).toBe(2);
 
-    expect(requests[0].method).toBe("GET");
-    expect(requests[0].path).toBe(`/api/resource/Item/${encodeURIComponent(variantId)}`);
+    expect(requests[0]?.method).toBe("GET");
+    expect(requests[0]?.path).toBe(`/api/resource/Item/${encodeURIComponent(variantId)}`);
 
-    expect(requests[1].method).toBe("POST");
-    expect(requests[1].path).toBe("/api/resource/Item");
+    expect(requests[1]?.method).toBe("POST");
+    expect(requests[1]?.path).toBe("/api/resource/Item");
     
-    const body = requests[1].body as Record<string, any>;
+    const body = requests[1]?.body as Record<string, any>;
     expect(body.item_code).toBe(variantId);
     expect(body.item_name).toBe("T-Shirt - S - Blue");
     expect(body.item_group).toBe("Apparel");
