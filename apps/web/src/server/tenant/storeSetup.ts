@@ -4,6 +4,7 @@ import { env } from "@/lib/env";
 import { resolveSession } from "@/server/identity/session";
 import { isIpRateLimited, recordAttempt } from "@/server/identity/loginGuard";
 import { writeAuditLog } from "@/server/identity/audit";
+import { enqueueOutboxEvent } from "@/server/events/outbox";
 
 export interface CreateFirstStoreInput {
   sessionToken: string;
@@ -132,6 +133,13 @@ export async function createFirstStore(input: CreateFirstStoreInput): Promise<Cr
           storeId: store.id,
           role: "OWNER",
         },
+      });
+
+      await enqueueOutboxEvent(tx, {
+        tenantId: session.tenantId,
+        eventType: "StoreCreated",
+        entityId: store.id,
+        payload: {}, correlationId: input.correlationId,
       });
 
       return store;

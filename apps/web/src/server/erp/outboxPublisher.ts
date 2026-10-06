@@ -1,11 +1,13 @@
 import { ErpSaleAdapter } from "@/server/erp/saleAdapter";
 import { ErpCatalogAdapter } from "@/server/erp/catalogAdapter";
+import { ErpStoreAdapter } from "@/server/erp/storeAdapter";
 import type { PublishableEvent, OutboxPublisher } from "@/server/events/publisher";
 
 export class ErpOutboxPublisher implements OutboxPublisher {
   constructor(
     private saleAdapter = new ErpSaleAdapter(),
-    private catalogAdapter = new ErpCatalogAdapter()
+    private catalogAdapter = new ErpCatalogAdapter(),
+    private storeAdapter = new ErpStoreAdapter()
   ) {}
 
   async publish(event: PublishableEvent): Promise<void> {
@@ -19,6 +21,11 @@ export class ErpOutboxPublisher implements OutboxPublisher {
         throw new Error(`${event.eventType} event missing entityId`);
       }
       await this.catalogAdapter.syncVariant(event.tenantId, event.entityId, event.correlationId);
+    } else if (event.eventType === "StoreCreated") {
+      if (!event.entityId) {
+        throw new Error("StoreCreated event missing entityId");
+      }
+      await this.storeAdapter.syncStore(event.tenantId, event.entityId, event.correlationId);
     }
   }
 }

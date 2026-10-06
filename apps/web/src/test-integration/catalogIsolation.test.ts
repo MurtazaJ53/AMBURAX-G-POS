@@ -55,7 +55,7 @@ describe("listProducts is tenant-scoped", () => {
   it("stays scoped when the filter path builds the where clause", async () => {
     const filtered = await listProducts({
       ...scopeA,
-      filters: { ...EMPTY_FILTERS, categories: ["Shirts"], sizes: ["M"] },
+      filters: { ...EMPTY_FILTERS, categories: ["Products"], sizes: ["M"] },
     });
 
     expect(filtered.rows.map((row) => row.id)).toEqual([COMMERCE_IDS.productA]);
@@ -125,8 +125,8 @@ describe("getCatalogFacets is tenant-scoped", () => {
   it("counts only the calling tenant's products", async () => {
     const asA = await getCatalogFacets(scopeA);
 
-    // Both tenants have a "Shirts" category with one product each. A leak would read 2.
-    expect(asA.categories).toEqual([{ value: "Shirts", count: 1 }]);
+    // Both tenants have a "Products" category with one product each. A leak would read 2.
+    expect(asA.categories).toEqual([{ value: "Products", count: 1 }]);
   });
 
   it("offers only sizes and colours the tenant's own variants use", async () => {

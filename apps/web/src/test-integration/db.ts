@@ -233,10 +233,10 @@ export async function seedTwoTenants(): Promise<void> {
  */
 export async function seedCommerce(): Promise<void> {
   await db.product.create({
-    data: { id: COMMERCE_IDS.productA, tenantId: IDS.tenantA, name: "A Shirt", category: "Shirts" },
+    data: { id: COMMERCE_IDS.productA, tenantId: IDS.tenantA, name: "A Shirt", category: "Products" },
   });
   await db.product.create({
-    data: { id: COMMERCE_IDS.productB, tenantId: IDS.tenantB, name: "B Shirt", category: "Shirts" },
+    data: { id: COMMERCE_IDS.productB, tenantId: IDS.tenantB, name: "B Shirt", category: "Products" },
   });
 
   await db.productVariant.create({

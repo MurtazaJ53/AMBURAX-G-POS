@@ -106,13 +106,21 @@ export class ErpSaleAdapter {
         }
       ].filter(p => p.amount > 0);
 
+      if (!sale.store.erpnextWarehouseId) {
+        throw new ErpError({
+          kind: "configuration_error",
+          message: `Store ${sale.storeId} has no ERP warehouse provisioned. Cannot sync sale.`,
+          correlationId,
+        });
+      }
+
       const invoiceDoc = {
         doctype: "Sales Invoice",
         company: envResult.environment.companyId ?? "Amburax Retail",
         customer: sale.customerId ?? "Cash",
         is_pos: 1,
         update_stock: 1,
-        set_warehouse: sale.store.erpnextWarehouseId ?? "Stores", 
+        set_warehouse: sale.store.erpnextWarehouseId, 
         items,
         payments,
         amburax_sale_id: sale.id, 

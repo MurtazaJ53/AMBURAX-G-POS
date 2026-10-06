@@ -19,6 +19,7 @@ const mockTx = {
   tenant: { updateMany: vi.fn() },
   store: { create: vi.fn() },
   storeMembership: { create: vi.fn() },
+  outboxEvent: { create: vi.fn() },
 };
 
 const mockDb = {
