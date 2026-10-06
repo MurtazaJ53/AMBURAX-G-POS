@@ -7,6 +7,7 @@ import { getProduct } from "@/server/catalog/catalogQueries";
 import { formatMinor } from "@/server/sales/saleTotals";
 import { PageHeader, Card, buttonClass, BadgeTone, StatusBadge } from "../../_components/ui";
 import Link from "next/link";
+import { Image as ImageIcon } from "lucide-react";
 
 export default async function ProductDetailsPage(props: { params: Promise<{ id: string }> }) {
   const { id } = await props.params;
@@ -38,8 +39,23 @@ export default async function ProductDetailsPage(props: { params: Promise<{ id: 
       <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-3">
         {/* Product Details */}
         <Card className="p-6">
-          <h2 className="text-base font-semibold leading-7 text-slate-900">Product Info</h2>
-          <dl className="mt-4 space-y-4 text-sm">
+          <h2 className="text-base font-semibold leading-7 text-slate-900 mb-4">Product Info</h2>
+          
+          <div className="flex items-start gap-4 mb-6">
+            <div className="h-20 w-20 shrink-0 overflow-hidden rounded-lg bg-slate-100 border border-slate-200 flex items-center justify-center">
+              {product.imageUrl ? (
+                <img src={product.imageUrl} alt={product.name} className="h-full w-full object-cover" />
+              ) : (
+                <ImageIcon className="h-8 w-8 text-slate-300" />
+              )}
+            </div>
+            <div>
+              <p className="text-sm font-medium text-slate-900">{product.name}</p>
+              <p className="text-sm text-slate-500">{product.category || "No category"}</p>
+            </div>
+          </div>
+
+          <dl className="space-y-4 text-sm border-t border-slate-100 pt-4">
             <div className="flex justify-between">
               <dt className="text-slate-500">Brand</dt>
               <dd className="font-medium text-slate-900">{product.brand || "-"}</dd>

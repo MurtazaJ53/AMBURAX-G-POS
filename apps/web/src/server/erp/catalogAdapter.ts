@@ -80,6 +80,7 @@ export class ErpCatalogAdapter {
       is_stock_item: 1,
       is_sales_item: 1,
       disabled: variant.isActive ? 0 : 1,
+      image: variant.product.imageUrl || null,
     };
 
     const existingName = await this.lookupItem(env, tenantId, variantId, correlationId);

@@ -1,8 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { z } from "zod";
+import { UploadCloud, X, Image as ImageIcon, Loader2 } from "lucide-react";
 import { buttonClass } from "../_components/ui";
 
 const productSchema = z.object({
@@ -11,6 +12,7 @@ const productSchema = z.object({
   brand: z.string().trim().nullable().optional(),
   baseUomId: z.string().min(1, "Base unit of measure is required"),
   isActive: z.boolean().default(true),
+  imageUrl: z.string().nullable().optional(),
   variant: z.object({
     sku: z.string().trim().min(1, "SKU is required"),
     barcode: z.string().trim().nullable().optional(),
@@ -33,6 +35,7 @@ export function ProductForm({
     brand: string | null;
     baseUomId: string | null;
     isActive: boolean;
+    imageUrl?: string | null;
   };
   uoms?: { id: string; code: string; name: string }[];
 }) {
@@ -40,6 +43,61 @@ export function ProductForm({
   const [error, setError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
+  
+  // Image Upload State
+  const [imageUrl, setImageUrl] = useState<string | null>(initialData?.imageUrl || null);
+  const [isUploading, setIsUploading] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Validate type and size
+    const validTypes = ["image/jpeg", "image/png", "image/webp"];
+    if (!validTypes.includes(file.type)) {
+      setUploadError("Invalid file type. Only JPEG, PNG, and WebP are allowed.");
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      setUploadError("File exceeds 5MB limit.");
+      return;
+    }
+
+    setUploadError(null);
+    setIsUploading(true);
+
+    const formData = new FormData();
+    formData.append("file", file);
+
+    try {
+      const res = await fetch("/api/v1/catalog/images", {
+        method: "POST",
+        body: formData,
+      });
+
+      if (!res.ok) {
+        const data = await res.json();
+        setUploadError(data.message || "Upload failed");
+      } else {
+        const data = await res.json();
+        setImageUrl(data.url);
+      }
+    } catch (err) {
+      setUploadError("Network error during upload");
+    } finally {
+      setIsUploading(false);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = "";
+      }
+    }
+  };
+
+  const handleRemoveImage = () => {
+    setImageUrl(null);
+    setUploadError(null);
+  };
 
   async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -51,11 +109,6 @@ export function ProductForm({
     const priceStr = formData.get("price") as string;
     const mrpStr = formData.get("mrp") as string;
     
-    // In edit mode (initialData provided), we just update the product. 
-    // Wait, the API for updating product hasn't changed.
-    // The prompt only asked to unify CREATE product. I'll preserve edit just in case, but edit doesn't require a variant if it already has one.
-    // Actually, the API I modified was just POST /api/v1/catalog/products. 
-    // I should only enforce variant rules if we are creating.
     const isCreate = !initialData;
 
     let payload: any = {
@@ -64,6 +117,7 @@ export function ProductForm({
       brand: (formData.get("brand") as string) || null,
       baseUomId: formData.get("baseUomId") as string,
       isActive: formData.get("isActive") === "on",
+      imageUrl: imageUrl,
     };
 
     if (isCreate) {
@@ -86,7 +140,6 @@ export function ProductForm({
         }
         setFieldErrors(errors);
         setSaving(false);
-        // Focus first invalid field manually if needed, or rely on visual cues
         return;
       }
     }
@@ -132,87 +185,142 @@ export function ProductForm({
       <div className="space-y-4">
         <h3 className="text-base font-semibold text-slate-900 border-b pb-2">Product Details</h3>
         
-        <div>
-          <label htmlFor="name" className="block text-sm font-medium text-slate-900">
-            Product Name <span className="text-red-500">*</span>
-          </label>
-          <input
-            id="name"
-            name="name"
-            type="text"
-            required
-            defaultValue={initialData?.name}
-            aria-invalid={!!fieldErrors.name}
-            aria-describedby={fieldErrors.name ? "name-error" : undefined}
-            className={`mt-1 block w-full rounded-lg border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 ${fieldErrors.name ? "border-red-500 focus:border-red-500" : "border-slate-300 focus:border-blue-500"}`}
-          />
-          {fieldErrors.name && (
-            <p id="name-error" className="mt-1 text-xs text-red-600">{fieldErrors.name}</p>
-          )}
-        </div>
-
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <div>
-            <label htmlFor="category" className="block text-sm font-medium text-slate-900">
-              Category
-            </label>
-            <input
-              id="category"
-              name="category"
-              type="text"
-              defaultValue={initialData?.category || ""}
-              className="mt-1 block w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
-            />
+        <div className="flex flex-col sm:flex-row gap-6">
+          {/* Image Upload Area */}
+          <div className="shrink-0">
+            <label className="block text-sm font-medium text-slate-900 mb-1">Image</label>
+            <div className="relative group w-32 h-32 sm:w-40 sm:h-40 rounded-lg border-2 border-dashed border-slate-300 bg-slate-50 flex items-center justify-center overflow-hidden transition-colors hover:border-blue-400 hover:bg-slate-100 focus-within:ring-2 focus-within:ring-blue-500 focus-within:ring-offset-2">
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/jpeg,image/png,image/webp"
+                className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
+                onChange={handleImageUpload}
+                disabled={isUploading}
+                aria-label="Upload Product Image"
+              />
+              
+              {isUploading ? (
+                <div className="flex flex-col items-center text-slate-400">
+                  <Loader2 className="w-6 h-6 animate-spin mb-1" />
+                  <span className="text-xs font-medium">Uploading...</span>
+                </div>
+              ) : imageUrl ? (
+                <>
+                  <img src={imageUrl} alt="Product preview" className="w-full h-full object-cover" />
+                  <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center pointer-events-none">
+                    <span className="text-white text-xs font-medium">Replace</span>
+                  </div>
+                </>
+              ) : (
+                <div className="flex flex-col items-center text-slate-400">
+                  <UploadCloud className="w-6 h-6 mb-1 group-hover:text-blue-500 transition-colors" />
+                  <span className="text-xs font-medium text-center px-2 group-hover:text-blue-600 transition-colors">Click or Drag</span>
+                </div>
+              )}
+            </div>
+            
+            {imageUrl && !isUploading && (
+              <button
+                type="button"
+                onClick={handleRemoveImage}
+                className="mt-2 text-xs text-red-600 hover:text-red-700 flex items-center justify-center w-full"
+                aria-label="Remove image"
+              >
+                <X className="w-3 h-3 mr-1" />
+                Remove
+              </button>
+            )}
+            
+            {uploadError && (
+              <p className="mt-1 text-xs text-red-600 max-w-[160px]">{uploadError}</p>
+            )}
           </div>
 
-          <div>
-            <label htmlFor="brand" className="block text-sm font-medium text-slate-900">
-              Brand
-            </label>
-            <input
-              id="brand"
-              name="brand"
-              type="text"
-              defaultValue={initialData?.brand || ""}
-              className="mt-1 block w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
-            />
+          <div className="flex-1 space-y-4">
+            <div>
+              <label htmlFor="name" className="block text-sm font-medium text-slate-900">
+                Product Name <span className="text-red-500">*</span>
+              </label>
+              <input
+                id="name"
+                name="name"
+                type="text"
+                required
+                defaultValue={initialData?.name}
+                aria-invalid={!!fieldErrors.name}
+                aria-describedby={fieldErrors.name ? "name-error" : undefined}
+                className={`mt-1 block w-full rounded-lg border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 ${fieldErrors.name ? "border-red-500 focus:border-red-500" : "border-slate-300 focus:border-blue-500"}`}
+              />
+              {fieldErrors.name && (
+                <p id="name-error" className="mt-1 text-xs text-red-600">{fieldErrors.name}</p>
+              )}
+            </div>
+
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <div>
+                <label htmlFor="category" className="block text-sm font-medium text-slate-900">
+                  Category
+                </label>
+                <input
+                  id="category"
+                  name="category"
+                  type="text"
+                  defaultValue={initialData?.category || ""}
+                  className="mt-1 block w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                />
+              </div>
+
+              <div>
+                <label htmlFor="brand" className="block text-sm font-medium text-slate-900">
+                  Brand
+                </label>
+                <input
+                  id="brand"
+                  name="brand"
+                  type="text"
+                  defaultValue={initialData?.brand || ""}
+                  className="mt-1 block w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                />
+              </div>
+            </div>
+            
+            <div>
+              <label htmlFor="baseUomId" className="block text-sm font-medium text-slate-900">
+                Base Unit of Measure <span className="text-red-500">*</span>
+              </label>
+              <select
+                id="baseUomId"
+                name="baseUomId"
+                required
+                defaultValue={initialData?.baseUomId || ""}
+                aria-invalid={!!fieldErrors.baseUomId}
+                aria-describedby={fieldErrors.baseUomId ? "baseUomId-error" : undefined}
+                className={`mt-1 block w-full rounded-lg border bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 ${fieldErrors.baseUomId ? "border-red-500 focus:border-red-500" : "border-slate-300 focus:border-blue-500"}`}
+              >
+                <option value="" disabled>Select a unit...</option>
+                {uoms.map(uom => (
+                  <option key={uom.id} value={uom.id}>{uom.name} ({uom.code})</option>
+                ))}
+              </select>
+              {fieldErrors.baseUomId && (
+                <p id="baseUomId-error" className="mt-1 text-xs text-red-600">{fieldErrors.baseUomId}</p>
+              )}
+            </div>
+
+            <div className="flex items-center gap-2 pt-2">
+              <input
+                id="isActive"
+                name="isActive"
+                type="checkbox"
+                defaultChecked={initialData ? initialData.isActive : true}
+                className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-600"
+              />
+              <label htmlFor="isActive" className="text-sm font-medium text-slate-900">
+                Active (available for sale)
+              </label>
+            </div>
           </div>
-        </div>
-
-        <div>
-          <label htmlFor="baseUomId" className="block text-sm font-medium text-slate-900">
-            Base Unit of Measure <span className="text-red-500">*</span>
-          </label>
-          <select
-            id="baseUomId"
-            name="baseUomId"
-            required
-            defaultValue={initialData?.baseUomId || ""}
-            aria-invalid={!!fieldErrors.baseUomId}
-            aria-describedby={fieldErrors.baseUomId ? "baseUomId-error" : undefined}
-            className={`mt-1 block w-full rounded-lg border bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 ${fieldErrors.baseUomId ? "border-red-500 focus:border-red-500" : "border-slate-300 focus:border-blue-500"}`}
-          >
-            <option value="" disabled>Select a unit...</option>
-            {uoms.map(uom => (
-              <option key={uom.id} value={uom.id}>{uom.name} ({uom.code})</option>
-            ))}
-          </select>
-          {fieldErrors.baseUomId && (
-            <p id="baseUomId-error" className="mt-1 text-xs text-red-600">{fieldErrors.baseUomId}</p>
-          )}
-        </div>
-
-        <div className="flex items-center gap-2 pt-2">
-          <input
-            id="isActive"
-            name="isActive"
-            type="checkbox"
-            defaultChecked={initialData ? initialData.isActive : true}
-            className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-600"
-          />
-          <label htmlFor="isActive" className="text-sm font-medium text-slate-900">
-            Active (available for sale)
-          </label>
         </div>
       </div>
 
@@ -333,12 +441,12 @@ export function ProductForm({
       )}
 
       <div className="flex items-center gap-3 border-t border-slate-100 pt-6">
-        <button type="submit" disabled={saving} aria-busy={saving} className={buttonClass("primary")}>
+        <button type="submit" disabled={saving || isUploading} aria-busy={saving || isUploading} className={buttonClass("primary")}>
           {saving ? "Saving..." : initialData ? "Save Changes" : "Create Product"}
         </button>
         <button
           type="button"
-          disabled={saving}
+          disabled={saving || isUploading}
           onClick={() => router.back()}
           className={buttonClass("secondary")}
         >
@@ -348,3 +456,4 @@ export function ProductForm({
     </form>
   );
 }
+
