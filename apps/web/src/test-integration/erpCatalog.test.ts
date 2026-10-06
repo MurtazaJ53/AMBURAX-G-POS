@@ -38,38 +38,34 @@ describe("ERPNext Catalog Sync (Outbox)", () => {
       },
     });
 
+    const uom = await db.uom.findFirst({ where: { tenantId } });
     const productRes = await createProduct({
       actor: { tenantId, userId, tenantRole: "OWNER" },
       name: "T-Shirt",
       category: "Apparel",
       brand: null,
-      baseUomId: null, // "nos" doesn't exist in seed
+      baseUomId: uom?.id ?? "", 
       isActive: true,
       correlationId: "test-corr-1",
+      firstVariant: {
+        sku: "TSHIRT-BLK-M",
+        barcode: null,
+        size: "M",
+        colour: "Black",
+        priceMinor: 1500,
+        mrpMinor: null,
+        isActive: true,
+      }
     });
 
     if (productRes.status !== "ok") throw new Error("Failed to create product");
 
     transport.script(
-      { kind: "respond", status: 200, body: { data: {} } }, // Initial lookup (simulate item does not exist, or could return 404, actually our adapter handles 404)
+      { kind: "respond", status: 200, body: { data: {} } }, // Initial lookup
       { kind: "respond", status: 200, body: { data: { name: "test-variant-id" } } } // Create
     );
 
-    const variantRes = await createVariant({
-      actor: { tenantId, userId, tenantRole: "OWNER" },
-      productId: productRes.productId,
-      sku: "TS-S-BL",
-      barcode: null,
-      size: "S",
-      colour: "Blue",
-      priceMinor: 1500,
-      mrpMinor: 2000,
-      isActive: true,
-      correlationId: "test-corr-1",
-    });
-
-    if (variantRes.status !== "ok") throw new Error("Failed to create variant");
-    const variantId = variantRes.variantId;
+    const variantId = productRes.variantId;
 
     let pending = await db.outboxEvent.findMany({ where: { tenantId } });
     expect(pending.length).toBe(1);

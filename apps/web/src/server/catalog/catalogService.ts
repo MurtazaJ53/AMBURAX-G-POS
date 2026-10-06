@@ -19,12 +19,21 @@ export interface CreateProductInput {
   brand: string | null;
   imageUrl?: string | null;
   isActive: boolean;
-  baseUomId: string | null;
+  baseUomId: string;
   correlationId: string;
+  firstVariant: {
+    sku: string;
+    barcode: string | null;
+    size: string | null;
+    colour: string | null;
+    priceMinor: number;
+    mrpMinor: number | null;
+    isActive: boolean;
+  };
 }
 
 export type CreateProductResult = 
-  | { status: "ok"; productId: string }
+  | { status: "ok"; productId: string; variantId: string }
   | { status: CatalogFailure };
 
 export async function createProduct(input: CreateProductInput): Promise<CreateProductResult> {
@@ -40,16 +49,56 @@ export async function createProduct(input: CreateProductInput): Promise<CreatePr
     if (!uom) return { status: "not_found" };
   }
 
-  const product = await db.product.create({
-    data: {
+  // Check unique constraints for the variant
+  const existingSku = await db.productVariant.findFirst({
+    where: { sku: input.firstVariant.sku, tenantId: input.actor.tenantId }
+  });
+  if (existingSku) return { status: "conflict" };
+
+  if (input.firstVariant.barcode) {
+    const existingBarcode = await db.productVariant.findFirst({
+      where: { barcode: input.firstVariant.barcode, tenantId: input.actor.tenantId }
+    });
+    if (existingBarcode) return { status: "conflict" };
+  }
+
+  const result = await db.$transaction(async (tx) => {
+    const product = await tx.product.create({
+      data: {
+        tenantId: input.actor.tenantId,
+        name: input.name,
+        category: input.category,
+        brand: input.brand,
+        imageUrl: input.imageUrl,
+        isActive: input.isActive,
+        baseUomId: input.baseUomId,
+      }
+    });
+
+    const variant = await tx.productVariant.create({
+      data: {
+        tenantId: input.actor.tenantId,
+        productId: product.id,
+        sku: input.firstVariant.sku,
+        barcode: input.firstVariant.barcode,
+        size: input.firstVariant.size,
+        colour: input.firstVariant.colour,
+        priceMinor: input.firstVariant.priceMinor,
+        mrpMinor: input.firstVariant.mrpMinor,
+        isActive: input.firstVariant.isActive,
+      }
+    });
+
+    await enqueueOutboxEvent(tx, {
       tenantId: input.actor.tenantId,
-      name: input.name,
-      category: input.category,
-      brand: input.brand,
-      imageUrl: input.imageUrl,
-      isActive: input.isActive,
-      baseUomId: input.baseUomId,
-    }
+      eventType: "ProductVariantCreated",
+      actorUserId: input.actor.userId,
+      correlationId: input.correlationId,
+      entityId: variant.id,
+      payload: { variantId: variant.id },
+    });
+
+    return { productId: product.id, variantId: variant.id };
   });
 
   await writeAuditLog({
@@ -57,10 +106,10 @@ export async function createProduct(input: CreateProductInput): Promise<CreatePr
     userId: input.actor.userId,
     action: "product.create",
     correlationId: input.correlationId,
-    metadata: { productId: product.id }
+    metadata: { productId: result.productId, variantId: result.variantId }
   });
 
-  return { status: "ok", productId: product.id };
+  return { status: "ok", productId: result.productId, variantId: result.variantId };
 }
 
 export interface UpdateProductInput {
