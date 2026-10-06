@@ -7,15 +7,15 @@ import { buttonClass } from "../_components/ui";
 
 const productSchema = z.object({
   name: z.string().trim().min(1, "Product name is required"),
-  category: z.string().trim().optional(),
-  brand: z.string().trim().optional(),
+  category: z.string().trim().nullable().optional(),
+  brand: z.string().trim().nullable().optional(),
   baseUomId: z.string().min(1, "Base unit of measure is required"),
   isActive: z.boolean().default(true),
   variant: z.object({
     sku: z.string().trim().min(1, "SKU is required"),
-    barcode: z.string().trim().optional(),
-    size: z.string().trim().optional(),
-    colour: z.string().trim().optional(),
+    barcode: z.string().trim().nullable().optional(),
+    size: z.string().trim().nullable().optional(),
+    colour: z.string().trim().nullable().optional(),
     priceMinor: z.number().min(0, "Price cannot be negative"),
     mrpMinor: z.number().min(0, "MRP cannot be negative").nullable().optional(),
     isActive: z.boolean().default(true),
