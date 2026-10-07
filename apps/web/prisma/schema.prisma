@@ -108,6 +108,7 @@ model Tenant {
   addresses          Address[]
   customerAddresses  CustomerAddress[]
   priceLists         PriceList[]
+  khataPayments      KhataPayment[]
   priceListItems     PriceListItem[]
   capabilities       TenantCapability[]
   orders             Order[]
@@ -847,6 +848,7 @@ model Customer {
   priceList       PriceList?        @relation("CustomerPriceList", fields: [priceListId, tenantId], references: [id, tenantId])
   defaultBilling  Address?          @relation("CustomerDefaultBilling", fields: [defaultBillingAddressId, tenantId], references: [id, tenantId])
   defaultShipping Address?          @relation("CustomerDefaultShipping", fields: [defaultShippingAddressId, tenantId], references: [id, tenantId])
+  khataPayments   KhataPayment[]
 
   // Phone is the retail identity key in this market. Unique per tenant so selecting an
   // existing customer can never silently create a duplicate.
@@ -1185,6 +1187,32 @@ model SalePayment {
 
   @@index([saleId])
   @@map("sale_payments")
+}
+
+// Khata payment collection record.
+// Records cash/bank payment collected against a customer's outstanding balance,
+// which is then asynchronously synchronized to an ERPNext Payment Entry via Outbox.
+model KhataPayment {
+  id                String         @id @default(cuid())
+  tenantId          String
+  customerId        String
+  actorUserId       String
+  amountMinor       Int
+  paymentMethod     PaymentMethod  @default(CASH)
+  reference         String?
+  notes             String?
+  idempotencyKey    String         @unique
+  erpSyncStatus     ErpSyncStatus  @default(PENDING)
+  erpPaymentEntryId String?
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
+
+  tenant   Tenant   @relation(fields: [tenantId], references: [id])
+  customer Customer @relation(fields: [customerId, tenantId], references: [id, tenantId])
+
+  @@index([tenantId, customerId])
+  @@index([tenantId, createdAt])
+  @@map("khata_payments")
 }
 
 // AMBURAX OPERATIONAL STOCK PROJECTION - NOT AN AUTHORITATIVE STOCK LEDGER.
