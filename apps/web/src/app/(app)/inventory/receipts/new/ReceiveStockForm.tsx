@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
@@ -98,7 +98,7 @@ export function ReceiveStockForm({ variants, storeId }: { variants: VariantOptio
                   <option value="">Select a variant...</option>
                   {variants.map(v => (
                     <option key={v.id} value={v.id}>
-                      {v.name} � {v.sku}
+                      {v.name} • {v.sku}
                     </option>
                   ))}
                 </select>
