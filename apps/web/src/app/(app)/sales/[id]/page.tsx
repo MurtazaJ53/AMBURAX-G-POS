@@ -2,46 +2,122 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { cookies } from "next/headers";
 import { env } from "@/lib/env";
-import { 
-  ChevronRight, 
-  ArrowDownToLine, 
-  Share2, 
-  RefreshCcw, 
-  MoreHorizontal, 
-  Printer, 
-  Mail, 
-  MessageCircle, 
-  XCircle, 
-  Pencil,
-  Copy,
-  ReceiptText
+import {
+  CheckCircle2,
+  ChevronDown,
+  ChevronRight,
+  Download,
+  ExternalLink,
+  History,
+  Mail,
+  MessageCircle,
+  Package,
+  PlusCircle,
+  RefreshCcw,
+  Repeat,
+  Share2,
+  ShoppingBag,
+  UserRound,
+  XCircle,
 } from "lucide-react";
 
 import { CopyButton } from "./CopyButton";
+import { PrintButton } from "./PrintButton";
 import { resolvePosContext } from "@/server/sales/posContext";
 import { getSaleDetail } from "@/server/sales/saleQueries";
 import { formatMinor } from "@/server/sales/saleTotals";
 import { formatDateTime } from "../formatDateTime";
-import { PrintButton } from "./PrintButton";
 
-function StatusPill({ status, tone = "default" }: { status: string, tone?: "success" | "danger" | "warning" | "default" }) {
-  if (tone === "success" || status === "COMPLETED" || status === "Success" || status === "CONFIRMED" || status === "SUCCESS") 
-    return <span className="amb-pill bg-emerald-100 text-emerald-700">{status}</span>;
-  if (tone === "danger" || status === "VOIDED" || status === "FAILED") 
-    return <span className="amb-pill bg-red-100 text-red-700">{status}</span>;
-  if (tone === "warning" || status === "PENDING") 
-    return <span className="amb-pill bg-amber-100 text-amber-700">{status}</span>;
-  
-  return <span className="amb-pill bg-slate-100 text-slate-600">{status}</span>;
+/**
+ * One bill, laid out as the Phase-2 reference: a header with the bill's actions, a summary
+ * strip, the items table, payments beside the money summary, and actions / related / activity
+ * along the bottom — with the customer, the store session and the posting state on the right.
+ *
+ * Only what the sale records is shown. Items carry no MRP snapshot and the schema has no sales
+ * person or customer group, so those reference fields are left out rather than filled with
+ * guesses. Actions with nothing behind them (PDF, share, e-mail, WhatsApp, returns, cancel) are
+ * drawn disabled and labelled; printing is real.
+ */
+
+type Tone = "success" | "danger" | "warning" | "neutral" | "info";
+
+const TONE: Record<Tone, string> = {
+  success: "border-success-subtle bg-success-subtle text-success",
+  danger: "border-danger-subtle bg-danger-subtle text-danger",
+  warning: "border-warning-subtle bg-warning-subtle text-warning",
+  neutral: "border-border bg-background-hover text-secondary",
+  info: "border-info-subtle bg-info-subtle text-info",
+};
+
+function Pill({ tone, children, dot = false }: { tone: Tone; children: React.ReactNode; dot?: boolean }) {
+  return (
+    <span className={`inline-flex items-center gap-1 whitespace-nowrap rounded-md border px-2 py-0.5 text-[11px] font-medium ${TONE[tone]}`}>
+      {dot && <span aria-hidden="true" className="h-1.5 w-1.5 rounded-full bg-current" />}
+      {children}
+    </span>
+  );
+}
+
+function Card(props: { title: string; action?: React.ReactNode; children: React.ReactNode; index: number; className?: string }) {
+  const id = `bill-${props.title.toLowerCase().replace(/[^a-z]+/g, "-")}`;
+  return (
+    <section
+      aria-labelledby={id}
+      className={`cust-rise min-w-0 overflow-hidden rounded-xl border border-border bg-background-card shadow-sm print:break-inside-avoid print:shadow-none ${props.className ?? ""}`}
+      style={{ ["--i" as string]: props.index }}
+    >
+      <div className="flex items-center justify-between gap-3 px-4 pb-2 pt-3.5">
+        <h2 id={id} className="text-[16px] font-bold text-primary">
+          {props.title}
+        </h2>
+        {props.action}
+      </div>
+      {props.children}
+    </section>
+  );
+}
+
+function Row(props: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="grid grid-cols-[110px_minmax(0,1fr)] items-center gap-3 px-4 py-1.5 text-[11px]">
+      <dt className="text-tertiary">{props.label}</dt>
+      <dd className="min-w-0 truncate text-primary">{props.children}</dd>
+    </div>
+  );
+}
+
+function initials(name: string): string {
+  return name
+    .trim()
+    .split(/\s+/)
+    .map((w) => w[0])
+    .slice(0, 2)
+    .join("")
+    .toUpperCase();
+}
+
+const ACTION =
+  "inline-flex h-10 items-center gap-2 whitespace-nowrap rounded-lg border border-border bg-background-card px-4 text-[13px] font-medium";
+
+function PendingAction({ icon, label }: { icon: React.ReactNode; label: string }) {
+  return (
+    <button type="button" disabled title={`${label} is not available yet`} className={`${ACTION} cursor-not-allowed justify-center text-tertiary`}>
+      <span aria-hidden="true">{icon}</span>
+      {label}
+      <span className="sr-only"> (not available yet)</span>
+    </button>
+  );
+}
+
+function methodLabel(method: string): string {
+  return method === "UPI" ? "UPI" : method.charAt(0) + method.slice(1).toLowerCase();
 }
 
 export default async function SaleDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const cookieStore = await cookies();
   const resolvedParams = await params;
   const token = cookieStore.get(env.SESSION_COOKIE_NAME)?.value;
-  // `/auth/login` is the real sign-in route; `/login` does not exist and 404s, which is what
-  // a logged-out visitor following a bookmarked bill link used to hit. Same guards as before —
-  // only the destination changes.
+  // `/auth/login` is the real sign-in route; `/login` does not exist.
   if (!token) return redirect("/auth/login");
 
   const ctx = await resolvePosContext(token);
@@ -50,370 +126,399 @@ export default async function SaleDetailPage({ params }: { params: Promise<{ id:
   const sale = await getSaleDetail({ tenantId: ctx.context.tenantId, saleId: resolvedParams.id });
   if (!sale) notFound();
 
+  const completed = sale.status === "COMPLETED";
   const isPosted = sale.erpSyncStatus === "SYNCED" || sale.erpSyncStatus === "POSTED" || sale.erpSyncStatus === "SUCCESS";
-  const erpStatusText = isPosted ? "Submitted" : (sale.erpSyncStatus === "FAILED" ? "Failed" : "Pending");
+  const erpTone: Tone = isPosted ? "success" : sale.erpSyncStatus === "FAILED" ? "danger" : "warning";
+  const erpText = isPosted ? "Submitted" : sale.erpSyncStatus === "FAILED" ? "Failed" : "Pending";
+  const units = sale.items.reduce((n, i) => n + i.quantity, 0);
+  const balanceMinor = sale.totalMinor - sale.paidMinor;
 
-  // `w-full min-w-0` on the page container is what the rest of the app already uses (see the
-  // inventory forms). Without it this box sized to its content rather than to the track left
-  // beside the shell sidebar, so it ran ~184px past a 1280 viewport and ~424px past a 390 one.
   return (
-    <div className="mx-auto w-full min-w-0 max-w-7xl p-4 sm:p-6 lg:p-8 text-[11px] text-slate-900">
-      
-      {/* Header Area */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
-        <div>
-          <div className="flex items-center gap-2 text-slate-500 mb-1">
-            <Link href="/sales" className="hover:text-blue-600 transition-colors">Sales & Transactions</Link>
-            <ChevronRight className="w-3 h-3" />
-            <span className="font-semibold text-slate-900">Bill Details</span>
-          </div>
-          <h1 className="text-2xl font-bold text-slate-900 mb-1">Bill Details</h1>
-          <p className="text-slate-500 text-[11px]">View complete transaction details, items, payments and history</p>
+    <div className="w-full min-w-0 p-4 sm:p-5 print:p-0">
+      {/* -------------------------------------------------------- header */}
+      <div className="cust-rise mb-4 flex flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0">
+          <nav aria-label="Breadcrumb" className="flex items-center gap-1.5 text-[13px] print:hidden">
+            <Link href="/sales" className="text-tertiary hover:text-primary hover:underline">
+              Sales &amp; Transactions
+            </Link>
+            <ChevronRight aria-hidden="true" className="h-4 w-4 text-tertiary" />
+            <span className="text-primary">Bill Details</span>
+          </nav>
+          <h1 className="mt-1.5 text-[26px] font-bold tracking-tight text-primary">Bill Details</h1>
+          <p className="mt-0.5 text-[15px] text-tertiary">View complete transaction details, items, payments and history</p>
         </div>
-        
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2.5 print:hidden">
           <PrintButton />
+          <PendingAction icon={<Download className="h-4 w-4" />} label="Download PDF" />
+          <PendingAction icon={<Share2 className="h-4 w-4" />} label="Share" />
+          <PendingAction icon={<RefreshCcw className="h-4 w-4" />} label="Return / Exchange" />
+          <button type="button" disabled title="More actions are not available yet" className={`${ACTION} cursor-not-allowed text-tertiary`}>
+            More <ChevronDown aria-hidden="true" className="h-4 w-4" />
+            <span className="sr-only"> (not available yet)</span>
+          </button>
         </div>
       </div>
 
-      {/* Bill Overview Banner */}
-      <div className="amb-card p-5 mb-5 flex flex-wrap lg:flex-nowrap items-center gap-x-8 gap-y-4">
-        <div className="flex flex-col items-center justify-center pr-8 lg:border-r border-slate-200 min-w-[120px]">
-          <div className={`w-10 h-10 rounded-full flex items-center justify-center mb-2 ${sale.status === "COMPLETED" ? 'bg-emerald-100 text-emerald-600' : 'bg-red-100 text-red-600'}`}>
-            <ReceiptText className="w-5 h-5" />
-          </div>
-          <StatusPill status={sale.status === "COMPLETED" ? "Completed" : "Voided"} tone={sale.status === "COMPLETED" ? "success" : "danger"} />
-        </div>
-
-        <div className="flex-1 grid grid-cols-2 md:grid-cols-4 gap-6">
-          <div>
-            <div className="amb-label mb-1">Bill No.</div>
-            <div className="flex items-center gap-2">
-              <span className="text-base font-bold">{sale.billNumber}</span>
-              <CopyButton text={sale.billNumber} title="Copy Bill Number" />
-            </div>
-            <div className="text-slate-500 mt-0.5">{formatDateTime(sale.completedAt)}</div>
-          </div>
-          
-          <div>
-            <div className="amb-label mb-1">POS Invoice</div>
-            <div className="flex items-center gap-2">
-              {isPosted && sale.erpInvoiceId ? (
-                <>
-                  <span className="text-sm font-medium text-blue-600">{sale.erpInvoiceId}</span>
-                  <CopyButton text={sale.erpInvoiceId} title="Copy POS Invoice" />
-                </>
-              ) : (
-                <span className="text-sm text-amber-600">Pending Sync</span>
-              )}
-            </div>
-          </div>
-          
-          <div>
-            <div className="amb-label mb-1">Order Type</div>
-            <span className="text-sm font-medium">Walk-in</span>
-          </div>
-          
-          <div>
-            <div className="amb-label mb-1">Cashier</div>
-            <div className="flex items-center gap-2">
-              <div className="w-6 h-6 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center text-[10px] font-bold">
-                {sale.cashierName.substring(0, 2).toUpperCase()}
+      {/*
+        One grid, row by row, so every left-hand box shares a row with its right-hand partner
+        and both stretch to the same height: summary with customer, items with the session,
+        payments and totals with the posting state. The actions row spans both columns.
+      */}
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_310px]">
+          {/* Summary strip */}
+          <section
+            aria-label="Bill summary"
+            className="cust-rise flex flex-wrap items-center gap-x-8 gap-y-4 rounded-xl border border-border bg-background-card px-4 py-4 shadow-sm print:shadow-none"
+            style={{ ["--i" as string]: 1 }}
+          >
+            <div className="flex min-w-0 items-center gap-4 pr-6 lg:border-r lg:border-border">
+              <div className="flex shrink-0 flex-col items-center gap-1.5">
+                <span aria-hidden="true" className={`flex h-12 w-12 items-center justify-center rounded-full ${completed ? "bg-success-subtle text-success" : "bg-background-hover text-tertiary"}`}>
+                  {completed ? <CheckCircle2 className="h-7 w-7" /> : <XCircle className="h-7 w-7" />}
+                </span>
+                <Pill tone={completed ? "success" : "neutral"}>{completed ? "Completed" : "Voided"}</Pill>
               </div>
-              <div className="flex flex-col">
-                <span className="text-sm font-medium">{sale.cashierName}</span>
-                <span className="text-[10px] text-slate-500">Cashier</span>
+              <div className="min-w-0">
+                <p className="text-[11px] text-tertiary">Bill No.</p>
+                <div className="flex min-w-0 items-center gap-1.5">
+                  <p className="truncate text-[22px] font-bold tracking-tight text-primary">{sale.billNumber}</p>
+                  <CopyButton text={sale.billNumber} title="Copy bill number" />
+                </div>
+                <time dateTime={sale.completedAt.toISOString()} className="text-[11px] text-secondary">
+                  {formatDateTime(sale.completedAt)}
+                </time>
               </div>
             </div>
-          </div>
-        </div>
-      </div>
+            <dl className="flex flex-wrap items-start gap-x-10 gap-y-3 text-[11px]">
+              <div>
+                <dt className="text-tertiary">Invoice Sync</dt>
+                <dd className={`mt-1.5 text-[13px] ${isPosted && sale.erpInvoiceId ? "text-primary-active" : "text-secondary"}`}>
+                  {isPosted && sale.erpInvoiceId ? sale.erpInvoiceId : "Pending sync"}
+                </dd>
+              </div>
+              <div>
+                <dt className="text-tertiary">Order Type</dt>
+                <dd className="mt-1.5 text-[13px] text-primary">{sale.customer ? "Named customer" : "Walk-in"}</dd>
+              </div>
+              <div>
+                <dt className="text-tertiary">Items</dt>
+                <dd className="mt-1.5 text-[13px] text-primary">
+                  {units} {units === 1 ? "unit" : "units"}
+                </dd>
+              </div>
+              <div>
+                <dt className="text-tertiary">Cashier</dt>
+                <dd className="mt-1 flex items-center gap-2.5">
+                  <span aria-hidden="true" className="flex h-10 w-10 items-center justify-center rounded-full bg-primary-subtle text-[13px] font-semibold text-primary-active">
+                    {initials(sale.cashierName)}
+                  </span>
+                  <span>
+                    <span className="block text-[13px] font-medium text-primary">{sale.cashierName}</span>
+                    <span className="block text-[11px] text-tertiary">Cashier</span>
+                  </span>
+                </dd>
+              </div>
+            </dl>
+          </section>
 
-      <div className="flex flex-col lg:flex-row gap-5">
-        {/* Main Left Column */}
-        <div className="flex-1 flex flex-col gap-5 min-w-0">
-          
-          {/* Items Table */}
-          <div className="amb-card overflow-hidden">
-            <div className="p-4 border-b border-slate-200">
-              <h3 className="font-bold text-sm">Items ({sale.items.length})</h3>
+          <Card
+            title="Customer"
+            index={8}
+            action={
+              <button type="button" disabled title="Editing the bill's customer is not available yet" className="inline-flex h-7 cursor-not-allowed items-center rounded-md border border-border px-2 text-[11px] text-tertiary">
+                Edit
+              </button>
+            }
+          >
+            <div className="flex items-center gap-3 px-4 pb-4 pt-1">
+              <span aria-hidden="true" className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-primary-subtle text-[18px] font-bold text-primary-active">
+                {sale.customer ? initials(sale.customer.name) : <UserRound className="h-6 w-6" />}
+              </span>
+              <div className="min-w-0">
+                <p className="truncate text-[15px] font-semibold text-primary">{sale.customer ? sale.customer.name : "Walk-in Customer"}</p>
+                <p className="truncate text-[11px] tabular-nums text-tertiary">
+                  {sale.customer ? sale.customer.phone || "No phone on file" : "No customer was attached to this bill"}
+                </p>
+              </div>
             </div>
-            <div className="amb-table-wrap">
-              <table className="amb-table w-full">
+          </Card>
+
+          <Card title={`Items (${sale.items.length})`} index={2}>
+            {/* Fixed-layout table from md up — fits its box, never scrolls sideways. */}
+            <div className="hidden px-3 pb-3 md:block">
+              <table className="w-full table-fixed text-[11px]">
+                <caption className="sr-only">Items on this bill</caption>
                 <thead>
-                  <tr>
-                    <th className="w-8">#</th>
-                    <th>Product</th>
-                    <th>SKU</th>
-                    <th>Variant</th>
-                    <th className="text-right">Qty</th>
-                    {/* These read `(?)` before — a rupee sign that did not survive an encoding
-                        step. Every cell below renders formatMinor, which is INR. */}
-                    <th className="text-right">Price (₹)</th>
-                    <th className="text-right">Discount (₹)</th>
-                    <th className="text-right">Tax (₹)</th>
-                    <th className="text-right">Total (₹)</th>
-                    <th className="w-10"></th>
+                  <tr className="text-left text-[11px] font-semibold text-secondary">
+                    <th scope="col" className="w-8 rounded-l-md bg-background-subtle px-2 py-2.5">#</th>
+                    <th scope="col" className="bg-background-subtle px-2 py-2.5">Product</th>
+                    <th scope="col" className="hidden w-[90px] bg-background-subtle px-2 py-2.5 lg:table-cell">SKU</th>
+                    <th scope="col" className="hidden w-[90px] bg-background-subtle px-2 py-2.5 xl:table-cell">Variant</th>
+                    <th scope="col" className="w-11 bg-background-subtle px-2 py-2.5 text-center">Qty</th>
+                    <th scope="col" className="w-[84px] bg-background-subtle px-2 py-2.5 text-right">Price (₹)</th>
+                    <th scope="col" className="w-[84px] bg-background-subtle px-2 py-2.5 text-right">Discount (₹)</th>
+                    <th scope="col" className="w-[72px] bg-background-subtle px-2 py-2.5 text-right">GST (₹)</th>
+                    <th scope="col" className="w-[92px] rounded-r-md bg-background-subtle px-3 py-2.5 text-right">Total (₹)</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {sale.items.map((item, idx) => {
-                    const variantText = [item.size, item.colour].filter(Boolean).join(" / ");
+                <tbody>
+                  {sale.items.map((item, i) => {
+                    const variant = [item.size, item.colour].filter(Boolean).join(" / ");
                     return (
-                      <tr key={item.id}>
-                        <td className="amb-number text-slate-500">{idx + 1}</td>
-                        <td className="font-medium whitespace-normal line-clamp-2" title={item.name}>{item.name}</td>
-                        <td className="text-slate-500">{item.sku}</td>
-                        <td className="text-slate-500">{variantText || "-"}</td>
-                        <td className="amb-number text-right">{item.quantity}</td>
-                        <td className="amb-number text-right">{formatMinor(item.unitPriceMinor)}</td>
-                        <td className="amb-number text-right">{formatMinor(item.lineDiscountMinor)}</td>
-                        <td className="amb-number text-right">{formatMinor(item.taxMinor)}</td>
-                        <td className="amb-number text-right font-bold">{formatMinor(item.lineTotalMinor)}</td>
-                        <td className="text-center text-slate-400">
-                          <MoreHorizontal className="w-4 h-4 mx-auto" />
+                      <tr key={item.id} className="cust-row cust-rise border-b border-border last:border-0 hover:bg-background-subtle" style={{ ["--i" as string]: i }}>
+                        <td className="px-2 py-2 text-secondary">{i + 1}</td>
+                        <td className="px-2 py-2">
+                          <div className="flex min-w-0 items-center gap-2.5">
+                            <span className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-md bg-background-hover">
+                              {item.imageUrl ? (
+                                // eslint-disable-next-line @next/next/no-img-element
+                                <img src={item.imageUrl} alt="" className="h-full w-full object-cover" />
+                              ) : (
+                                <Package aria-hidden="true" className="h-4 w-4 text-disabled" />
+                              )}
+                            </span>
+                            <p className="min-w-0 truncate font-medium text-primary" title={item.name}>
+                              {item.name}
+                            </p>
+                          </div>
                         </td>
+                        <td className="hidden truncate px-2 py-2 text-secondary lg:table-cell">{item.sku}</td>
+                        <td className="hidden truncate px-2 py-2 text-secondary xl:table-cell">{variant || "—"}</td>
+                        <td className="px-2 py-2 text-center tabular-nums text-secondary">{item.quantity}</td>
+                        <td className="truncate px-2 py-2 text-right tabular-nums text-secondary">{formatMinor(item.unitPriceMinor).replace("₹", "")}</td>
+                        <td className="truncate px-2 py-2 text-right tabular-nums text-secondary">{formatMinor(item.lineDiscountMinor).replace("₹", "")}</td>
+                        <td className="truncate px-2 py-2 text-right tabular-nums text-secondary">{formatMinor(item.taxMinor).replace("₹", "")}</td>
+                        <td className="truncate px-3 py-2 text-right text-[13px] font-semibold tabular-nums text-primary">{formatMinor(item.lineTotalMinor).replace("₹", "")}</td>
                       </tr>
                     );
                   })}
                 </tbody>
               </table>
             </div>
-          </div>
-
-          {/* Payment Information */}
-          <div className="amb-card overflow-hidden">
-            <div className="p-4 border-b border-slate-200">
-              <h3 className="font-bold text-sm">Payment Information</h3>
-            </div>
-            <div className="amb-table-wrap">
-              <table className="amb-table w-full">
-                <thead>
-                  <tr>
-                    <th className="w-8">#</th>
-                    <th>Date & Time</th>
-                    <th>Method</th>
-                    <th>Reference No.</th>
-                    <th className="text-right">Amount (₹)</th>
-                    <th>Status</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {sale.payments.map((payment, idx) => (
-                    <tr key={idx}>
-                      <td className="amb-number text-slate-500">{idx + 1}</td>
-                      <td className="text-slate-500">
-                        {payment.confirmedAt ? formatDateTime(payment.confirmedAt) : "-"}
-                      </td>
-                      <td>
-                        <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium bg-purple-50 text-purple-700 border border-purple-100">
-                          {payment.method}
+            {/* Cards below md. */}
+            <ul className="divide-y divide-slate-100 md:hidden">
+              {sale.items.map((item, i) => {
+                const variant = [item.size, item.colour].filter(Boolean).join(" / ");
+                return (
+                  <li key={item.id} className="cust-rise flex gap-3 px-4 py-3" style={{ ["--i" as string]: i }}>
+                    <span className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-background-hover">
+                      {item.imageUrl ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img src={item.imageUrl} alt="" className="h-full w-full object-cover" />
+                      ) : (
+                        <Package aria-hidden="true" className="h-4 w-4 text-disabled" />
+                      )}
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-[11px] font-medium text-primary">{item.name}</p>
+                      <p className="truncate text-[10px] text-tertiary">
+                        {item.sku}
+                        {variant ? ` · ${variant}` : ""}
+                      </p>
+                      <div className="mt-1 flex items-center justify-between gap-2 text-[10px]">
+                        <span className="truncate tabular-nums text-secondary">
+                          {item.quantity} × {formatMinor(item.unitPriceMinor)} · tax {formatMinor(item.taxMinor)}
                         </span>
-                      </td>
-                      <td className="text-slate-500">{payment.reference || "-"}</td>
-                      <td className="amb-number text-right font-bold">{formatMinor(payment.amountMinor)}</td>
-                      <td>
-                        <StatusPill status={payment.status === "CONFIRMED" ? "Success" : payment.status} tone={payment.status === "CONFIRMED" ? "success" : "warning"} />
-                      </td>
+                        <span className="shrink-0 font-semibold tabular-nums text-primary">{formatMinor(item.lineTotalMinor)}</span>
+                      </div>
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
+          </Card>
+
+          <Card title="Store & Session" index={9}>
+            <dl className="pb-3">
+              <Row label="Store">
+                {sale.storeName} (#{sale.storeCode})
+              </Row>
+              <Row label="POS Terminal">{sale.posTerminal || "—"}</Row>
+              <Row label="Shift">{sale.posShiftStart ? `Opened ${formatDateTime(sale.posShiftStart)}` : "—"}</Row>
+              <Row label="Cashier">
+                {sale.cashierName} ({initials(sale.cashierName)})
+              </Row>
+            </dl>
+          </Card>
+
+          <div className="grid gap-4 xl:grid-cols-[minmax(0,1.85fr)_minmax(0,1fr)]">
+            <Card title="Payment Information" index={3}>
+              <div className="px-3 pb-3">
+                <table className="w-full table-fixed text-[11px]">
+                  <caption className="sr-only">Payments on this bill</caption>
+                  <thead>
+                    <tr className="text-left text-[11px] font-semibold text-secondary">
+                      <th scope="col" className="w-8 rounded-l-md bg-background-subtle px-2 py-2.5">#</th>
+                      <th scope="col" className="hidden bg-background-subtle px-2 py-2.5 sm:table-cell">Date &amp; Time</th>
+                      <th scope="col" className="w-[72px] bg-background-subtle px-2 py-2.5">Method</th>
+                      <th scope="col" className="bg-background-subtle px-2 py-2.5">Reference No.</th>
+                      <th scope="col" className="w-[92px] bg-background-subtle px-2 py-2.5 text-right">Amount (₹)</th>
+                      <th scope="col" className="w-[92px] rounded-r-md bg-background-subtle px-2 py-2.5">Status</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                  </thead>
+                  <tbody>
+                    {sale.payments.map((p, i) => (
+                      <tr key={i} className="border-b border-border last:border-0">
+                        <td className="px-2 py-3 text-secondary">{i + 1}</td>
+                        <td className="hidden truncate px-2 py-3 text-secondary sm:table-cell">{p.confirmedAt ? formatDateTime(p.confirmedAt) : "Not confirmed"}</td>
+                        <td className="px-2 py-3">
+                          <Pill tone={p.method === "UPI" ? "info" : p.method === "CASH" ? "success" : "neutral"}>{methodLabel(p.method)}</Pill>
+                        </td>
+                        <td className="truncate px-2 py-3 text-secondary">{p.reference || "—"}</td>
+                        <td className="px-2 py-3 text-right text-[13px] font-semibold tabular-nums text-primary">{formatMinor(p.amountMinor).replace("₹", "")}</td>
+                        <td className="px-2 py-3">
+                          <Pill tone={p.status === "CONFIRMED" ? "success" : "warning"} dot>
+                            {p.status === "CONFIRMED" ? "Success" : p.status.toLowerCase()}
+                          </Pill>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </Card>
+
+            <Card title="Summary" index={4}>
+              <dl className="space-y-1.5 px-4 pb-2 text-[11px]">
+                <div className="flex justify-between">
+                  <dt className="text-tertiary">Items Total</dt>
+                  <dd className="tabular-nums text-primary">{formatMinor(sale.subtotalMinor + sale.discountMinor)}</dd>
+                </div>
+                <div className="flex justify-between">
+                  <dt className="text-tertiary">Item Discount</dt>
+                  <dd className={`tabular-nums ${sale.discountMinor > 0 ? "text-danger" : "text-primary"}`}>
+                    {sale.discountMinor > 0 ? `-${formatMinor(sale.discountMinor)}` : formatMinor(0)}
+                  </dd>
+                </div>
+                <div className="flex justify-between">
+                  <dt className="text-tertiary">Subtotal</dt>
+                  <dd className="tabular-nums text-primary">{formatMinor(sale.subtotalMinor)}</dd>
+                </div>
+                <div className="flex justify-between">
+                  <dt className="text-tertiary">GST (included)</dt>
+                  <dd className="tabular-nums text-primary">{formatMinor(sale.taxMinor)}</dd>
+                </div>
+              </dl>
+              <div className="mx-3 flex items-baseline justify-between rounded-md bg-background-subtle px-2 py-2">
+                <span className="text-[16px] font-bold text-primary">Grand Total</span>
+                <span className="text-[18px] font-bold tabular-nums text-primary">{formatMinor(sale.totalMinor)}</span>
+              </div>
+              <dl className="m-3 space-y-1 rounded-md border border-success-subtle bg-success-subtle/70 px-2 py-2 text-[11px]">
+                <div className="flex justify-between">
+                  <dt className="text-emerald-800">Amount Paid</dt>
+                  <dd className="font-semibold tabular-nums text-emerald-800">{formatMinor(sale.paidMinor)}</dd>
+                </div>
+                <div className="flex justify-between">
+                  <dt className="text-emerald-800">Balance Due</dt>
+                  <dd className={`font-semibold tabular-nums ${balanceMinor > 0 ? "text-danger" : "text-emerald-800"}`}>{formatMinor(balanceMinor)}</dd>
+                </div>
+              </dl>
+            </Card>
           </div>
 
-          {/* Action Buttons */}
-          <div className="amb-card p-4">
-            <div className="amb-label mb-3 text-sm">Actions</div>
-            <div className="flex flex-wrap gap-3">
-              <PrintButton />
-            </div>
-          </div>
-        </div>
+          <Card title="Additional Information" index={10}>
+            <dl className="pb-3">
+              <Row label="Payment Status">
+                <Pill tone={balanceMinor <= 0 ? "success" : "warning"}>{balanceMinor <= 0 ? "Paid" : "Partial"}</Pill>
+              </Row>
+              <Row label="Invoice Status">
+                <Pill tone={erpTone}>{erpText}</Pill>
+              </Row>
+              <Row label="Created On">{formatDateTime(sale.createdAt)}</Row>
+              <Row label="Completed On">{formatDateTime(sale.completedAt)}</Row>
+              <Row label="Synced Invoice">
+                {sale.erpInvoiceId ? (
+                  <span className="inline-flex items-center gap-1 text-primary-active">
+                    {sale.erpInvoiceId}
+                    <CopyButton text={sale.erpInvoiceId} title="Copy synced invoice number" />
+                  </span>
+                ) : (
+                  "—"
+                )}
+              </Row>
+            </dl>
+          </Card>
+          <div className="grid gap-4 print:hidden lg:col-span-2 xl:grid-cols-[minmax(0,1.6fr)_minmax(0,1.05fr)_minmax(0,1.45fr)]">
+            <Card title="Actions" index={5}>
+              <div className="grid grid-cols-2 gap-2 px-4 pb-4 sm:grid-cols-3 [&_button]:gap-1.5 [&_button]:px-2 [&_button]:text-[11px]">
+                <PrintButton variant="tile" />
+                <PendingAction icon={<Mail className="h-4 w-4" />} label="Email Bill" />
+                <PendingAction icon={<MessageCircle className="h-4 w-4" />} label="WhatsApp" />
+                <div className="col-span-2 grid grid-cols-2 gap-2 sm:col-span-3">
+                  <PendingAction icon={<RefreshCcw className="h-4 w-4" />} label="Return / Exchange" />
+                  <button type="button" disabled title="Cancelling a bill is not available yet" className={`${ACTION} cursor-not-allowed justify-center border-rose-100 bg-danger-subtle/60 text-rose-300`}>
+                    <XCircle aria-hidden="true" className="h-4 w-4" />
+                    Cancel Bill
+                    <span className="sr-only"> (not available yet)</span>
+                  </button>
+                </div>
+              </div>
+            </Card>
 
-        {/* Main Right Column */}
-        <div className="w-full lg:w-[320px] xl:w-[360px] flex-shrink-0 flex flex-col gap-5">
-          
-          {/* Customer */}
-          <div className="amb-card p-4 relative">
-            <button className="absolute top-4 right-4 amb-control h-7 px-2 text-[10px] opacity-50 cursor-not-allowed" disabled title="Future Feature">
-              <Pencil className="w-3 h-3 mr-1" /> Edit
-            </button>
-            <h3 className="font-bold text-sm mb-4">Customer</h3>
-            <div className="flex items-center gap-3 mb-5">
-              <div className="w-12 h-12 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center text-lg font-bold">
-                {sale.customer ? sale.customer.name.substring(0, 2).toUpperCase() : "WA"}
-              </div>
-              <div>
-                <div className="font-bold text-sm">{sale.customer ? sale.customer.name : "Walk-in"}</div>
-                <div className="text-slate-500 mb-1">{sale.customer?.phone || "-"}</div>
-                {sale.customer && <span className="inline-block px-2 py-0.5 bg-amber-100 text-amber-800 text-[9px] font-bold rounded uppercase">VIP Customer</span>}
-              </div>
-            </div>
-            
-            {sale.customer && (
-              <div className="grid grid-cols-3 gap-2 border-t border-slate-100 pt-4 mt-2">
-                <div>
-                  <div className="text-[10px] text-slate-500 mb-1">Total Purchases</div>
-                  <div className="font-bold">{"-"}</div>
-                </div>
-                <div>
-                  <div className="text-[10px] text-slate-500 mb-1">Total Orders</div>
-                  <div className="font-bold">{"-"}</div>
-                </div>
-                <div>
-                  <div className="text-[10px] text-slate-500 mb-1">Outstanding</div>
-                  <div className="font-bold text-blue-600 flex items-center">
-                    {"-"} <ChevronRight className="w-3 h-3 ml-1" />
+            <Card title="Related" index={6}>
+              <ul className="space-y-1 px-4 pb-4 text-[11px]">
+                <li>
+                  <span className="flex items-center gap-2.5 py-1 text-tertiary" title="No accounting connection yet">
+                    <ExternalLink aria-hidden="true" className="h-4 w-4" /> View in Accounting
+                  </span>
+                </li>
+                <li>
+                  <span className="flex items-center gap-2.5 py-1 text-tertiary" title="Bills record the customer by name only">
+                    <History aria-hidden="true" className="h-4 w-4" /> Customer Purchase History
+                  </span>
+                </li>
+                <li>
+                  <Link href="/products" className="flex items-center gap-2.5 py-1 text-primary hover:text-primary-active">
+                    <ShoppingBag aria-hidden="true" className="h-4 w-4 text-tertiary" /> Similar Products
+                  </Link>
+                </li>
+                <li>
+                  <Link href="/pos" className="flex items-center gap-2.5 py-1 text-primary hover:text-primary-active">
+                    <PlusCircle aria-hidden="true" className="h-4 w-4 text-tertiary" /> Create New Sale
+                  </Link>
+                </li>
+                <li>
+                  <span className="flex items-center gap-2.5 py-1 text-tertiary" title="Exchanges are not available yet">
+                    <Repeat aria-hidden="true" className="h-4 w-4" /> Apply for Exchange
+                  </span>
+                </li>
+              </ul>
+            </Card>
+
+            <Card title="Activity Timeline" index={7}>
+              <ol className="space-y-2.5 px-4 pb-4 text-[11px]">
+                <li className="flex items-start gap-2.5">
+                  <span aria-hidden="true" className="mt-0.5 h-3 w-3 shrink-0 rounded-full border-[3px] border-emerald-500 bg-background-card" />
+                  <div className="min-w-0 flex-1">
+                    <p className="font-medium text-primary">Bill Created</p>
+                    <p className="text-[11px] text-tertiary">{formatDateTime(sale.createdAt)}</p>
                   </div>
-                </div>
-              </div>
-            )}
-          </div>
-
-          {/* Store & Session */}
-          <div className="amb-card p-4">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="font-bold text-sm">Store & Session</h3>
-              <button className="amb-control h-7 px-2 text-[10px] opacity-50 cursor-not-allowed" disabled title="Future Feature">
-                View Session
-              </button>
-            </div>
-            <div className="space-y-3">
-              <div className="flex justify-between">
-                <span className="text-slate-500">Store</span>
-                <span className="font-medium text-right">{sale.storeName} ({sale.storeCode})</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-slate-500">POS Terminal</span>
-                <span className="font-medium text-right">{sale.posTerminal || "-"}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-slate-500">Shift</span>
-                <span className="font-medium text-right">{sale.posShiftStart ? formatDateTime(sale.posShiftStart) : "-"}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-slate-500">Cashier</span>
-                <span className="font-medium text-right">{sale.cashierName}</span>
-              </div>
-            </div>
-          </div>
-
-          {/* Summary */}
-          <div className="amb-card p-4">
-            <h3 className="font-bold text-sm mb-4">Summary</h3>
-            <div className="space-y-2.5 mb-4">
-              <div className="flex justify-between">
-                <span className="text-slate-500">Items Total</span>
-                <span className="amb-number">{formatMinor(sale.subtotalMinor + sale.discountMinor)}</span>
-              </div>
-              {sale.discountMinor > 0 && (
-                <div className="flex justify-between text-emerald-600">
-                  <span>Discount</span>
-                  <span className="amb-number">&minus;{formatMinor(sale.discountMinor)}</span>
-                </div>
-              )}
-              <div className="flex justify-between">
-                <span className="text-slate-500">Subtotal</span>
-                <span className="amb-number">{formatMinor(sale.subtotalMinor)}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-slate-500">GST (Included)</span>
-                <span className="amb-number">{formatMinor(sale.taxMinor)}</span>
-              </div>
-            </div>
-            
-            <div className="flex justify-between items-center py-3 border-y border-slate-100 mb-3">
-              <span className="font-bold text-sm">Grand Total</span>
-              <span className="amb-number font-bold text-base">{formatMinor(sale.totalMinor)}</span>
-            </div>
-            
-            <div className="bg-emerald-50 rounded-md p-3 space-y-2 text-emerald-800">
-              <div className="flex justify-between items-center">
-                <span>Amount Paid</span>
-                <span className="amb-number font-medium">{formatMinor(sale.paidMinor)}</span>
-              </div>
-              <div className="flex justify-between items-center text-[10px]">
-                <span>Balance Due</span>
-                <span className="amb-number font-medium">{formatMinor(sale.totalMinor - sale.paidMinor)}</span>
-              </div>
-            </div>
-          </div>
-
-          {/* Additional Information */}
-          <div className="amb-card p-4 relative">
-            <button className="absolute top-4 right-4 amb-control h-7 px-2 text-[10px] opacity-50 cursor-not-allowed" disabled title="Future Feature">
-              <Pencil className="w-3 h-3 mr-1" /> Edit
-            </button>
-            <h3 className="font-bold text-sm mb-4">Additional Information</h3>
-            <div className="space-y-3">
-              <div className="grid grid-cols-[110px_1fr] gap-2">
-                <span className="text-slate-500">Payment Status</span>
-                <div>
-                  <StatusPill status={sale.paidMinor >= sale.totalMinor ? "Paid" : "Partial"} tone={sale.paidMinor >= sale.totalMinor ? "success" : "warning"} />
-                </div>
-              </div>
-              <div className="grid grid-cols-[110px_1fr] gap-2">
-                <span className="text-slate-500">Invoice Status</span>
-                <div>
-                  <StatusPill status={erpStatusText} tone={isPosted ? "success" : (sale.erpSyncStatus === "FAILED" ? "danger" : "warning")} />
-                </div>
-              </div>
-              <div className="grid grid-cols-[110px_1fr] gap-2">
-                <span className="text-slate-500">Created On</span>
-                <span className="font-medium text-slate-900">{formatDateTime(sale.createdAt)}</span>
-              </div>
-              <div className="grid grid-cols-[110px_1fr] gap-2">
-                <span className="text-slate-500">ERPNext Invoice</span>
-                <span className="font-medium text-blue-600 flex items-center">
-                  {sale.erpInvoiceId || "-"}
-                  {sale.erpInvoiceId && <Copy className="w-3 h-3 ml-1.5 text-slate-400 cursor-pointer" />}
-                </span>
-              </div>
-              <div className="grid grid-cols-[110px_1fr] gap-2">
-                <span className="text-slate-500">Remarks</span>
-                <span className="font-medium text-slate-900">-</span>
-              </div>
-            </div>
-          </div>
-          
-          {/* Activity Timeline */}
-          <div className="amb-card p-4">
-            <h3 className="font-bold text-sm mb-4">Activity Timeline</h3>
-            <div className="relative border-l border-slate-200 ml-2 space-y-4 pb-1">
-              
-              <div className="relative pl-4">
-                <div className="absolute w-3 h-3 bg-emerald-500 rounded-full -left-[6.5px] top-1 border-2 border-white"></div>
-                <div className="flex justify-between items-start">
-                  <div>
-                    <div className="font-bold text-slate-900 leading-none mb-1">Bill Created</div>
-                    <div className="text-[10px] text-slate-500">{formatDateTime(sale.createdAt)}</div>
-                  </div>
-                  <div className="text-[10px] text-slate-500">{sale.cashierName}</div>
-                </div>
-              </div>
-
-              {sale.payments.map((p, idx) => (
-                <div key={idx} className="relative pl-4">
-                  <div className="absolute w-3 h-3 bg-blue-500 rounded-full -left-[6.5px] top-1 border-2 border-white"></div>
-                  <div className="flex justify-between items-start">
-                    <div>
-                      <div className="font-bold text-slate-900 leading-none mb-1">Payment Received ({p.method})</div>
-                      <div className="text-[10px] text-slate-500">{p.confirmedAt ? formatDateTime(p.confirmedAt) : "-"}</div>
+                  <span className="shrink-0 text-[11px] text-tertiary">{sale.cashierName}</span>
+                </li>
+                {sale.payments.map((p, i) => (
+                  <li key={i} className="flex items-start gap-2.5">
+                    <span aria-hidden="true" className="mt-0.5 h-3 w-3 shrink-0 rounded-full border-[3px] border-border-focus bg-background-card" />
+                    <div className="min-w-0 flex-1">
+                      <p className="font-medium text-primary">Payment Received ({methodLabel(p.method)})</p>
+                      <p className="text-[11px] text-tertiary">{p.confirmedAt ? formatDateTime(p.confirmedAt) : "—"}</p>
                     </div>
-                    <div className="font-bold text-slate-900 amb-number text-right">
-                      {formatMinor(p.amountMinor)}
-                      <div className="text-[10px] font-normal text-slate-500 mt-0.5">{sale.cashierName}</div>
-                    </div>
+                    <span className="shrink-0 font-semibold tabular-nums text-primary">{formatMinor(p.amountMinor)}</span>
+                  </li>
+                ))}
+                <li className="flex items-start gap-2.5">
+                  <span aria-hidden="true" className={`mt-0.5 h-3 w-3 shrink-0 rounded-full border-[3px] bg-background-card ${isPosted ? "border-emerald-500" : "border-border"}`} />
+                  <div className="min-w-0 flex-1">
+                    <p className={`font-medium ${isPosted ? "text-primary" : "text-tertiary"}`}>{isPosted ? "Invoice synced to accounting" : "Not yet posted to accounting"}</p>
                   </div>
-                </div>
-              ))}
-              
-            </div>
+                  <span className="shrink-0 text-[11px] text-tertiary">System</span>
+                </li>
+              </ol>
+            </Card>
           </div>
-
-        </div>
       </div>
     </div>
   );
 }
+
+

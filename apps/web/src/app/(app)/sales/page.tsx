@@ -82,7 +82,7 @@ export default async function SalesPage({
   const carried = { q: query || undefined, method, status, from: sp.from, to: sp.to };
 
   return (
-    <div className="amb-content w-full">
+    <div className="w-full min-w-0 p-4 sm:p-5">
       <SalesWorkspace
         page={result}
         summary={summary}
@@ -92,3 +92,4 @@ export default async function SalesPage({
     </div>
   );
 }
+
