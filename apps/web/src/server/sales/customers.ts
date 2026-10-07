@@ -1,4 +1,6 @@
 import { db } from "@/server/db";
+import { enqueueOutboxEvent } from "@/server/events/outbox";
+import { randomUUID } from "node:crypto";
 
 /**
  * Customer lookup for the counter.
@@ -147,10 +149,17 @@ export interface CustomerSummary {
   repeat: number;
   /** Lifetime takings attributable to a named customer, in minor units. */
   attributedSalesMinor: number;
+  /** Completed bills with a named customer — the denominator of an honest average order value. */
+  attributedBills: number;
+  /** Customer records created since the first of this month. */
+  newThisMonth: number;
 }
 
 export async function getCustomerSummary(params: { tenantId: string }): Promise<CustomerSummary> {
-  const [total, active, grouped, attributed] = await Promise.all([
+  const monthStart = new Date();
+  monthStart.setDate(1);
+  monthStart.setHours(0, 0, 0, 0);
+  const [total, active, grouped, attributed, newThisMonth] = await Promise.all([
     db.customer.count({ where: { tenantId: params.tenantId } }),
     db.customer.count({ where: { tenantId: params.tenantId, isActive: true } }),
     db.sale.groupBy({
@@ -161,7 +170,9 @@ export async function getCustomerSummary(params: { tenantId: string }): Promise<
     db.sale.aggregate({
       where: { tenantId: params.tenantId, status: "COMPLETED", customerId: { not: null } },
       _sum: { totalMinor: true },
+      _count: { _all: true },
     }),
+    db.customer.count({ where: { tenantId: params.tenantId, createdAt: { gte: monthStart } } }),
   ]);
 
   return {
@@ -169,6 +180,8 @@ export async function getCustomerSummary(params: { tenantId: string }): Promise<
     active,
     repeat: grouped.filter((row) => row._count._all > 1).length,
     attributedSalesMinor: attributed._sum.totalMinor ?? 0,
+    attributedBills: attributed._count._all ?? 0,
+    newThisMonth,
   };
 }
 
@@ -188,6 +201,8 @@ export async function createCustomer(params: {
   tenantId: string;
   name: string;
   phone?: string | null;
+  actorUserId?: string | null;
+  correlationId?: string;
 }): Promise<CreateCustomerResult> {
   const name = params.name.trim();
   if (name.length < 2) return { status: "invalid_name" };
@@ -202,11 +217,107 @@ export async function createCustomer(params: {
     if (existing) return { status: "ok", customer: existing, existing: true };
   }
 
-  const created = await db.customer.create({
-    data: { tenantId: params.tenantId, name, phone },
-    select: { id: true, name: true, phone: true },
+  const correlationId = params.correlationId ?? randomUUID();
+
+  const created = await db.$transaction(async (tx) => {
+    const cust = await tx.customer.create({
+      data: { tenantId: params.tenantId, name, phone },
+      select: { id: true, name: true, phone: true },
+    });
+
+    await enqueueOutboxEvent(tx, {
+      tenantId: params.tenantId,
+      eventType: "CustomerCreated",
+      entityId: cust.id,
+      actorUserId: params.actorUserId ?? null,
+      correlationId,
+      payload: {
+        customerId: cust.id,
+        name: cust.name,
+        phone: cust.phone,
+      },
+    });
+
+    return cust;
   });
+
   return { status: "ok", customer: created, existing: false };
+}
+
+export interface UpdateCustomerInput {
+  tenantId: string;
+  id: string;
+  name?: string;
+  phone?: string | null;
+  email?: string | null;
+  actorUserId?: string | null;
+  correlationId?: string;
+}
+
+export type UpdateCustomerResult =
+  | { status: "not_found" }
+  | { status: "invalid_name" }
+  | { status: "phone_conflict" }
+  | { status: "ok"; customer: CustomerHit };
+
+export async function updateCustomer(input: UpdateCustomerInput): Promise<UpdateCustomerResult> {
+  const existing = await db.customer.findUnique({
+    where: { id_tenantId: { id: input.id, tenantId: input.tenantId } },
+  });
+  if (!existing) return { status: "not_found" };
+
+  let name = existing.name;
+  if (input.name !== undefined) {
+    name = input.name.trim();
+    if (name.length < 2) return { status: "invalid_name" };
+  }
+
+  let phone = existing.phone;
+  if (input.phone !== undefined) {
+    phone = input.phone?.trim() || null;
+    if (phone && phone !== existing.phone) {
+      const conflict = await db.customer.findUnique({
+        where: { tenantId_phone: { tenantId: input.tenantId, phone } },
+      });
+      if (conflict && conflict.id !== input.id) {
+        return { status: "phone_conflict" };
+      }
+    }
+  }
+
+  let email = existing.email;
+  if (input.email !== undefined) {
+    email = input.email?.trim() || null;
+  }
+
+  const correlationId = input.correlationId ?? randomUUID();
+
+  const updated = await db.$transaction(async (tx) => {
+    const cust = await tx.customer.update({
+      where: { id_tenantId: { id: input.id, tenantId: input.tenantId } },
+      data: { name, phone, email },
+      select: { id: true, name: true, phone: true },
+    });
+
+    await enqueueOutboxEvent(tx, {
+      tenantId: input.tenantId,
+      eventType: "CustomerUpdated",
+      entityId: cust.id,
+      actorUserId: input.actorUserId ?? null,
+      correlationId,
+      payload: {
+        customerId: cust.id,
+        name: cust.name,
+        phone: cust.phone,
+        email,
+      },
+      discriminator: String(Date.now()),
+    });
+
+    return cust;
+  });
+
+  return { status: "ok", customer: updated };
 }
 
 export type CustomerDetail = CustomerRow & {
@@ -218,6 +329,7 @@ export type CustomerDetail = CustomerRow & {
   addressCount: number;
   recentSales: Array<{
     id: string;
+    billNumber: string;
     completedAt: Date | null;
     totalMinor: number;
     status: string;
@@ -263,6 +375,7 @@ export async function getCustomerDetail(params: {
       take: 5,
       select: {
         id: true,
+        billNumber: true,
         completedAt: true,
         totalMinor: true,
         status: true,
@@ -287,5 +400,74 @@ export async function getCustomerDetail(params: {
     totalSpentMinor: stats._sum.totalMinor ?? 0,
     lastPurchaseAt: stats._max.completedAt ?? null,
     recentSales,
+  };
+}
+
+export interface CustomerAnalytics {
+  /** New customer records per calendar month, oldest first, for the last six months. */
+  growth: { label: string; count: number }[];
+  /** The five customers with the most completed spend. */
+  topBySpend: { id: string; name: string; spentMinor: number }[];
+  /** Customer records by type — the only segmentation the schema holds. */
+  segments: { type: CustomerType; count: number }[];
+}
+
+/**
+ * The CRM screen's bottom row. Every figure is a count or sum over real rows: customer
+ * creation dates, completed sales attributed to a customer, and the customer type column.
+ * There is no loyalty tier or VIP flag in the schema, so "segments" are customer types.
+ */
+export async function getCustomerAnalytics(params: { tenantId: string }): Promise<CustomerAnalytics> {
+  const now = new Date();
+  const sixMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 5, 1);
+  const [created, spend, types] = await Promise.all([
+    db.customer.findMany({
+      where: { tenantId: params.tenantId, createdAt: { gte: sixMonthsAgo } },
+      select: { createdAt: true },
+    }),
+    db.sale.groupBy({
+      by: ["customerId"],
+      where: { tenantId: params.tenantId, status: "COMPLETED", customerId: { not: null } },
+      _sum: { totalMinor: true },
+      orderBy: { _sum: { totalMinor: "desc" } },
+      take: 5,
+    }),
+    db.customer.groupBy({
+      by: ["customerType"],
+      where: { tenantId: params.tenantId },
+      _count: { _all: true },
+    }),
+  ]);
+
+  const months: { key: string; label: string; count: number }[] = [];
+  for (let i = 5; i >= 0; i -= 1) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    months.push({
+      key: `${d.getFullYear()}-${d.getMonth()}`,
+      label: d.toLocaleString("en-IN", { month: "short" }),
+      count: 0,
+    });
+  }
+  for (const row of created) {
+    const key = `${row.createdAt.getFullYear()}-${row.createdAt.getMonth()}`;
+    const month = months.find((m) => m.key === key);
+    if (month) month.count += 1;
+  }
+
+  const ids = spend.map((row) => row.customerId).filter((id): id is string => id !== null);
+  const names = ids.length
+    ? await db.customer.findMany({ where: { tenantId: params.tenantId, id: { in: ids } }, select: { id: true, name: true } })
+    : [];
+
+  return {
+    growth: months.map(({ label, count }) => ({ label, count })),
+    topBySpend: spend
+      .filter((row) => row.customerId)
+      .map((row) => ({
+        id: row.customerId as string,
+        name: names.find((n) => n.id === row.customerId)?.name ?? "Unknown",
+        spentMinor: row._sum.totalMinor ?? 0,
+      })),
+    segments: types.map((row) => ({ type: row.customerType, count: row._count._all })),
   };
 }

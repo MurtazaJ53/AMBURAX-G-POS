@@ -5,11 +5,14 @@ import type { ErpEnvironment } from "@/server/erp/config";
 import { HttpErpTransport } from "@/server/erp/httpTransport";
 import { ErpError } from "@/server/erp/errors";
 import type { ErpTransport } from "@/server/erp/transport";
+import { ErpCustomerAdapter } from "@/server/erp/customerAdapter";
 
 export class ErpSaleAdapter {
   private client: ErpClient;
+  private transport?: ErpTransport;
 
   constructor(transport?: ErpTransport) {
+    this.transport = transport;
     this.client = new ErpClient(
       transport ?? new HttpErpTransport(),
       new EnvErpCredentialProvider(),
@@ -31,10 +34,7 @@ export class ErpSaleAdapter {
     const response = await this.client.call(
       env,
       { tenantId, correlationId, causationId: saleId },
-      {
-        method: "GET",
-        path,
-      }
+      { method: "GET", path }
     );
 
     const body = response.body as { data?: Array<{ name: string; amburax_sale_id: string }> };
@@ -45,11 +45,7 @@ export class ErpSaleAdapter {
     }
 
     if (data.length === 1) {
-      const first = data[0];
-      if (!first?.name) {
-         return null;
-      }
-      return first.name;
+      return data[0]?.name ?? null;
     }
 
     throw new ErpError({
@@ -59,20 +55,14 @@ export class ErpSaleAdapter {
     });
   }
 
-  async syncSale(tenantId: string, saleId: string, correlationId: string): Promise<void> {
-    const envResult = await resolveErpEnvironment(tenantId);
-    
-    if (envResult.status !== "ok") {
-      throw new ErpError({
-        kind: "configuration_error",
-        message: `ERP environment not provisioned for tenant ${tenantId}. Status: ${envResult.status}`,
-        correlationId,
-      });
-    }
-
+  public async syncSale(tenantId: string, saleId: string, correlationId: string): Promise<void> {
     const sale = await db.sale.findUnique({
       where: { id: saleId },
-      include: { items: true, customer: true, store: true },
+      include: {
+        items: true,
+        payments: true,
+        store: true,
+      },
     });
 
     if (!sale) {
@@ -84,9 +74,24 @@ export class ErpSaleAdapter {
       return;
     }
 
-    // 1. Initial Lookup
-    let existingInvoiceId = await this.lookupInvoiceBySaleId(envResult.environment, tenantId, sale.id, correlationId);
+    const envResult = await resolveErpEnvironment(tenantId);
     
+    if (envResult.status !== "ok") {
+      throw new ErpError({
+        kind: "configuration_error",
+        message: `ERP environment not provisioned for tenant ${tenantId}. Status: ${envResult.status}`,
+        correlationId,
+      });
+    }
+
+    // 1. Initial Lookup
+    const existingInvoiceId = await this.lookupInvoiceBySaleId(
+      envResult.environment,
+      tenantId,
+      sale.id,
+      correlationId
+    );
+
     let invoiceId: string;
 
     if (existingInvoiceId) {
@@ -114,10 +119,36 @@ export class ErpSaleAdapter {
         });
       }
 
+      // Resolve ERP Customer name if sale has a customer
+      let customerName = "Cash";
+      if (sale.customerId) {
+        try {
+          const custFilter = JSON.stringify([["customer_pos_id", "=", sale.customerId]]);
+          const custFields = JSON.stringify(["name"]);
+          const custPath = `/api/resource/Customer?filters=${encodeURIComponent(custFilter)}&fields=${encodeURIComponent(custFields)}`;
+
+          const custRes = await this.client.call(
+            envResult.environment,
+            { tenantId, correlationId, causationId: sale.id },
+            { method: "GET", path: custPath }
+          );
+          const custBody = custRes.body as { data?: Array<{ name: string }> };
+          if (Array.isArray(custBody?.data) && custBody.data.length > 0 && custBody.data[0]?.name) {
+            customerName = custBody.data[0].name;
+          } else {
+            // Lazy sync customer if not yet created in ERP
+            const custAdapter = new ErpCustomerAdapter(this.transport);
+            customerName = await custAdapter.syncCustomer(tenantId, sale.customerId, correlationId);
+          }
+        } catch {
+          customerName = "Cash";
+        }
+      }
+
       const invoiceDoc = {
         doctype: "Sales Invoice",
         company: envResult.environment.companyId ?? "Amburax Retail",
-        customer: sale.customerId ?? "Cash",
+        customer: customerName,
         is_pos: 1,
         update_stock: 1,
         set_warehouse: sale.store.erpnextWarehouseId, 
@@ -148,13 +179,16 @@ export class ErpSaleAdapter {
         }
         invoiceId = body.data.name;
       } catch (err: unknown) {
-        // 3. Fallback lookup to defend against unique constraint races or timeouts where ERPNext actually succeeded
-        const fallbackId = await this.lookupInvoiceBySaleId(envResult.environment, tenantId, sale.id, correlationId);
-        
+        // Fallback lookup to defend against unique constraint races
+        const fallbackId = await this.lookupInvoiceBySaleId(
+          envResult.environment,
+          tenantId,
+          sale.id,
+          correlationId
+        );
         if (fallbackId) {
           invoiceId = fallbackId;
         } else {
-          // It was a real failure, not a duplicate race condition. Re-throw it so outbox can retry or DLQ
           throw err;
         }
       }

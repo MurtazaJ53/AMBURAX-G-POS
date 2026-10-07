@@ -2,6 +2,7 @@ import { ErpSaleAdapter } from "@/server/erp/saleAdapter";
 import { ErpCatalogAdapter } from "@/server/erp/catalogAdapter";
 import { ErpStoreAdapter } from "@/server/erp/storeAdapter";
 import { ErpInventoryAdapter } from "@/server/erp/inventoryAdapter";
+import { ErpCustomerAdapter } from "@/server/erp/customerAdapter";
 import type { PublishableEvent, OutboxPublisher } from "@/server/events/publisher";
 
 export class ErpOutboxPublisher implements OutboxPublisher {
@@ -9,7 +10,8 @@ export class ErpOutboxPublisher implements OutboxPublisher {
     private saleAdapter = new ErpSaleAdapter(),
     private catalogAdapter = new ErpCatalogAdapter(),
     private storeAdapter = new ErpStoreAdapter(),
-    private inventoryAdapter = new ErpInventoryAdapter()
+    private inventoryAdapter = new ErpInventoryAdapter(),
+    private customerAdapter = new ErpCustomerAdapter()
   ) {}
 
   async publish(event: PublishableEvent): Promise<void> {
@@ -33,6 +35,11 @@ export class ErpOutboxPublisher implements OutboxPublisher {
         throw new Error("StockMovementCreated event missing entityId");
       }
       await this.inventoryAdapter.syncMovement(event.tenantId, event.entityId, event.correlationId);
+    } else if (event.eventType === "CustomerCreated" || event.eventType === "CustomerUpdated") {
+      if (!event.entityId) {
+        throw new Error(`${event.eventType} event missing entityId`);
+      }
+      await this.customerAdapter.syncCustomer(event.tenantId, event.entityId, event.correlationId);
     }
   }
 }
