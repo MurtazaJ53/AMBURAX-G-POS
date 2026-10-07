@@ -1,211 +1,431 @@
 "use client";
 
-import { useActionState, useEffect, useState } from "react";
+import { useActionState, useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { createPortal } from "react-dom";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Plus, X, Search, Filter, ChevronLeft, ChevronRight, ChevronDown, MoreHorizontal, Send, Download, FileText } from "lucide-react";
-import { createCustomerAction } from "./actions";
+import { CheckCircle2, Download, Filter, Loader2, Phone, Plus, Search, Send, Upload, User, X } from "lucide-react";
+import { createCustomerAction, type ActionState } from "./actions";
+import { buttonClass } from "../_components/ui";
 
-// Assume standard UI components exist in amubrax codebase, actually AMBURAX UI components are in `../_components/ui.tsx`
-import { Card, PageHeader, EmptyState, DataTable, Th, Td, buttonClass, StatusBadge } from "../_components/ui";
+/* ----------------------------------------------------------- add customer */
 
-export function CustomerCreateDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
-  const [state, action, isPending] = useActionState(createCustomerAction, { status: "idle" });
+/**
+ * The add-customer dialog.
+ *
+ * A real modal: labelled, focus moves to the first field on open, Tab stays inside, Escape
+ * and the backdrop close it, and focus goes back to the button that opened it. The form is
+ * the same server action as before — only the surface changed.
+ */
+export function CustomerCreateDialog({
+  open,
+  onClose,
+  onCreated,
+}: {
+  open: boolean;
+  onClose: () => void;
+  onCreated: (message: string) => void;
+}) {
+  const [state, action, isPending] = useActionState<ActionState, FormData>(createCustomerAction, { status: "idle" });
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const nameRef = useRef<HTMLInputElement>(null);
+  const handled = useRef<ActionState | null>(null);
 
   useEffect(() => {
-    if (state.status === "success") {
+    if (state.status === "success" && handled.current !== state) {
+      handled.current = state;
+      onCreated(state.message ?? "Customer added.");
       onClose();
     }
-  }, [state.status, onClose]);
+  }, [state, onClose, onCreated]);
+
+  useEffect(() => {
+    if (!open) return;
+    nameRef.current?.focus();
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        e.preventDefault();
+        onClose();
+        return;
+      }
+      if (e.key !== "Tab" || !dialogRef.current) return;
+      const focusable = [
+        ...dialogRef.current.querySelectorAll<HTMLElement>("button:not([disabled]), input:not([disabled]), [href]"),
+      ];
+      if (focusable.length === 0) return;
+      const first = focusable[0]!;
+      const last = focusable[focusable.length - 1]!;
+      if (e.shiftKey && document.activeElement === first) {
+        e.preventDefault();
+        last.focus();
+      } else if (!e.shiftKey && document.activeElement === last) {
+        e.preventDefault();
+        first.focus();
+      }
+    };
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("keydown", onKey);
+      document.body.style.overflow = prevOverflow;
+    };
+  }, [open, onClose]);
 
   if (!open) return null;
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4">
-      <div className="w-full max-w-md rounded-xl bg-white p-6 shadow-xl">
-        <div className="mb-4 flex items-center justify-between">
-          <h2 className="text-lg font-bold">Add Customer</h2>
-          <button onClick={onClose} className="rounded-full p-2 hover:bg-slate-100"><X className="h-5 w-5" /></button>
+  const nameError = state.status === "error" && state.field === "name" ? state.message : null;
+  const formError = state.status === "error" && !state.field ? state.message : null;
+
+  // Portalled to <body>: the page header animates with a transform, and a transformed
+  // ancestor would otherwise become the box this `fixed` overlay is positioned against.
+  return createPortal(
+    <div className="fixed inset-0 z-50 flex items-end justify-center p-0 sm:items-center sm:p-4">
+      <div aria-hidden="true" className="cust-fade absolute inset-0 bg-primary/50 backdrop-blur-[2px]" onClick={onClose} />
+      <div
+        ref={dialogRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="add-customer-title"
+        aria-describedby="add-customer-desc"
+        className="cust-dialog relative w-full max-w-md overflow-hidden rounded-t-2xl bg-background-card shadow-2xl sm:rounded-2xl"
+      >
+        <div aria-hidden="true" className="h-1 bg-gradient-to-r from-blue-600 via-indigo-500 to-violet-500" />
+        <div className="flex items-start justify-between gap-4 px-6 pb-2 pt-5">
+          <div className="flex items-center gap-3">
+            <span aria-hidden="true" className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary-subtle text-primary-active">
+              <User className="h-5 w-5" />
+            </span>
+            <div>
+              <h2 id="add-customer-title" className="text-[13px] font-semibold text-primary">Add customer</h2>
+              <p id="add-customer-desc" className="text-[11px] text-secondary">They can be attached to bills straight away.</p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Close"
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-tertiary transition-colors hover:bg-background-hover hover:text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-border-focus"
+          >
+            <X className="h-5 w-5" />
+          </button>
         </div>
-        <form action={action} className="space-y-4">
-          {state.status === "error" && !state.field && (
-            <div className="rounded bg-red-50 p-3 text-sm text-red-600">{state.message}</div>
+
+        <form action={action} className="space-y-4 px-6 pb-6 pt-3">
+          {formError && (
+            <div role="alert" className="rounded-xl border border-danger-subtle bg-danger-subtle px-3 py-2.5 text-[11px] text-danger">
+              {formError}
+            </div>
           )}
+
           <div>
-            <label htmlFor="name" className="mb-1 block text-sm font-medium">Customer Name <span className="text-red-500">*</span></label>
-            <input
-              id="name"
-              name="name"
-              type="text"
-              required
-              className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-            />
-            {state.status === "error" && state.field === "name" && (
-              <p className="mt-1 text-xs text-red-600">{state.message}</p>
+            <label htmlFor="cust-name" className="mb-1.5 block text-[11px] font-medium text-primary">
+              Customer name <span className="text-danger" aria-hidden="true">*</span>
+            </label>
+            <div className="relative">
+              <User aria-hidden="true" className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-tertiary" />
+              <input
+                ref={nameRef}
+                id="cust-name"
+                name="name"
+                type="text"
+                required
+                autoComplete="off"
+                aria-invalid={nameError ? true : undefined}
+                aria-describedby={nameError ? "cust-name-error" : undefined}
+                className={`h-11 w-full rounded-xl border bg-background-card pl-9 pr-3 text-[11px] text-primary placeholder:text-tertiary transition-colors focus:outline-none focus:ring-4 ${nameError ? "border-danger focus:border-danger focus:ring-danger/20" : "border-border focus:border-border-focus focus:ring-border-focus"}`}
+                placeholder="e.g. Priya Sharma"
+              />
+            </div>
+            {nameError && (
+              <p id="cust-name-error" className="mt-1.5 text-[10px] font-medium text-danger">
+                {nameError}
+              </p>
             )}
           </div>
+
           <div>
-            <label htmlFor="phone" className="mb-1 block text-sm font-medium">Phone Number</label>
-            <input
-              id="phone"
-              name="phone"
-              type="tel"
-              className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-            />
-            <p className="mt-1 text-xs text-slate-500">Used to uniquely identify the customer at the till.</p>
+            <label htmlFor="cust-phone" className="mb-1.5 block text-[11px] font-medium text-primary">
+              Phone number <span className="font-normal text-tertiary">(optional)</span>
+            </label>
+            <div className="relative">
+              <Phone aria-hidden="true" className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-tertiary" />
+              <input
+                id="cust-phone"
+                name="phone"
+                type="tel"
+                inputMode="tel"
+                autoComplete="off"
+                aria-describedby="cust-phone-hint"
+                className="h-11 w-full rounded-xl border border-border bg-background-card pl-9 pr-3 text-[11px] tabular-nums text-primary placeholder:text-tertiary transition-colors focus:border-border-focus focus:outline-none focus:ring-4 focus:ring-border-focus"
+                placeholder="10-digit mobile"
+              />
+            </div>
+            <p id="cust-phone-hint" className="mt-1.5 text-[10px] text-tertiary">
+              Identifies them at the till. An existing number opens that customer instead of a duplicate.
+            </p>
           </div>
-          <div className="flex justify-end gap-2 pt-2">
-            <button type="button" onClick={onClose} className={buttonClass("secondary")}>Cancel</button>
-            <button type="submit" disabled={isPending} className={buttonClass("primary")}>
-              {isPending ? "Adding..." : "Add Customer"}
+
+          <div className="flex flex-col-reverse gap-2 pt-2 sm:flex-row sm:justify-end">
+            <button type="button" onClick={onClose} className={`${buttonClass("secondary")} h-10 rounded-xl`}>
+              Cancel
+            </button>
+            <button type="submit" disabled={isPending} className={`${buttonClass("primary")} amb-press h-10 rounded-xl shadow-sm`}>
+              {isPending ? (
+                <>
+                  <Loader2 aria-hidden="true" className="h-4 w-4 animate-spin" />
+                  Adding…
+                </>
+              ) : (
+                <>
+                  <Plus aria-hidden="true" className="h-4 w-4" />
+                  Add customer
+                </>
+              )}
             </button>
           </div>
         </form>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
 
-export function CustomerActions() {
+/* ---------------------------------------------------------------- actions */
+
+export function CustomerActions({ variant = "crm" }: { variant?: "crm" | "khata" }) {
   const [open, setOpen] = useState(false);
+  // A fresh dialog per opening, so a previous attempt's error is not waiting in it.
+  const [openCount, setOpenCount] = useState(0);
+  const [toast, setToast] = useState<string | null>(null);
+  const openerRef = useRef<HTMLButtonElement>(null);
+  const isClient = useSyncExternalStore(
+    () => () => {},
+    () => true,
+    () => false,
+  );
+
+  const close = useCallback(() => {
+    setOpen(false);
+    requestAnimationFrame(() => openerRef.current?.focus());
+  }, []);
+
+  useEffect(() => {
+    if (!toast) return;
+    const t = window.setTimeout(() => setToast(null), 3500);
+    return () => window.clearTimeout(t);
+  }, [toast]);
+
+  // The reference's header actions per screen. Only "Add Customer" has anything behind it;
+  // the rest are drawn as the reference has them, disabled and labelled.
+  const unavailable =
+    variant === "khata"
+      ? [{ label: "Send Reminder", title: "Reminders need the accounting sync (not connected yet)", icon: Send }]
+      : [
+          { label: "Import", title: "Import is not available yet", icon: Upload },
+          { label: "Export", title: "Export is not available yet", icon: Download },
+        ];
+  const trailing =
+    variant === "khata"
+      ? [
+          { label: "Export", title: "Export is not available yet", icon: Download, primary: false },
+          { label: "New Khata", title: "Khata ledgers need the accounting sync (not connected yet)", icon: Plus, primary: true },
+        ]
+      : [];
+
+  const ghost = "inline-flex h-10 cursor-not-allowed items-center gap-2 rounded-lg border border-border bg-background-card px-4 text-[13px] font-medium text-tertiary";
 
   return (
-    <div className="flex flex-wrap items-center gap-2">
+    <div className="flex flex-wrap items-center gap-2.5">
+      {unavailable.map(({ label, title, icon: Icon }) => (
+        <button key={label} type="button" disabled title={title} className={ghost}>
+          <Icon aria-hidden="true" className="h-4 w-4" />
+          {label}
+          <span className="sr-only"> (not available yet)</span>
+        </button>
+      ))}
       <button
+        ref={openerRef}
         type="button"
-        className={buttonClass("secondary")}
-        disabled
-        aria-disabled="true"
-        title="Reminders are managed in ERPNext (Not connected)"
+        onClick={() => {
+          setOpenCount((n) => n + 1);
+          setOpen(true);
+        }}
+        className={
+          variant === "khata"
+            ? "amb-press inline-flex h-10 items-center gap-2 rounded-lg border border-border bg-background-card px-4 text-[13px] font-medium text-brand transition-colors hover:border-brand-hover hover:bg-brand-subtle focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-border-focus"
+            : "amb-press inline-flex h-10 items-center gap-2 rounded-lg bg-brand px-5 text-[13px] font-semibold text-background-card shadow-sm shadow-brand/20 transition-colors hover:bg-brand-hover focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-border-focus"
+        }
       >
-        <Send className="mr-2 h-4 w-4 inline opacity-50" />
-        Send Reminder
-      </button>
-      <button
-        type="button"
-        className={buttonClass("primary")}
-        onClick={() => setOpen(true)}
-      >
-        <Plus className="mr-2 h-4 w-4 inline" />
+        <Plus aria-hidden="true" className="h-4 w-4" />
         Add Customer
       </button>
-      <button
-        type="button"
-        className={buttonClass("secondary")}
-        disabled
-        aria-disabled="true"
-        title="Export is not currently available"
-      >
-        <Download className="mr-2 h-4 w-4 inline opacity-50" />
-        Export
-      </button>
-      <button
-        type="button"
-        className={buttonClass("secondary")}
-        disabled
-        aria-disabled="true"
-        title="Khata ledgers are managed in ERPNext (Not connected)"
-      >
-        <FileText className="mr-2 h-4 w-4 inline opacity-50" />
-        New Khata
-      </button>
-      <CustomerCreateDialog open={open} onClose={() => setOpen(false)} />
+      {trailing.map(({ label, title, icon: Icon, primary }) => (
+        <button
+          key={label}
+          type="button"
+          disabled
+          title={title}
+          className={primary ? "inline-flex h-10 cursor-not-allowed items-center gap-2 rounded-lg bg-brand/40 px-5 text-[13px] font-semibold text-background-card" : ghost}
+        >
+          <Icon aria-hidden="true" className="h-4 w-4" />
+          {label}
+          <span className="sr-only"> (not available yet)</span>
+        </button>
+      ))}
+
+      <CustomerCreateDialog key={openCount} open={open} onClose={close} onCreated={setToast} />
+
+      {isClient &&
+        createPortal(
+          <div aria-live="polite" className="pointer-events-none fixed bottom-6 left-1/2 z-[60] -translate-x-1/2">
+            {toast && (
+              <div className="cust-dialog flex items-center gap-2 rounded-xl bg-primary px-4 py-3 text-[11px] font-medium text-background-card shadow-xl">
+                <CheckCircle2 aria-hidden="true" className="h-4 w-4 text-success" />
+                {toast}
+              </div>
+            )}
+          </div>,
+          document.body,
+        )}
     </div>
   );
 }
 
-export function CustomerToolbar({ initialQuery, initialType }: { initialQuery: string; initialType: string }) {
+/* ---------------------------------------------------------------- toolbar */
+
+const SEGMENTS = [
+  { value: "", label: "All" },
+  { value: "RETAIL", label: "Retail" },
+  { value: "WHOLESALE", label: "Wholesale" },
+  { value: "DISTRIBUTOR", label: "Distributor" },
+] as const;
+
+export function CustomerToolbar({
+  initialQuery,
+  initialType,
+  total,
+}: {
+  initialQuery: string;
+  initialType: string;
+  total: number;
+}) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [query, setQuery] = useState(initialQuery);
 
+  // The box follows the URL, so Back/Forward and "Clear filters" never leave stale text.
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setQuery(searchParams.get("q") ?? "");
   }, [searchParams]);
 
+  function push(update: (p: URLSearchParams) => void) {
+    const params = new URLSearchParams(searchParams.toString());
+    update(params);
+    params.delete("page");
+    params.delete("selected");
+    const qs = params.toString();
+    router.push(qs ? `/customers?${qs}` : "/customers");
+  }
+
   function handleSearch(e: React.FormEvent) {
     e.preventDefault();
-    const params = new URLSearchParams(searchParams as any);
-    if (query.trim()) {
-      params.set("q", query.trim());
-    } else {
-      params.delete("q");
-    }
-    params.delete("page");
-    router.push(`/customers?${params.toString()}`);
+    const q = query.trim();
+    push((p) => (q ? p.set("q", q) : p.delete("q")));
   }
 
-  function handleTypeChange(e: React.ChangeEvent<HTMLSelectElement>) {
-    const params = new URLSearchParams(searchParams as any);
-    if (e.target.value) {
-      params.set("customerType", e.target.value);
-    } else {
-      params.delete("customerType");
-    }
-    params.delete("page");
-    router.push(`/customers?${params.toString()}`);
-  }
+  const tabs = [
+    { label: "All Customers", active: true },
+    { label: "Loyalty Members", active: false },
+    { label: "Inactive Customers", active: false },
+    { label: "Top Customers", active: false },
+    { label: "Customer Groups", active: false },
+  ];
 
   return (
-    <div className="flex flex-col sm:flex-row items-center justify-between gap-4 border-b border-slate-100 p-4 bg-white rounded-t-xl">
-      <div className="flex items-center w-full sm:w-auto">
-        <h2 id="customer-toolbar-title" className="text-base font-bold text-slate-900 hidden sm:block mr-6 outline-none">Customers</h2>
+    <div className="flex flex-wrap items-end justify-between gap-x-4 gap-y-3">
+      <h2 id="customer-toolbar-title" tabIndex={-1} className="sr-only outline-none">
+        Customers ({total.toLocaleString("en-IN")})
+      </h2>
+      {/* Only "All" has a backing query; the reference's other views are drawn, disabled. */}
+      <div role="tablist" aria-label="Customer views" className="no-scrollbar flex min-w-0 gap-1 overflow-x-auto">
+        {tabs.map((t) => (
+          <button
+            key={t.label}
+            type="button"
+            role="tab"
+            aria-selected={t.active}
+            disabled={!t.active}
+            title={t.active ? undefined : `${t.label} — not available yet`}
+            className={`relative h-11 shrink-0 whitespace-nowrap px-3 text-[13px] ${
+              t.active
+                ? "font-semibold text-brand after:absolute after:inset-x-0 after:bottom-0 after:h-[2px] after:rounded-full after:bg-brand"
+                : "cursor-not-allowed text-tertiary"
+            }`}
+          >
+            {t.label}
+          </button>
+        ))}
       </div>
 
-      <div className="flex flex-wrap sm:flex-nowrap items-center gap-3 w-full sm:w-auto justify-end">
-        <div className="relative">
-          <label htmlFor="segment-filter" className="sr-only">Filter by Segment</label>
-          <select
-            id="segment-filter"
-            value={initialType}
-            onChange={handleTypeChange}
-            className="h-9 appearance-none rounded-full border border-slate-200 bg-white pl-4 pr-9 text-xs font-medium text-slate-600 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 hover:bg-slate-50 transition-colors"
-          >
-            <option value="">All Segments</option>
-            <option value="RETAIL">Retail</option>
-            <option value="WHOLESALE">Wholesale</option>
-            <option value="DISTRIBUTOR">Distributor</option>
-          </select>
-          <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
-        </div>
+      <div className="flex min-w-0 flex-1 flex-wrap items-center justify-end gap-3 pb-1 sm:flex-none">
+        <label htmlFor="customer-segment" className="sr-only">
+          Segment
+        </label>
+        <select
+          id="customer-segment"
+          value={initialType}
+          onChange={(e) => push((p) => (e.target.value ? p.set("customerType", e.target.value) : p.delete("customerType")))}
+          className="h-10 w-full rounded-lg border border-border bg-background-card px-3 text-[11px] text-secondary focus:border-border-focus focus:outline-none focus:ring-4 focus:ring-border-focus sm:w-[146px]"
+        >
+          {SEGMENTS.map((seg) => (
+            <option key={seg.label} value={seg.value}>
+              {seg.value ? seg.label : "All Segments"}
+            </option>
+          ))}
+        </select>
 
-        <div className="relative">
-          <label htmlFor="group-filter" className="sr-only">Filter by Group</label>
-          <select
-            id="group-filter"
-            disabled
-            title="Customer groups are not configured"
-            className="h-9 appearance-none rounded-full border border-slate-200 bg-slate-50 pl-4 pr-9 text-xs font-medium text-slate-400 cursor-not-allowed opacity-70"
-          >
-            <option value="">All Groups</option>
-          </select>
-          <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-300" />
-        </div>
-
-        <form onSubmit={handleSearch} className="relative flex-1 sm:w-56">
-          <label htmlFor="search-customers" className="sr-only">Search customers</label>
-          <Search className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
+        <form role="search" onSubmit={handleSearch} className="relative w-full min-w-0 sm:w-[286px]">
+          <label htmlFor="search-customers" className="sr-only">
+            Search customers
+          </label>
+          <Search aria-hidden="true" className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-tertiary" />
           <input
             id="search-customers"
-            type="text"
+            type="search"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search customer..."
-            className="h-9 w-full rounded-full border border-slate-200 pl-9 pr-3 text-xs placeholder:text-slate-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 hover:bg-slate-50 transition-colors"
+            placeholder="Search name, phone or email..."
+            className="h-10 w-full rounded-lg border border-border bg-background-card pl-9 pr-9 text-[11px] text-primary placeholder:text-tertiary transition-colors hover:border-border focus:border-border-focus focus:outline-none focus:ring-4 focus:ring-border-focus [&::-webkit-search-cancel-button]:hidden"
           />
+          {query && (
+            <button
+              type="button"
+              aria-label="Clear search"
+              onClick={() => {
+                setQuery("");
+                if (searchParams.get("q")) push((p) => p.delete("q"));
+              }}
+              className="absolute right-2 top-1/2 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-lg text-tertiary transition-colors hover:bg-background-hover hover:text-secondary focus-visible:outline focus-visible:outline-2 focus-visible:outline-border-focus"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          )}
         </form>
-        
+
         <button
           type="button"
           disabled
-          aria-disabled="true"
-          title="Advanced filters not available"
-          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-400 opacity-70 cursor-not-allowed"
+          title="More filters are not available yet"
+          className="hidden h-10 cursor-not-allowed items-center gap-2 rounded-lg border border-border bg-background-card px-4 text-[13px] font-medium text-tertiary lg:inline-flex"
         >
-          <Filter className="h-3.5 w-3.5" />
-          <span className="sr-only">Filter options</span>
+          <Filter aria-hidden="true" className="h-4 w-4" />
+          More Filters
         </button>
       </div>
     </div>
   );
 }
+
+
