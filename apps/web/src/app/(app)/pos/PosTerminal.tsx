@@ -139,11 +139,11 @@ function variantLabel(line: { size: string | null; colour: string | null }): str
 }
 
 function stockLabel(quantity: number | null): { text: string; className: string } {
-  if (quantity === null) return { text: "Not counted", className: "text-slate-500" };
+  if (quantity === null) return { text: "Not counted", className: "text-tertiary" };
   if (quantity < 0)
-    return { text: `Oversold (${quantity})`, className: "text-rose-600" };
+    return { text: `Oversold (${quantity})`, className: "text-danger" };
   if (quantity === 0) return { text: "Out of stock", className: "text-amber-600" };
-  return { text: `In Stock (${quantity})`, className: "text-emerald-600" };
+  return { text: `In Stock (${quantity})`, className: "text-success" };
 }
 
 export function PosTerminal(props: { storeName: string; storeCode: string; cashierName: string }) {
@@ -473,7 +473,7 @@ export function PosTerminal(props: { storeName: string; storeCode: string; cashi
           onDismiss={dismissSuccess}
         />
       )}
-    <div className="flex w-full h-[calc(100vh-68px)] overflow-y-auto lg:overflow-hidden bg-slate-50 flex-col lg:flex-row print:hidden">
+    <div className="flex w-full h-[calc(100vh-68px)] overflow-y-auto lg:overflow-hidden bg-background-subtle flex-col lg:flex-row print:hidden">
       {/*
         The till is a full-bleed workstation with no title bar, so it carried no page heading
         at all — a screen reader announced the document with nothing to name it. Visually
@@ -481,26 +481,26 @@ export function PosTerminal(props: { storeName: string; storeCode: string; cashi
       */}
       <h1 className="sr-only">Point of Sale — {props.storeName}</h1>
       {/* Left Workspace (Products) - 70% */}
-      <div className="flex-1 flex flex-col min-w-0 bg-white border-r border-slate-200 min-h-[500px] lg:min-h-0 shrink-0 lg:shrink">
+      <div className="flex-1 flex flex-col min-w-0 bg-background-card border-r border-border min-h-[500px] lg:min-h-0 shrink-0 lg:shrink">
         
         {/* Top Tabs */}
-        <div className="flex px-4 pt-3 border-b border-slate-200 gap-6 text-[13px] font-medium">
+        <div className="flex px-4 pt-3 border-b border-border gap-6 text-[13px] font-medium">
           <button className="pb-2.5 border-b-2 border-blue-600 text-blue-600">Products</button>
-          <button disabled className="pb-2.5 border-b-2 border-transparent text-slate-400 opacity-60 cursor-not-allowed" title="Barcode scan coming soon">Barcode Scan</button>
-          <button disabled className="pb-2.5 border-b-2 border-transparent text-slate-400 opacity-60 cursor-not-allowed" title="Quick add coming soon">Quick Add</button>
+          <button disabled className="pb-2.5 border-b-2 border-transparent text-tertiary opacity-60 cursor-not-allowed" title="Barcode scan coming soon">Barcode Scan</button>
+          <button disabled className="pb-2.5 border-b-2 border-transparent text-tertiary opacity-60 cursor-not-allowed" title="Quick add coming soon">Quick Add</button>
         </div>
 
         {/* Filter Toolbar */}
-        <div className="p-4 flex flex-col gap-3 border-b border-slate-100">
+        <div className="p-4 flex flex-col gap-3 border-b border-border">
           <div className="flex items-center gap-2">
             <div className="relative flex-1">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-tertiary" />
               <input
                 ref={searchInput}
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
                 placeholder="Search products by name, SKU, barcode..."
-                className="w-full pl-9 py-2.5 text-[13px] border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                className="w-full pl-9 py-2.5 text-[13px] border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
               />
             </div>
             <button 
@@ -513,16 +513,16 @@ export function PosTerminal(props: { storeName: string; storeCode: string; cashi
           </div>
           
           <div className="flex items-center gap-2 overflow-x-auto pb-1 no-scrollbar text-[12px]">
-            <button disabled className="flex items-center gap-1.5 px-3 py-1.5 border border-slate-200 rounded-md text-slate-400 opacity-60 cursor-not-allowed whitespace-nowrap">All Categories <ChevronDown className="w-3 h-3"/></button>
-            <button disabled className="flex items-center gap-1.5 px-3 py-1.5 border border-slate-200 rounded-md text-slate-400 opacity-60 cursor-not-allowed whitespace-nowrap">All Brands <ChevronDown className="w-3 h-3"/></button>
-            <button disabled className="flex items-center gap-1.5 px-3 py-1.5 border border-slate-200 rounded-md text-slate-400 opacity-60 cursor-not-allowed whitespace-nowrap">All Genders <ChevronDown className="w-3 h-3"/></button>
-            <button disabled className="flex items-center gap-1.5 px-3 py-1.5 border border-slate-200 rounded-md text-slate-400 opacity-60 cursor-not-allowed whitespace-nowrap">All Sizes <ChevronDown className="w-3 h-3"/></button>
-            <button disabled className="flex items-center gap-1.5 px-3 py-1.5 border border-slate-200 rounded-md text-slate-400 opacity-60 cursor-not-allowed whitespace-nowrap">All Colors <ChevronDown className="w-3 h-3"/></button>
-            <button disabled className="flex items-center gap-1.5 px-3 py-1.5 border border-slate-200 rounded-md text-slate-400 opacity-60 cursor-not-allowed whitespace-nowrap">Price <ChevronDown className="w-3 h-3"/></button>
-            <button disabled className="flex items-center gap-1.5 px-3 py-1.5 border border-slate-200 rounded-md text-slate-400 font-medium opacity-60 cursor-not-allowed whitespace-nowrap ml-auto"><SlidersHorizontal className="w-3 h-3"/> More Filters</button>
+            <button disabled className="flex items-center gap-1.5 px-3 py-1.5 border border-border rounded-md text-tertiary opacity-60 cursor-not-allowed whitespace-nowrap">All Categories <ChevronDown className="w-3 h-3"/></button>
+            <button disabled className="flex items-center gap-1.5 px-3 py-1.5 border border-border rounded-md text-tertiary opacity-60 cursor-not-allowed whitespace-nowrap">All Brands <ChevronDown className="w-3 h-3"/></button>
+            <button disabled className="flex items-center gap-1.5 px-3 py-1.5 border border-border rounded-md text-tertiary opacity-60 cursor-not-allowed whitespace-nowrap">All Genders <ChevronDown className="w-3 h-3"/></button>
+            <button disabled className="flex items-center gap-1.5 px-3 py-1.5 border border-border rounded-md text-tertiary opacity-60 cursor-not-allowed whitespace-nowrap">All Sizes <ChevronDown className="w-3 h-3"/></button>
+            <button disabled className="flex items-center gap-1.5 px-3 py-1.5 border border-border rounded-md text-tertiary opacity-60 cursor-not-allowed whitespace-nowrap">All Colors <ChevronDown className="w-3 h-3"/></button>
+            <button disabled className="flex items-center gap-1.5 px-3 py-1.5 border border-border rounded-md text-tertiary opacity-60 cursor-not-allowed whitespace-nowrap">Price <ChevronDown className="w-3 h-3"/></button>
+            <button disabled className="flex items-center gap-1.5 px-3 py-1.5 border border-border rounded-md text-tertiary font-medium opacity-60 cursor-not-allowed whitespace-nowrap ml-auto"><SlidersHorizontal className="w-3 h-3"/> More Filters</button>
             
-            <div className="h-4 w-px bg-slate-200 mx-2"></div>
-            <span className="text-slate-500 mr-1">View:</span>
+            <div className="h-4 w-px bg-background-hover mx-2"></div>
+            <span className="text-tertiary mr-1">View:</span>
             {/* Both are genuinely disabled already; they were simply unnamed, so a screen
                 reader announced two anonymous buttons. */}
             <button
@@ -537,7 +537,7 @@ export function PosTerminal(props: { storeName: string; storeCode: string; cashi
               disabled
               aria-label="List view (not available yet)"
               title="List view — not available yet"
-              className="p-1.5 text-slate-400 opacity-60 cursor-not-allowed rounded"
+              className="p-1.5 text-tertiary opacity-60 cursor-not-allowed rounded"
             >
               <AlignJustify className="w-4 h-4" />
             </button>
@@ -545,7 +545,7 @@ export function PosTerminal(props: { storeName: string; storeCode: string; cashi
         </div>
 
         {/* Categories row (Visual only) */}
-        <div className="px-4 py-2 flex gap-3 overflow-x-auto border-b border-slate-100 no-scrollbar">
+        <div className="px-4 py-2 flex gap-3 overflow-x-auto border-b border-border no-scrollbar">
              {[
                { name: 'Men\'s Wear', icon: Shirt },
                { name: 'Women\'s Wear', icon: Sparkles },
@@ -566,17 +566,17 @@ export function PosTerminal(props: { storeName: string; storeCode: string; cashi
                  onClick={() => setQuery(cat.name)}
                  className="amb-press amb-focus flex flex-col items-center gap-1.5 min-w-[72px] cursor-pointer group shrink-0"
                >
-                  <div className="w-10 h-10 rounded-lg bg-slate-50 border border-slate-200 flex items-center justify-center text-slate-500 transition-colors group-hover:border-blue-300 group-hover:bg-blue-50 group-hover:text-blue-700">
+                  <div className="w-10 h-10 rounded-lg bg-background-subtle border border-border flex items-center justify-center text-tertiary transition-colors group-hover:border-blue-300 group-hover:bg-blue-50 group-hover:text-blue-700">
                     <cat.icon className="w-5 h-5"/>
                   </div>
-                  <span className="text-[11px] font-medium text-slate-600 text-center group-hover:text-slate-900 transition-colors">{cat.name}</span>
+                  <span className="text-[11px] font-medium text-tertiary text-center group-hover:text-primary transition-colors">{cat.name}</span>
                </button>
              ))}
           </div>
 
         {/* Product Grid */}
-        <div className="flex-1 overflow-y-auto p-4 bg-slate-50/50">
-           {searchError && <p className="text-[13px] text-rose-600 bg-rose-50 p-3 rounded-lg border border-rose-100">{searchError}</p>}
+        <div className="flex-1 overflow-y-auto p-4 bg-background-subtle/50">
+           {searchError && <p className="text-[13px] text-danger bg-danger-subtle p-3 rounded-lg border border-rose-100">{searchError}</p>}
            
            {/*
              Skeletons while a search is in flight. The grid used to render empty, so typing
@@ -589,12 +589,12 @@ export function PosTerminal(props: { storeName: string; storeCode: string; cashi
                aria-hidden="true"
              >
                {Array.from({ length: 10 }).map((_, i) => (
-                 <div key={i} className="amb-skeleton flex flex-col bg-white border border-slate-200 rounded-xl overflow-hidden">
-                   <div className="aspect-square w-full bg-slate-100 border-b border-slate-100" />
+                 <div key={i} className="amb-skeleton flex flex-col bg-background-card border border-border rounded-xl overflow-hidden">
+                   <div className="aspect-square w-full bg-background-subtle border-b border-border" />
                    <div className="p-3 flex flex-col gap-2">
-                     <div className="h-3 w-4/5 rounded bg-slate-100" />
-                     <div className="h-3 w-3/5 rounded bg-slate-100" />
-                     <div className="h-4 w-1/2 rounded bg-slate-100 mt-1" />
+                     <div className="h-3 w-4/5 rounded bg-background-subtle" />
+                     <div className="h-3 w-3/5 rounded bg-background-subtle" />
+                     <div className="h-4 w-1/2 rounded bg-background-subtle mt-1" />
                    </div>
                  </div>
                ))}
@@ -606,11 +606,11 @@ export function PosTerminal(props: { storeName: string; storeCode: string; cashi
 
            {!searching && results.length === 0 && !searchError && (
              <div className="flex flex-col items-center justify-center py-16 text-center">
-               <div className="w-12 h-12 rounded-xl bg-slate-100 border border-slate-200 flex items-center justify-center mb-3">
-                 <Search className="w-5 h-5 text-slate-400" />
+               <div className="w-12 h-12 rounded-xl bg-background-subtle border border-border flex items-center justify-center mb-3">
+                 <Search className="w-5 h-5 text-tertiary" />
                </div>
-               <p className="text-[13px] font-semibold text-slate-700">No products match that search</p>
-               <p className="text-[12px] text-slate-500 mt-1 max-w-[280px]">
+               <p className="text-[13px] font-semibold text-secondary">No products match that search</p>
+               <p className="text-[12px] text-tertiary mt-1 max-w-[280px]">
                  Try a different name, SKU or barcode — or clear the search to browse the full catalogue.
                </p>
              </div>
@@ -622,22 +622,22 @@ export function PosTerminal(props: { storeName: string; storeCode: string; cashi
                  key={hit.variantId} 
                  onClick={() => addToCart(hit)}
                  aria-label={`Add ${hit.productName} to cart, ${formatMinor(hit.priceMinor)}`}
-                 className="amb-lift amb-press amb-focus flex flex-col bg-white border border-slate-200 rounded-xl overflow-hidden text-left group cursor-pointer hover:border-blue-300 hover:shadow-[0_6px_16px_-6px_rgba(15,23,42,0.18)]"
+                 className="amb-lift amb-press amb-focus flex flex-col bg-background-card border border-border rounded-xl overflow-hidden text-left group cursor-pointer hover:border-blue-300 hover:shadow-[0_6px_16px_-6px_rgba(15,23,42,0.18)]"
                >
-                 <div className="aspect-square bg-slate-100 relative w-full border-b border-slate-100 flex items-center justify-center">
+                 <div className="aspect-square bg-background-subtle relative w-full border-b border-border flex items-center justify-center">
                     {hit.imageUrl ? (
                       /* eslint-disable-next-line @next/next/no-img-element */
                       <img src={hit.imageUrl} alt={hit.productName} className="w-full h-full object-cover" />
                     ) : (
-                      <Package className="w-8 h-8 text-slate-300" />
+                      <Package className="w-8 h-8 text-tertiary" />
                     )}
                  </div>
                  <div className="p-3 flex flex-col gap-1.5">
-                   <p className="text-[12px] font-medium text-slate-900 line-clamp-2 leading-snug">{hit.productName}</p>
+                   <p className="text-[12px] font-medium text-primary line-clamp-2 leading-snug">{hit.productName}</p>
                    <div className="flex justify-between items-end mt-1">
                      <div>
-                       <p className="text-[15px] font-bold text-slate-900 leading-none">{formatMinor(hit.priceMinor)}</p>
-                       <p className="text-[11px] text-slate-500 mt-1 truncate max-w-[100px]">{hit.sku}</p>
+                       <p className="text-[15px] font-bold text-primary leading-none">{formatMinor(hit.priceMinor)}</p>
+                       <p className="text-[11px] text-tertiary mt-1 truncate max-w-[100px]">{hit.sku}</p>
                      </div>
                      {/*
                        Three states, not two. `stockQuantity` is nullable — a variant with no
@@ -652,11 +652,11 @@ export function PosTerminal(props: { storeName: string; storeCode: string; cashi
                            hit.stockQuantity == null
                              ? "bg-slate-300"
                              : hit.stockQuantity > 0
-                               ? "bg-emerald-500"
-                               : "bg-rose-500"
+                               ? "bg-success-subtle0"
+                               : "bg-danger-subtle0"
                          }`}
                        />
-                       <span className="text-[10px] font-medium text-slate-600">
+                       <span className="text-[10px] font-medium text-tertiary">
                          {hit.stockQuantity == null
                            ? "Stock unknown"
                            : hit.stockQuantity > 0
@@ -672,8 +672,8 @@ export function PosTerminal(props: { storeName: string; storeCode: string; cashi
         </div>
 
         {/* Quick Actions Footer */}
-        <div className="p-4 border-t border-slate-200 bg-white">
-          <p className="text-[12px] font-semibold text-slate-800 mb-3">Quick Actions</p>
+        <div className="p-4 border-t border-border bg-background-card">
+          <p className="text-[12px] font-semibold text-primary mb-3">Quick Actions</p>
           <div className="grid grid-cols-3 md:grid-cols-6 gap-2">
              <ActionBtn icon={<span className="font-bold text-base">||</span>} label="Hold Bill" hotkey="(F3)" disabled />
              <ActionBtn icon={<AlignJustify className="w-4 h-4"/>} label="Retrieve Bill" hotkey="(F4)" disabled />
@@ -686,50 +686,50 @@ export function PosTerminal(props: { storeName: string; storeCode: string; cashi
       </div>
 
       {/* Right Checkout Panel - Hard Reset */}
-      <div className="w-full lg:w-[390px] shrink-0 flex flex-col bg-slate-50 lg:border-l border-slate-200 h-[600px] lg:h-full relative">
+      <div className="w-full lg:w-[390px] shrink-0 flex flex-col bg-background-subtle lg:border-l border-border h-[600px] lg:h-full relative">
         
         {/* Header (~50px) */}
-        <div className="flex px-4 h-[50px] shrink-0 items-center border-b border-slate-200 gap-5 text-[13px] font-medium bg-white">
+        <div className="flex px-4 h-[50px] shrink-0 items-center border-b border-border gap-5 text-[13px] font-medium bg-background-card">
           <button className="h-full flex items-center border-b-2 border-blue-600 text-blue-600 font-bold px-1">Cart ({cart.reduce((a,b)=>a+b.quantity, 0)})</button>
-          <button className="h-full flex items-center border-b-2 border-transparent text-slate-500 hover:text-slate-700 px-1">Customer</button>
+          <button className="h-full flex items-center border-b-2 border-transparent text-tertiary hover:text-secondary px-1">Customer</button>
         </div>
 
         {/* Customer Block (~80px) */}
-        <div className="px-3 min-h-[80px] h-auto py-2.5 flex items-center bg-white border-b border-slate-200 shrink-0 shadow-sm z-10">
+        <div className="px-3 min-h-[80px] h-auto py-2.5 flex items-center bg-background-card border-b border-border shrink-0 shadow-sm z-10">
           <CustomerPicker customer={customer} onChange={setCustomer} />
         </div>
 
         {/* Cart Items (Scrollable) */}
-        <div className="flex-1 min-h-0 overflow-y-auto p-2 flex flex-col gap-2 bg-slate-50/50">
+        <div className="flex-1 min-h-0 overflow-y-auto p-2 flex flex-col gap-2 bg-background-subtle/50">
           {cartNotice && (
-             <p className="text-[12px] text-rose-700 bg-rose-50 p-2 rounded shrink-0">{cartNotice}</p>
+             <p className="text-[12px] text-danger bg-danger-subtle p-2 rounded shrink-0">{cartNotice}</p>
           )}
           {cart.map((line) => (
-             <div key={line.variantId} className="amb-line-in flex gap-2.5 bg-white p-2 min-h-[94px] rounded-[6px] border border-slate-200 shadow-sm relative group shrink-0 transition-colors hover:border-slate-300">
-                <div className="w-10 h-10 bg-slate-100 rounded-[4px] border border-slate-100 flex items-center justify-center overflow-hidden shrink-0 mt-0.5">
+             <div key={line.variantId} className="amb-line-in flex gap-2.5 bg-background-card p-2 min-h-[94px] rounded-[6px] border border-border shadow-sm relative group shrink-0 transition-colors hover:border-border-focus">
+                <div className="w-10 h-10 bg-background-subtle rounded-[4px] border border-border flex items-center justify-center overflow-hidden shrink-0 mt-0.5">
                    {line.imageUrl ? (
                      /* eslint-disable-next-line @next/next/no-img-element */
                      <img src={line.imageUrl} alt={line.productName} className="w-full h-full object-cover" />
                    ) : (
-                     <Package className="w-5 h-5 text-slate-300" />
+                     <Package className="w-5 h-5 text-tertiary" />
                    )}
                 </div>
                 <div className="flex-1 min-w-0 flex flex-col">
                    <div className="pr-6 leading-tight mb-2">
-                     <p className="text-[12px] font-semibold text-slate-900 truncate">{line.productName}</p>
-                     <p className="text-[10px] text-slate-500 truncate mt-0.5">{line.sku} {variantLabel(line) ? `| ${variantLabel(line)}` : ''}</p>
+                     <p className="text-[12px] font-semibold text-primary truncate">{line.productName}</p>
+                     <p className="text-[10px] text-tertiary truncate mt-0.5">{line.sku} {variantLabel(line) ? `| ${variantLabel(line)}` : ''}</p>
                    </div>
                    <div className="flex items-center justify-between mt-auto">
-                     <p className="text-[12px] font-semibold text-slate-900">{formatMinor(line.unitPriceMinor)}</p>
+                     <p className="text-[12px] font-semibold text-primary">{formatMinor(line.unitPriceMinor)}</p>
                      
-                     <div className="flex items-center border border-slate-200 rounded text-slate-700 bg-white h-[30px] shrink-0 overflow-hidden shadow-sm">
+                     <div className="flex items-center border border-border rounded text-secondary bg-background-card h-[30px] shrink-0 overflow-hidden shadow-sm">
                         {/* Labelled for screen readers; the icon alone named nothing. Sizes are
                             unchanged — the checkout column's geometry is an F8 gate. */}
                         <button
                           type="button"
                           onClick={() => setQuantity(line.variantId, line.quantity - 1)}
                           aria-label={`Decrease quantity of ${line.productName}`}
-                          className="amb-focus w-7 h-full flex items-center justify-center hover:bg-slate-100 active:bg-slate-200 transition-colors bg-slate-50 border-r border-slate-200 cursor-pointer"
+                          className="amb-focus w-7 h-full flex items-center justify-center hover:bg-background-subtle active:bg-background-hover transition-colors bg-background-subtle border-r border-border cursor-pointer"
                         >
                           <Minus className="w-[14px] h-[14px]" />
                         </button>
@@ -740,7 +740,7 @@ export function PosTerminal(props: { storeName: string; storeCode: string; cashi
                           type="button"
                           onClick={() => setQuantity(line.variantId, line.quantity + 1)}
                           aria-label={`Increase quantity of ${line.productName}`}
-                          className="amb-focus w-7 h-full flex items-center justify-center hover:bg-slate-100 active:bg-slate-200 transition-colors bg-slate-50 border-l border-slate-200 cursor-pointer"
+                          className="amb-focus w-7 h-full flex items-center justify-center hover:bg-background-subtle active:bg-background-hover transition-colors bg-background-subtle border-l border-border cursor-pointer"
                         >
                           <Plus className="w-[14px] h-[14px]" />
                         </button>
@@ -751,7 +751,7 @@ export function PosTerminal(props: { storeName: string; storeCode: string; cashi
                   type="button"
                   onClick={() => setQuantity(line.variantId, 0)}
                   aria-label={`Remove ${line.productName} from cart`}
-                  className="amb-focus absolute top-1 right-1 p-1.5 rounded text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
+                  className="amb-focus absolute top-1 right-1 p-1.5 rounded text-tertiary hover:text-danger hover:bg-danger-subtle transition-colors cursor-pointer"
                 >
                   <Trash2 className="w-[16px] h-[16px]" />
                 </button>
@@ -761,11 +761,11 @@ export function PosTerminal(props: { storeName: string; storeCode: string; cashi
             /* An empty till is the most common state of this panel, so it says what to do
                next rather than only reporting that nothing is here. */
             <div className="flex-1 flex flex-col items-center justify-center text-center px-6">
-               <div className="w-12 h-12 rounded-xl bg-white border border-slate-200 flex items-center justify-center mb-3 shadow-sm">
-                 <Package className="w-5 h-5 text-slate-300" />
+               <div className="w-12 h-12 rounded-xl bg-background-card border border-border flex items-center justify-center mb-3 shadow-sm">
+                 <Package className="w-5 h-5 text-tertiary" />
                </div>
-               <p className="text-[13px] font-semibold text-slate-700">Cart is empty</p>
-               <p className="text-[11px] text-slate-500 mt-1 leading-relaxed">
+               <p className="text-[13px] font-semibold text-secondary">Cart is empty</p>
+               <p className="text-[11px] text-tertiary mt-1 leading-relaxed">
                  Scan a barcode or pick a product to start a sale.
                </p>
             </div>
@@ -773,51 +773,51 @@ export function PosTerminal(props: { storeName: string; storeCode: string; cashi
         </div>
 
         {/* Checkout Footer (Fixed) */}
-        <div className="bg-white border-t border-slate-200 p-3 flex flex-col shrink-0 shadow-[0_-4px_10px_rgba(0,0,0,0.03)] z-20">
+        <div className="bg-background-card border-t border-border p-3 flex flex-col shrink-0 shadow-[0_-4px_10px_rgba(0,0,0,0.03)] z-20">
            
            {/* Discount */}
            <div className="flex gap-2">
-             <input disabled placeholder="Add Discount" className="flex-1 text-[12px] border border-slate-200 rounded-[6px] px-2.5 h-[34px] bg-slate-50 text-slate-500 outline-none" />
-             <div className="flex border border-slate-200 rounded-[6px] overflow-hidden bg-white">
-               <button disabled className="px-2.5 h-[34px] border-r border-slate-200 text-[12px] font-medium text-slate-600 bg-slate-50 opacity-60 cursor-not-allowed">%</button>
-               <button disabled className="px-2.5 h-[34px] text-[12px] font-medium text-slate-600 bg-slate-50 opacity-60 cursor-not-allowed">₹</button>
+             <input disabled placeholder="Add Discount" className="flex-1 text-[12px] border border-border rounded-[6px] px-2.5 h-[34px] bg-background-subtle text-tertiary outline-none" />
+             <div className="flex border border-border rounded-[6px] overflow-hidden bg-background-card">
+               <button disabled className="px-2.5 h-[34px] border-r border-border text-[12px] font-medium text-tertiary bg-background-subtle opacity-60 cursor-not-allowed">%</button>
+               <button disabled className="px-2.5 h-[34px] text-[12px] font-medium text-tertiary bg-background-subtle opacity-60 cursor-not-allowed">₹</button>
              </div>
-             <button disabled className="px-4 h-[34px] bg-slate-100 border border-slate-200 rounded-[6px] text-[12px] font-semibold text-slate-400 opacity-60 cursor-not-allowed">Apply</button>
+             <button disabled className="px-4 h-[34px] bg-background-subtle border border-border rounded-[6px] text-[12px] font-semibold text-tertiary opacity-60 cursor-not-allowed">Apply</button>
            </div>
            
-           <div className="h-px bg-slate-100 w-full my-1.5"></div>
+           <div className="h-px bg-background-subtle w-full my-1.5"></div>
 
            {/* Totals */}
            <div className="flex flex-col text-[12px]">
-              <div className="flex justify-between items-center h-[24px] text-slate-600">
+              <div className="flex justify-between items-center h-[24px] text-tertiary">
                 <span>Items ({cart.reduce((a,b)=>a+b.quantity,0)})</span>
-                <span className="font-semibold text-slate-900">{formatMinor(totals.subtotalMinor)}</span>
+                <span className="font-semibold text-primary">{formatMinor(totals.subtotalMinor)}</span>
               </div>
-              <div className="flex justify-between items-center h-[24px] text-slate-600">
+              <div className="flex justify-between items-center h-[24px] text-tertiary">
                 <span>Discount</span>
-                <span className={totals.discountMinor > 0 ? "text-emerald-700 font-medium" : "text-slate-400"}>{totals.discountMinor > 0 ? `−${formatMinor(totals.discountMinor)}` : "—"}</span>
+                <span className={totals.discountMinor > 0 ? "text-success font-medium" : "text-tertiary"}>{totals.discountMinor > 0 ? `−${formatMinor(totals.discountMinor)}` : "—"}</span>
               </div>
               {/* Only meaningful once a discount exists. With no discount it repeated the
                   Items row to the paisa, so the panel showed the same number twice under two
                   different names — the cashier had to work out that they were the same. */}
               {totals.discountMinor > 0 && (
-                <div className="flex justify-between items-center h-[24px] text-slate-600">
+                <div className="flex justify-between items-center h-[24px] text-tertiary">
                   <span>Subtotal</span>
-                  <span className="font-semibold text-slate-900">{formatMinor(totals.subtotalMinor - totals.discountMinor)}</span>
+                  <span className="font-semibold text-primary">{formatMinor(totals.subtotalMinor - totals.discountMinor)}</span>
                 </div>
               )}
-              <div className="flex justify-between items-center h-[24px] text-slate-600">
+              <div className="flex justify-between items-center h-[24px] text-tertiary">
                 <span>GST / Tax</span>
-                <span className="text-slate-600">{formatMinor(totals.taxMinor)}</span>
+                <span className="text-tertiary">{formatMinor(totals.taxMinor)}</span>
               </div>
               
-              <div className="flex justify-between items-center h-[30px] border-t border-slate-100 mt-1 pt-1">
-                <span className="text-[16px] font-bold text-slate-900">Total Amount</span>
+              <div className="flex justify-between items-center h-[30px] border-t border-border mt-1 pt-1">
+                <span className="text-[16px] font-bold text-primary">Total Amount</span>
                 <span className="text-[18px] font-bold text-blue-700">{formatMinor(totals.totalMinor)}</span>
               </div>
            </div>
 
-           <div className="h-px bg-slate-100 w-full my-2"></div>
+           <div className="h-px bg-background-subtle w-full my-2"></div>
 
            {/* Payment Modes */}
            <div>
@@ -833,7 +833,7 @@ export function PosTerminal(props: { storeName: string; storeCode: string; cashi
                        setAmountReceived(null);
                      }
                    }}
-                   className={`amb-press amb-focus flex-1 text-[11px] font-bold rounded-[6px] border transition-colors cursor-pointer ${method === m.value ? 'bg-[#10b981] border-[#10b981] text-white shadow-sm' : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50 hover:border-slate-300'}`}
+                   className={`amb-press amb-focus flex-1 text-[11px] font-bold rounded-[6px] border transition-colors cursor-pointer ${method === m.value ? 'bg-[#10b981] border-[#10b981] text-white shadow-sm' : 'bg-background-card border-border text-tertiary hover:bg-background-subtle hover:border-border-focus'}`}
                  >
                    {m.label}
                  </button>
@@ -846,7 +846,7 @@ export function PosTerminal(props: { storeName: string; storeCode: string; cashi
              <div className="flex flex-col mt-2">
                 <div className="flex justify-between items-center mb-1.5">
                   {/* A real label/for pair: the text is already on screen, so it should name the field. */}
-                  <label htmlFor="amount-received" className="text-[12px] font-semibold text-slate-600">Amount Received</label>
+                  <label htmlFor="amount-received" className="text-[12px] font-semibold text-tertiary">Amount Received</label>
                   <input
                     id="amount-received"
                     type="number"
@@ -857,13 +857,13 @@ export function PosTerminal(props: { storeName: string; storeCode: string; cashi
                        prompt, and the total stays one tap away on `Exact`. */
                     placeholder="0.00"
                     inputMode="decimal"
-                    className="w-28 text-right text-[13px] font-bold border border-slate-200 rounded-[6px] px-2 h-[34px] transition-colors placeholder:font-normal placeholder:text-slate-400 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none"
+                    className="w-28 text-right text-[13px] font-bold border border-border rounded-[6px] px-2 h-[34px] transition-colors placeholder:font-normal placeholder:text-tertiary focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none"
                   />
                 </div>
                 <div className="flex gap-1 h-[30px] mb-1.5">
-                  <button onClick={() => setAmountReceived((totals.totalMinor/100) + 1)} className="amb-press amb-focus flex-1 text-[11px] border border-slate-200 text-slate-700 bg-white hover:bg-slate-50 hover:border-slate-300 transition-colors rounded-[6px] font-semibold cursor-pointer">+1</button>
-                  <button onClick={() => setAmountReceived((totals.totalMinor/100) + 10)} className="amb-press amb-focus flex-1 text-[11px] border border-slate-200 text-slate-700 bg-white hover:bg-slate-50 hover:border-slate-300 transition-colors rounded-[6px] font-semibold cursor-pointer">+10</button>
-                  <button onClick={() => setAmountReceived((totals.totalMinor/100) + 100)} className="amb-press amb-focus flex-1 text-[11px] border border-slate-200 text-slate-700 bg-white hover:bg-slate-50 hover:border-slate-300 transition-colors rounded-[6px] font-semibold cursor-pointer">+100</button>
+                  <button onClick={() => setAmountReceived((totals.totalMinor/100) + 1)} className="amb-press amb-focus flex-1 text-[11px] border border-border text-secondary bg-background-card hover:bg-background-subtle hover:border-border-focus transition-colors rounded-[6px] font-semibold cursor-pointer">+1</button>
+                  <button onClick={() => setAmountReceived((totals.totalMinor/100) + 10)} className="amb-press amb-focus flex-1 text-[11px] border border-border text-secondary bg-background-card hover:bg-background-subtle hover:border-border-focus transition-colors rounded-[6px] font-semibold cursor-pointer">+10</button>
+                  <button onClick={() => setAmountReceived((totals.totalMinor/100) + 100)} className="amb-press amb-focus flex-1 text-[11px] border border-border text-secondary bg-background-card hover:bg-background-subtle hover:border-border-focus transition-colors rounded-[6px] font-semibold cursor-pointer">+100</button>
                   <button onClick={() => setAmountReceived(totals.totalMinor/100)} className="amb-press amb-focus flex-[1.2] text-[11px] border border-blue-200 text-blue-700 bg-blue-50 hover:bg-blue-100 transition-colors rounded-[6px] font-bold cursor-pointer">Exact</button>
                 </div>
                 {/*
@@ -877,10 +877,10 @@ export function PosTerminal(props: { storeName: string; storeCode: string; cashi
                   const tenderedMinor = amountReceived == null ? null : Math.round(amountReceived * 100);
                   const deltaMinor = tenderedMinor == null ? null : tenderedMinor - totals.totalMinor;
                   const label = deltaMinor == null ? "Change due" : deltaMinor > 0 ? "Change due" : deltaMinor < 0 ? "Short by" : "Exact — no change";
-                  const tone = deltaMinor == null ? "text-slate-400" : deltaMinor > 0 ? "text-emerald-700" : deltaMinor < 0 ? "text-rose-600" : "text-slate-900";
+                  const tone = deltaMinor == null ? "text-tertiary" : deltaMinor > 0 ? "text-success" : deltaMinor < 0 ? "text-danger" : "text-primary";
                   return (
                     <div className="flex justify-between items-center text-[13px] h-[26px]" aria-live="polite">
-                      <span className="font-semibold text-slate-500">{label}</span>
+                      <span className="font-semibold text-tertiary">{label}</span>
                       <span className={`font-bold tabular-nums ${tone}`}>
                         {deltaMinor == null
                           ? "Enter amount"
@@ -898,7 +898,7 @@ export function PosTerminal(props: { storeName: string; storeCode: string; cashi
            {method === 'SPLIT' && (
              <div className="flex flex-col mt-2 gap-2 max-h-[160px] overflow-y-auto pr-1 no-scrollbar">
                 {splitPayments.map((p, i) => (
-                  <div key={p.id} className="flex gap-1.5 items-center bg-white border border-slate-200 rounded-[6px] p-1.5">
+                  <div key={p.id} className="flex gap-1.5 items-center bg-background-card border border-border rounded-[6px] p-1.5">
                     {/*
                       Every control in a split row is labelled by its row number. There is no
                       visible label to point a <label> at — the row is a dense strip of controls
@@ -911,7 +911,7 @@ export function PosTerminal(props: { storeName: string; storeCode: string; cashi
                       aria-label={`Payment ${i + 1} method`}
                       value={p.method}
                       onChange={(e) => setSplitPayments(curr => curr.map(x => x.id === p.id ? { ...x, method: e.target.value as SplitMethod } : x))}
-                      className="w-20 text-[11px] font-bold border-none bg-slate-50 rounded px-1 h-[28px] outline-none text-slate-700 focus:ring-1 focus:ring-blue-500 cursor-pointer"
+                      className="w-20 text-[11px] font-bold border-none bg-background-subtle rounded px-1 h-[28px] outline-none text-secondary focus:ring-1 focus:ring-blue-500 cursor-pointer"
                     >
                       <option value="CASH">Cash</option>
                       <option value="UPI">UPI</option>
@@ -924,7 +924,7 @@ export function PosTerminal(props: { storeName: string; storeCode: string; cashi
                         placeholder="Ref (Opt)"
                         value={p.reference}
                         onChange={(e) => setSplitPayments(curr => curr.map(x => x.id === p.id ? { ...x, reference: e.target.value } : x))}
-                        className="flex-1 text-[11px] border border-slate-200 rounded px-1.5 h-[28px] outline-none focus:border-blue-500 w-16"
+                        className="flex-1 text-[11px] border border-border rounded px-1.5 h-[28px] outline-none focus:border-blue-500 w-16"
                       />
                     ) : (
                       <div className="flex-1 w-16"></div>
@@ -936,7 +936,7 @@ export function PosTerminal(props: { storeName: string; storeCode: string; cashi
                       placeholder="Amt"
                       value={p.amount ?? ''}
                       onChange={(e) => setSplitPayments(curr => curr.map(x => x.id === p.id ? { ...x, amount: e.target.value ? parseFloat(e.target.value) : null } : x))}
-                      className="w-[72px] text-right text-[12px] font-bold border border-slate-200 rounded px-1.5 h-[28px] outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                      className="w-[72px] text-right text-[12px] font-bold border border-border rounded px-1.5 h-[28px] outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
                     />
                     
                     {/*
@@ -947,7 +947,7 @@ export function PosTerminal(props: { storeName: string; storeCode: string; cashi
                       type="button"
                       aria-label={`Remove payment ${i + 1}`}
                       onClick={() => setSplitPayments(curr => curr.filter(x => x.id !== p.id))}
-                      className="w-6 h-[28px] flex items-center justify-center text-slate-400 hover:text-rose-500 hover:bg-rose-50 rounded"
+                      className="w-6 h-[28px] flex items-center justify-center text-tertiary hover:text-danger hover:bg-danger-subtle rounded"
                     >
                       <span aria-hidden="true">×</span>
                     </button>
@@ -967,12 +967,12 @@ export function PosTerminal(props: { storeName: string; storeCode: string; cashi
                   Complete Sale button can never tell the cashier two different things.
                 */}
                 <div className="flex justify-between items-center text-[13px] h-[26px] mt-1 px-1 shrink-0">
-                  <span className="font-semibold text-slate-500">
+                  <span className="font-semibold text-tertiary">
                     {splitRemainingMinor > 0 ? "Remaining" : "Balance"}
                   </span>
                   <span
                     data-testid="split-remaining"
-                    className={`font-bold ${splitRemainingMinor > 0 ? "text-amber-600" : "text-slate-900"}`}
+                    className={`font-bold ${splitRemainingMinor > 0 ? "text-amber-600" : "text-primary"}`}
                   >
                     {splitRemainingMinor > 0
                       ? formatMinor(splitRemainingMinor)
@@ -984,7 +984,7 @@ export function PosTerminal(props: { storeName: string; storeCode: string; cashi
              </div>
            )}
 
-           {saleError && <p className="text-[12px] text-rose-600 font-medium mt-1">{saleError}</p>}
+           {saleError && <p className="text-[12px] text-danger font-medium mt-1">{saleError}</p>}
 
            <button 
              onClick={completeSale}
@@ -1010,11 +1010,11 @@ export function PosTerminal(props: { storeName: string; storeCode: string; cashi
 }
 function ActionBtn({ icon, label, hotkey, disabled = false }: { icon: React.ReactNode, label: string, hotkey?: string, disabled?: boolean }) {
   return (
-    <button disabled={disabled} className={`flex flex-col items-center justify-center gap-1.5 p-3 rounded-lg border ${disabled ? 'border-slate-100 bg-slate-50 text-slate-400 opacity-60 cursor-not-allowed' : 'border-slate-200 bg-white text-slate-700 hover:border-blue-200 hover:bg-blue-50'}`}>
+    <button disabled={disabled} className={`flex flex-col items-center justify-center gap-1.5 p-3 rounded-lg border ${disabled ? 'border-border bg-background-subtle text-tertiary opacity-60 cursor-not-allowed' : 'border-border bg-background-card text-secondary hover:border-blue-200 hover:bg-blue-50'}`}>
        {icon}
        <span className="text-[11px] font-medium text-center leading-tight">
          {label}
-         {hotkey && <span className="block text-[10px] text-slate-400 font-normal">{hotkey}</span>}
+         {hotkey && <span className="block text-[10px] text-tertiary font-normal">{hotkey}</span>}
        </span>
     </button>
   );
@@ -1104,13 +1104,13 @@ function CustomerPicker(props: {
           <Users className="w-5 h-5" />
         </div>
         <div className="flex-1 min-w-0 leading-tight">
-          <p className="text-[12px] font-bold text-slate-900 truncate">{props.customer.name}</p>
-          <p className="text-[10px] text-slate-500 mt-0.5 truncate">{props.customer.phone || 'No phone'}</p>
+          <p className="text-[12px] font-bold text-primary truncate">{props.customer.name}</p>
+          <p className="text-[10px] text-tertiary mt-0.5 truncate">{props.customer.phone || 'No phone'}</p>
         </div>
         <button
           type="button"
           onClick={() => props.onChange(null)}
-          className="px-3 h-[32px] text-[12px] font-semibold bg-slate-50 border border-slate-200/60 text-slate-600 rounded-[6px] hover:bg-slate-100 transition-colors"
+          className="px-3 h-[32px] text-[12px] font-semibold bg-background-subtle border border-border/60 text-tertiary rounded-[6px] hover:bg-background-subtle transition-colors"
         >
           Change
         </button>
@@ -1121,12 +1121,12 @@ function CustomerPicker(props: {
   if (!open) {
     return (
       <div className="flex items-center gap-2.5">
-        <div className="w-10 h-10 rounded-full bg-slate-50 border border-slate-200 text-slate-400 flex items-center justify-center shrink-0 shadow-sm">
+        <div className="w-10 h-10 rounded-full bg-background-subtle border border-border text-tertiary flex items-center justify-center shrink-0 shadow-sm">
           <Users className="w-5 h-5" />
         </div>
         <div className="flex-1 min-w-0 leading-tight">
-          <p className="text-[12px] font-bold text-slate-800">Walk-in Customer</p>
-          <p className="text-[10px] text-slate-500 mt-0.5">Add customer for loyalty, khata or GST</p>
+          <p className="text-[12px] font-bold text-primary">Walk-in Customer</p>
+          <p className="text-[10px] text-tertiary mt-0.5">Add customer for loyalty, khata or GST</p>
         </div>
         <button
           type="button"
@@ -1142,12 +1142,12 @@ function CustomerPicker(props: {
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between">
-        <label className="text-[12px] font-semibold text-slate-700 uppercase tracking-wide">
+        <label className="text-[12px] font-semibold text-secondary uppercase tracking-wide">
           Select Customer
         </label>
         <button
           onClick={() => { setOpen(false); setCreateError(null); }}
-          className="text-[11px] text-slate-500 hover:text-slate-800 underline"
+          className="text-[11px] text-tertiary hover:text-primary underline"
         >
           Cancel
         </button>
@@ -1157,20 +1157,20 @@ function CustomerPicker(props: {
         value={term}
         onChange={(e) => setTerm(e.target.value)}
         placeholder="Search name or phone..."
-        className="w-full text-[13px] border border-slate-300 rounded-md px-3 py-2 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none"
+        className="w-full text-[13px] border border-border-focus rounded-md px-3 py-2 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none"
       />
-      {searching && <p className="text-[11px] text-slate-400">Searching...</p>}
+      {searching && <p className="text-[11px] text-tertiary">Searching...</p>}
       
       {hits.length > 0 && (
-        <ul className="border border-slate-100 rounded-md divide-y divide-slate-100 max-h-32 overflow-y-auto">
+        <ul className="border border-border rounded-md divide-y divide-slate-100 max-h-32 overflow-y-auto">
           {hits.map(hit => (
             <li key={hit.id}>
               <button
                 onClick={() => { props.onChange(hit); setOpen(false); setTerm(""); }}
                 className="w-full text-left px-3 py-2 text-[13px] hover:bg-blue-50 transition-colors flex justify-between items-center"
               >
-                <span className="font-medium text-slate-800">{hit.name}</span>
-                {hit.phone && <span className="text-[11px] text-slate-500">{hit.phone}</span>}
+                <span className="font-medium text-primary">{hit.name}</span>
+                {hit.phone && <span className="text-[11px] text-tertiary">{hit.phone}</span>}
               </button>
             </li>
           ))}
@@ -1178,14 +1178,14 @@ function CustomerPicker(props: {
       )}
 
       {term.length > 0 && !searching && hits.length === 0 && (
-        <div className="pt-2 border-t border-slate-100">
-          <p className="text-[11px] text-slate-500 mb-1">Customer not found. Add new:</p>
+        <div className="pt-2 border-t border-border">
+          <p className="text-[11px] text-tertiary mb-1">Customer not found. Add new:</p>
           <div className="flex gap-2">
             <input
               value={newName}
               onChange={(e) => setNewName(e.target.value)}
               placeholder="Full Name"
-              className="flex-1 text-[13px] border border-slate-300 rounded-md px-3 py-2 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none"
+              className="flex-1 text-[13px] border border-border-focus rounded-md px-3 py-2 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none"
             />
             <button
               onClick={createCustomer}
@@ -1195,7 +1195,7 @@ function CustomerPicker(props: {
               Add
             </button>
           </div>
-          {createError && <p className="text-[12px] text-rose-600 mt-1">{createError}</p>}
+          {createError && <p className="text-[12px] text-danger mt-1">{createError}</p>}
         </div>
       )}
     </div>
@@ -1333,7 +1333,7 @@ function SaleSuccess(props: {
         tabIndex={-1}
         /* `amb-pop-in` replaces `animate-in fade-in zoom-in`, which rendered nothing:
            tailwindcss-animate is not installed and tailwind.config has `plugins: []`. */
-        className="amb-pop-in relative grid w-full max-w-4xl focus:outline-none overflow-hidden rounded-2xl bg-white shadow-2xl lg:grid-cols-2 print:block print:max-w-none print:animate-none print:rounded-none print:shadow-none"
+        className="amb-pop-in relative grid w-full max-w-4xl focus:outline-none overflow-hidden rounded-2xl bg-background-card shadow-2xl lg:grid-cols-2 print:block print:max-w-none print:animate-none print:rounded-none print:shadow-none"
       >
         {/*
           The close control belongs to the dialog, not to either column. At `lg` that puts it
@@ -1346,24 +1346,24 @@ function SaleSuccess(props: {
           onClick={props.onDismiss}
           aria-label="Close and return to the till"
           data-testid="success-close"
-          className="absolute right-3 top-3 z-10 rounded-full bg-white/80 p-1.5 text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-900 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-slate-600 print:hidden"
+          className="absolute right-3 top-3 z-10 rounded-full bg-background-card/80 p-1.5 text-tertiary transition-colors hover:bg-background-subtle hover:text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-slate-600 print:hidden"
         >
           <X className="h-4 w-4" />
         </button>
 
         {/* ---------- Confirmation + actions ---------- */}
         <div className="flex flex-col justify-center p-6 sm:p-8 print:hidden">
-          <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-emerald-100 text-emerald-600">
+          <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-emerald-100 text-success">
             <CheckCircle2 className="h-8 w-8" />
           </div>
 
           <h2
             id="sale-success-heading"
-            className="text-center text-2xl font-bold text-slate-900"
+            className="text-center text-2xl font-bold text-primary"
           >
             Sale Completed!
           </h2>
-          <p className="mt-1 text-center text-[13px] text-slate-500">Bill generated successfully</p>
+          <p className="mt-1 text-center text-[13px] text-tertiary">Bill generated successfully</p>
 
           {sale.duplicate && (
             <p className="mt-4 rounded-lg bg-amber-50 p-2 text-center text-[12px] text-amber-800">
@@ -1372,13 +1372,13 @@ function SaleSuccess(props: {
           )}
 
           {/* Transaction summary */}
-          <dl className="mt-6 grid grid-cols-2 gap-x-4 gap-y-3 rounded-xl bg-slate-50 p-4 sm:grid-cols-4">
+          <dl className="mt-6 grid grid-cols-2 gap-x-4 gap-y-3 rounded-xl bg-background-subtle p-4 sm:grid-cols-4">
             <div>
-              <dt className="text-[11px] font-medium uppercase tracking-wide text-slate-500">
+              <dt className="text-[11px] font-medium uppercase tracking-wide text-tertiary">
                 Bill No.
               </dt>
               <dd
-                className="mt-0.5 flex items-center gap-1.5 text-[13px] font-semibold text-slate-900"
+                className="mt-0.5 flex items-center gap-1.5 text-[13px] font-semibold text-primary"
                 data-testid="success-bill-number"
               >
                 {sale.billNumber}
@@ -1387,7 +1387,7 @@ function SaleSuccess(props: {
                   onClick={copyBillNumber}
                   aria-label={`Copy bill number ${sale.billNumber}`}
                   data-testid="success-copy-bill"
-                  className="rounded p-0.5 text-slate-400 transition-colors hover:bg-white hover:text-slate-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-slate-600"
+                  className="rounded p-0.5 text-tertiary transition-colors hover:bg-background-card hover:text-secondary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-slate-600"
                 >
                   {copied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
                 </button>
@@ -1399,30 +1399,30 @@ function SaleSuccess(props: {
               </dd>
             </div>
             <div>
-              <dt className="text-[11px] font-medium uppercase tracking-wide text-slate-500">
+              <dt className="text-[11px] font-medium uppercase tracking-wide text-tertiary">
                 Date &amp; Time
               </dt>
-              <dd className="mt-0.5 text-[13px] font-semibold text-slate-900">
+              <dd className="mt-0.5 text-[13px] font-semibold text-primary">
                 {receipt ? formatDateTime(new Date(receipt.completedAt)) : "—"}
               </dd>
             </div>
             <div>
-              <dt className="text-[11px] font-medium uppercase tracking-wide text-slate-500">
+              <dt className="text-[11px] font-medium uppercase tracking-wide text-tertiary">
                 Total
               </dt>
               <dd
-                className="mt-0.5 text-[13px] font-semibold text-slate-900"
+                className="mt-0.5 text-[13px] font-semibold text-primary"
                 data-testid="success-total"
               >
                 {formatMinor(totalMinor)}
               </dd>
             </div>
             <div>
-              <dt className="text-[11px] font-medium uppercase tracking-wide text-slate-500">
+              <dt className="text-[11px] font-medium uppercase tracking-wide text-tertiary">
                 Items
               </dt>
               <dd
-                className="mt-0.5 text-[13px] font-semibold text-slate-900"
+                className="mt-0.5 text-[13px] font-semibold text-primary"
                 data-testid="success-item-count"
               >
                 {itemCount ?? "—"}
@@ -1432,11 +1432,11 @@ function SaleSuccess(props: {
 
           {changeMinor > 0 && (
             <div
-              className="mt-3 flex items-center justify-between rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3"
+              className="mt-3 flex items-center justify-between rounded-xl border border-success bg-success-subtle px-4 py-3"
               data-testid="success-change-due"
             >
               <span className="text-[13px] font-semibold text-emerald-900">Change due</span>
-              <span className="text-xl font-bold text-emerald-700">
+              <span className="text-xl font-bold text-success">
                 {formatMinor(changeMinor)}
               </span>
             </div>
@@ -1458,7 +1458,7 @@ function SaleSuccess(props: {
             <Link
               href={`/sales/${sale.id}`}
               data-testid="success-bill-details"
-              className="inline-flex w-full items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white py-3 font-semibold text-slate-700 transition-colors hover:bg-slate-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-slate-600"
+              className="inline-flex w-full items-center justify-center gap-2 rounded-lg border border-border bg-background-card py-3 font-semibold text-secondary transition-colors hover:bg-background-subtle focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-slate-600"
             >
               <FileText className="h-4 w-4" />
               View Bill Details
@@ -1468,7 +1468,7 @@ function SaleSuccess(props: {
               type="button"
               onClick={props.onNewSale}
               data-testid="success-new-sale"
-              className="inline-flex w-full items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white py-3 font-semibold text-blue-700 transition-colors hover:bg-blue-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600"
+              className="inline-flex w-full items-center justify-center gap-2 rounded-lg border border-border bg-background-card py-3 font-semibold text-blue-700 transition-colors hover:bg-blue-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600"
             >
               <Plus className="h-4 w-4" />
               New Sale
@@ -1484,7 +1484,7 @@ function SaleSuccess(props: {
           */}
           {erpPending && (
             <p
-              className="mt-4 text-center text-[11px] text-slate-500"
+              className="mt-4 text-center text-[11px] text-tertiary"
               data-testid="success-erp-status"
             >
               ERP sync pending
@@ -1495,18 +1495,18 @@ function SaleSuccess(props: {
         {/* ---------- Receipt ---------- */}
         <div
           id="sale-receipt"
-          className="relative border-t border-slate-200 bg-slate-100 p-4 sm:p-6 lg:border-l lg:border-t-0 print:border-0 print:bg-white print:p-0"
+          className="relative border-t border-border bg-background-subtle p-4 sm:p-6 lg:border-l lg:border-t-0 print:border-0 print:bg-background-card print:p-0"
         >
           {receipt ? (
-            <div className="mx-auto max-w-[22rem] bg-white px-5 py-6 text-[12px] text-slate-700 shadow-sm print:max-w-none print:shadow-none">
+            <div className="mx-auto max-w-[22rem] bg-background-card px-5 py-6 text-[12px] text-secondary shadow-sm print:max-w-none print:shadow-none">
               {/* Header — store identity. No GSTIN: AMBURAX has no store-level tax
                   registration field, and a tenant-wide taxId is not one. */}
               <div className="text-center">
-                <p className="text-base font-bold tracking-tight text-slate-900">
+                <p className="text-base font-bold tracking-tight text-primary">
                   {receipt.storeName}
                 </p>
-                <p className="mt-0.5 text-[11px] text-slate-500">Store {receipt.storeCode}</p>
-                <p className="mt-1.5 text-[11px] leading-snug text-slate-600">
+                <p className="mt-0.5 text-[11px] text-tertiary">Store {receipt.storeCode}</p>
+                <p className="mt-1.5 text-[11px] leading-snug text-tertiary">
                   {receipt.storeAddressLine}
                   <br />
                   {receipt.storeCity}, {receipt.storeState}
@@ -1514,28 +1514,28 @@ function SaleSuccess(props: {
                 </p>
               </div>
 
-              <dl className="mt-4 space-y-1 border-t border-dashed border-slate-300 pt-3">
+              <dl className="mt-4 space-y-1 border-t border-dashed border-border-focus pt-3">
                 <div className="flex justify-between gap-3">
-                  <dt className="text-slate-500">Bill No.</dt>
-                  <dd className="font-semibold text-slate-900">{receipt.billNumber}</dd>
+                  <dt className="text-tertiary">Bill No.</dt>
+                  <dd className="font-semibold text-primary">{receipt.billNumber}</dd>
                 </div>
                 <div className="flex justify-between gap-3">
-                  <dt className="text-slate-500">Date &amp; Time</dt>
-                  <dd className="text-slate-900">
+                  <dt className="text-tertiary">Date &amp; Time</dt>
+                  <dd className="text-primary">
                     {formatDateTime(new Date(receipt.completedAt))}
                   </dd>
                 </div>
                 <div className="flex justify-between gap-3">
-                  <dt className="text-slate-500">Cashier</dt>
-                  <dd className="text-slate-900">{receipt.cashierName}</dd>
+                  <dt className="text-tertiary">Cashier</dt>
+                  <dd className="text-primary">{receipt.cashierName}</dd>
                 </div>
                 {receipt.customer && (
                   <div className="flex justify-between gap-3">
-                    <dt className="text-slate-500">Customer</dt>
-                    <dd className="text-right text-slate-900" data-testid="receipt-customer">
+                    <dt className="text-tertiary">Customer</dt>
+                    <dd className="text-right text-primary" data-testid="receipt-customer">
                       {receipt.customer.name}
                       {receipt.customer.phone ? (
-                        <span className="block text-[11px] text-slate-500">
+                        <span className="block text-[11px] text-tertiary">
                           {receipt.customer.phone}
                         </span>
                       ) : null}
@@ -1544,10 +1544,10 @@ function SaleSuccess(props: {
                 )}
               </dl>
 
-              <table className="mt-3 w-full border-t border-dashed border-slate-300 pt-2 text-left">
+              <table className="mt-3 w-full border-t border-dashed border-border-focus pt-2 text-left">
                 <caption className="sr-only">Items sold on this bill</caption>
                 <thead>
-                  <tr className="text-[10px] uppercase tracking-wide text-slate-500">
+                  <tr className="text-[10px] uppercase tracking-wide text-tertiary">
                     <th scope="col" className="py-1.5 font-medium">
                       Item
                     </th>
@@ -1569,17 +1569,17 @@ function SaleSuccess(props: {
                     return (
                       <tr key={item.id} className="align-top">
                         <td className="py-1.5 pr-2">
-                          <span className="block text-slate-900">{item.name}</span>
-                          <span className="block text-[10px] text-slate-500">
+                          <span className="block text-primary">{item.name}</span>
+                          <span className="block text-[10px] text-tertiary">
                             {item.sku}
                             {variant ? ` | ${variant}` : ""}
                           </span>
                         </td>
-                        <td className="py-1.5 text-center text-slate-900">{item.quantity}</td>
-                        <td className="py-1.5 text-right text-slate-700">
+                        <td className="py-1.5 text-center text-primary">{item.quantity}</td>
+                        <td className="py-1.5 text-right text-secondary">
                           {formatMinor(item.unitPriceMinor)}
                         </td>
-                        <td className="py-1.5 text-right font-medium text-slate-900">
+                        <td className="py-1.5 text-right font-medium text-primary">
                           {formatMinor(item.lineTotalMinor)}
                         </td>
                       </tr>
@@ -1588,10 +1588,10 @@ function SaleSuccess(props: {
                 </tbody>
               </table>
 
-              <dl className="mt-3 space-y-1 border-t border-dashed border-slate-300 pt-3">
+              <dl className="mt-3 space-y-1 border-t border-dashed border-border-focus pt-3">
                 <div className="flex justify-between gap-3">
-                  <dt className="text-slate-500">Subtotal</dt>
-                  <dd className="text-slate-900">{formatMinor(receipt.subtotalMinor)}</dd>
+                  <dt className="text-tertiary">Subtotal</dt>
+                  <dd className="text-primary">{formatMinor(receipt.subtotalMinor)}</dd>
                 </div>
                 {/*
                   Conditional, and labelled "Discount" rather than "Item discount": the only
@@ -1601,15 +1601,15 @@ function SaleSuccess(props: {
                 */}
                 {receipt.discountMinor > 0 && (
                   <div className="flex justify-between gap-3" data-testid="receipt-discount">
-                    <dt className="text-slate-500">Discount</dt>
-                    <dd className="text-emerald-700">−{formatMinor(receipt.discountMinor)}</dd>
+                    <dt className="text-tertiary">Discount</dt>
+                    <dd className="text-success">−{formatMinor(receipt.discountMinor)}</dd>
                   </div>
                 )}
                 <div className="flex justify-between gap-3">
-                  <dt className="text-slate-500">Tax</dt>
-                  <dd className="text-slate-900">{formatMinor(receipt.taxMinor)}</dd>
+                  <dt className="text-tertiary">Tax</dt>
+                  <dd className="text-primary">{formatMinor(receipt.taxMinor)}</dd>
                 </div>
-                <div className="mt-1 flex justify-between gap-3 border-t border-slate-300 pt-2 text-[13px] font-bold text-slate-900">
+                <div className="mt-1 flex justify-between gap-3 border-t border-border-focus pt-2 text-[13px] font-bold text-primary">
                   <dt>
                     Total ({receipt.items.reduce((n, i) => n + i.quantity, 0)} items)
                   </dt>
@@ -1617,17 +1617,17 @@ function SaleSuccess(props: {
                 </div>
               </dl>
 
-              <div className="mt-3 border-t border-dashed border-slate-300 pt-3">
-                <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">
+              <div className="mt-3 border-t border-dashed border-border-focus pt-3">
+                <p className="text-[10px] font-semibold uppercase tracking-wide text-tertiary">
                   Payment details
                 </p>
                 <ul className="mt-1.5 space-y-1" data-testid="receipt-payments">
                   {receipt.payments.map((p, i) => (
                     <li key={`${p.method}-${i}`} className="flex justify-between gap-3">
-                      <span className="text-slate-700">
+                      <span className="text-secondary">
                         {i + 1}. {p.method}
                         {p.reference ? (
-                          <span className="block text-[10px] text-slate-500">{p.reference}</span>
+                          <span className="block text-[10px] text-tertiary">{p.reference}</span>
                         ) : null}
                         {/* Surfaced only when it is not confirmed — a till must never imply a
                             tender settled when the row says otherwise. */}
@@ -1637,27 +1637,27 @@ function SaleSuccess(props: {
                           </span>
                         ) : null}
                       </span>
-                      <span className="font-medium text-slate-900">
+                      <span className="font-medium text-primary">
                         {formatMinor(p.amountMinor)}
                       </span>
                     </li>
                   ))}
                 </ul>
                 {changeMinor > 0 && (
-                  <div className="mt-2 flex justify-between gap-3 border-t border-dashed border-slate-300 pt-2 font-semibold text-slate-900">
+                  <div className="mt-2 flex justify-between gap-3 border-t border-dashed border-border-focus pt-2 font-semibold text-primary">
                     <span>Change</span>
                     <span data-testid="receipt-change">{formatMinor(changeMinor)}</span>
                   </div>
                 )}
               </div>
 
-              <p className="mt-4 text-center text-[10px] text-slate-500">
+              <p className="mt-4 text-center text-[10px] text-tertiary">
                 {erpPending ? "ERP sync pending" : "ERP synced"}
               </p>
             </div>
           ) : receiptFailed ? (
             <div className="flex h-full min-h-[12rem] items-center justify-center px-6 text-center">
-              <p className="text-[12px] text-slate-600" data-testid="receipt-unavailable">
+              <p className="text-[12px] text-tertiary" data-testid="receipt-unavailable">
                 The sale is recorded and the bill number above is final. The printable receipt
                 could not be loaded — open{" "}
                 <Link href={`/sales/${sale.id}`} className="font-semibold text-blue-700 underline">
@@ -1668,7 +1668,7 @@ function SaleSuccess(props: {
             </div>
           ) : (
             <div className="flex h-full min-h-[12rem] items-center justify-center">
-              <p className="text-[12px] text-slate-500">Loading receipt...</p>
+              <p className="text-[12px] text-tertiary">Loading receipt...</p>
             </div>
           )}
         </div>
