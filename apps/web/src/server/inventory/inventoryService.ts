@@ -1,6 +1,7 @@
 import { Prisma } from "@prisma/client";
 import { db } from "@/server/db";
 import { writeAuditLog } from "@/server/identity/audit";
+import { enqueueOutboxEvent } from "@/server/events/outbox";
 import { canManageInventory } from "@/server/inventory/inventoryRoles";
 import {
   applyStockMovement,
@@ -138,8 +139,8 @@ async function applyAudited(params: {
 
   let applied;
   try {
-    applied = await db.$transaction((tx) =>
-      applyStockMovement(tx, {
+    applied = await db.$transaction(async (tx) => {
+      const movement = await applyStockMovement(tx, {
         tenantId: params.actor.tenantId,
         storeId: params.target.storeId,
         variantId: params.target.variantId,
@@ -148,8 +149,21 @@ async function applyAudited(params: {
         reason: params.reason,
         actorUserId: params.actor.userId,
         idempotencyKey: params.idempotencyKey,
-      }),
-    );
+      });
+
+      await enqueueOutboxEvent(tx, {
+        tenantId: params.actor.tenantId,
+        storeId: params.target.storeId,
+        eventType: "StockMovementCreated",
+        entityId: movement.movementId,
+        causationId: params.idempotencyKey,
+        correlationId: params.correlationId,
+        actorUserId: params.actor.userId,
+        payload: { movementId: movement.movementId },
+      });
+
+      return movement;
+    });
   } catch (err) {
     if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002") {
       const raced = await findExistingMovement(params.actor.tenantId, params.idempotencyKey);

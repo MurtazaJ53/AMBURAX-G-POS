@@ -32,6 +32,7 @@ export const OUTBOX_EVENT_TYPES = [
   "ProductVariantCreated",
   "ProductVariantUpdated",
   "StoreCreated",
+  "StockMovementCreated",
 ] as const;
 
 export type OutboxEventType = (typeof OUTBOX_EVENT_TYPES)[number];
