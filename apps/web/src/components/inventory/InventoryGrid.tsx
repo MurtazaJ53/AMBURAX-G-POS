@@ -17,10 +17,10 @@ export type ViewMode = "table" | "grid";
 
 export function StatusPill({ status }: { status: string }) {
   let style = "bg-slate-100 text-slate-700";
-  if (status === "In Stock") style = "bg-success-10 text-success";
-  if (status === "Low Stock") style = "bg-warning-10 text-warning";
-  if (status === "Out of Stock") style = "bg-danger-10 text-danger";
-  if (status === "Negative") style = "bg-danger-20 text-danger";
+  if (status === "In Stock") style = "bg-success-subtle text-success";
+  if (status === "Low Stock") style = "bg-warning-subtle text-warning";
+  if (status === "Out of Stock") style = "bg-danger-subtle text-danger";
+  if (status === "Negative") style = "bg-danger-subtle text-danger";
 
   return (
     <span
@@ -90,7 +90,7 @@ export function InventoryToolbar({
 
   return (
     <div className="flex h-14 shrink-0 items-center justify-between border-b border-border bg-background-card px-4">
-      <div className="text-xs font-medium text-secondary">
+      <div className="text-[10px] font-medium text-secondary">
         {total} {total === 1 ? "variant" : "variants"}
       </div>
 
@@ -231,13 +231,13 @@ export function InventoryGrid({
               <Thumb imageUrl={p.variant.product.imageUrl} name={p.variant.product.name} />
             </div>
             <div className="p-3 flex-1 flex flex-col min-w-0 w-full">
-              <b className="block truncate text-xs font-bold text-primary mb-0.5">{p.variant.product.name}</b>
+              <b className="block truncate text-[10px] font-bold text-primary mb-0.5">{p.variant.product.name}</b>
               <span className="block truncate font-mono text-[10px] text-secondary mb-2">{p.variant.sku}</span>
               
               <div className="mt-auto flex items-end justify-between">
                 <div>
                   <span className="block text-[10px] text-tertiary">Stock</span>
-                  <span className="text-sm font-bold text-primary">{p.quantity}</span>
+                  <span className="text-[11px] font-bold text-primary">{p.quantity}</span>
                 </div>
                 <StatusPill status={st} />
               </div>

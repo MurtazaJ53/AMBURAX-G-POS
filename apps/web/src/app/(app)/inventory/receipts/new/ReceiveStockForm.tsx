@@ -4,10 +4,16 @@ import * as React from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Package, Hash, FileText } from "lucide-react";
 
-export function ReceiveStockForm({ variants, storeId }: { variants: any[], storeId: string }) {
+interface VariantOption {
+  id: string;
+  sku: string;
+  name: string;
+  imageUrl?: string | null;
+}
+
+export function ReceiveStockForm({ variants, storeId }: { variants: VariantOption[], storeId: string }) {
   const router = useRouter();
   const [loading, setLoading] = React.useState(false);
   const [error, setError] = React.useState("");
@@ -57,108 +63,119 @@ export function ReceiveStockForm({ variants, storeId }: { variants: any[], store
   }
 
   return (
-    <Card className="max-w-2xl mx-auto shadow-sm">
-      <CardHeader>
-        {/* This card is the page, so its title is the page's h1 — one heading, not two. */}
-        <CardTitle as="h1">Receive Stock</CardTitle>
-        <CardDescription>
-          Record incoming stock for products. This will immediately increase the available inventory in this store.
-        </CardDescription>
-      </CardHeader>
-      <form onSubmit={onSubmit}>
-        <CardContent className="space-y-6">
+    <form onSubmit={onSubmit} className="space-y-6 max-w-2xl mx-auto">
+      <div className="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+        <div className="border-b border-slate-100 bg-slate-50/50 px-6 py-4">
+          <h1 className="text-lg font-semibold text-slate-900">Receive Stock</h1>
+          <p className="text-sm text-slate-500 mt-1">
+            Record incoming stock for products. This will immediately increase the available inventory in this store.
+          </p>
+        </div>
+        
+        <div className="p-6 space-y-6">
           {error && (
-            <div className="rounded-md bg-red-50 dark:bg-red-900/20 p-4 border border-red-200 dark:border-red-800">
-              <h3 className="text-sm font-medium text-red-800 dark:text-red-300">Error</h3>
-              <div className="mt-1 text-sm text-red-700 dark:text-red-400">{error}</div>
+            <div className="rounded-lg bg-red-50 p-4 border border-red-200">
+              <h3 className="text-sm font-medium text-red-800">Error</h3>
+              <div className="mt-1 text-sm text-red-700">{error}</div>
             </div>
           )}
 
-          <div className="space-y-2">
-            <label htmlFor="variantId" className="block text-sm font-medium text-primary">
-              Product Variant
-            </label>
-            <div className="relative">
-              <Package className="absolute left-3 top-3 h-4 w-4 text-tertiary" />
-              <select
-                id="variantId"
-                name="variantId"
-                required
-                className="flex h-10 w-full appearance-none rounded-md border border-border bg-background-card pl-9 pr-8 py-2 text-sm text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-border-focus"
-              >
-                <option value="">Select a variant...</option>
-                {variants.map(v => (
-                  <option key={v.id} value={v.id}>
-                    {v.name} • {v.sku}
-                  </option>
-                ))}
-              </select>
-              <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-tertiary">
-                <svg className="h-4 w-4 fill-current" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20">
-                  <path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z" />
-                </svg>
+          <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
+            <div className="sm:col-span-2 space-y-2">
+              <label htmlFor="variantId" className="block text-sm font-medium text-slate-900">
+                Product Variant
+              </label>
+              <div className="relative mt-1">
+                <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
+                  <Package className="h-4 w-4 text-slate-400" />
+                </div>
+                <select
+                  id="variantId"
+                  name="variantId"
+                  required
+                  className="block w-full rounded-lg border border-slate-300 pl-10 pr-10 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 bg-white appearance-none"
+                >
+                  <option value="">Select a variant...</option>
+                  {variants.map(v => (
+                    <option key={v.id} value={v.id}>
+                      {v.name} � {v.sku}
+                    </option>
+                  ))}
+                </select>
+                <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-slate-400">
+                  <svg className="h-4 w-4 fill-current" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20">
+                    <path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z" />
+                  </svg>
+                </div>
+              </div>
+              {variants.length === 0 && (
+                <p className="text-xs text-red-500 mt-1">No active variants found in this store.</p>
+              )}
+            </div>
+
+            <div className="space-y-2">
+              <label htmlFor="quantity" className="block text-sm font-medium text-slate-900">
+                Quantity to Receive
+              </label>
+              <div className="relative mt-1">
+                <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
+                  <Hash className="h-4 w-4 text-slate-400" />
+                </div>
+                <Input
+                  type="number"
+                  name="quantity"
+                  id="quantity"
+                  min="1"
+                  required
+                  placeholder="e.g. 50"
+                  className="pl-10 block w-full rounded-lg border-slate-300 focus:border-blue-500 focus:ring-blue-500/20"
+                />
+              </div>
+              <p className="text-xs text-slate-500 mt-1">
+                Must be a positive integer matching the base unit.
+              </p>
+            </div>
+
+            <div className="space-y-2">
+              <label htmlFor="reason" className="block text-sm font-medium text-slate-900">
+                Reference / Reason <span className="text-slate-400 font-normal">(Optional)</span>
+              </label>
+              <div className="relative mt-1">
+                <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
+                  <FileText className="h-4 w-4 text-slate-400" />
+                </div>
+                <Input
+                  type="text"
+                  name="reason"
+                  id="reason"
+                  maxLength={500}
+                  placeholder="e.g. PO-2026-09-19"
+                  className="pl-10 block w-full rounded-lg border-slate-300 focus:border-blue-500 focus:ring-blue-500/20"
+                />
               </div>
             </div>
-            {variants.length === 0 && (
-              <p className="text-xs text-red-500">No active variants found in this store.</p>
-            )}
           </div>
-
-          <div className="space-y-2">
-            <label htmlFor="quantity" className="block text-sm font-medium text-primary">
-              Quantity to Receive
-            </label>
-            <div className="relative">
-              <Hash className="absolute left-3 top-3 h-4 w-4 text-tertiary" />
-              <Input
-                type="number"
-                name="quantity"
-                id="quantity"
-                min="1"
-                required
-                placeholder="e.g. 50"
-                className="pl-9"
-              />
-            </div>
-            <p className="text-xs text-secondary">
-              Must be a positive integer matching the product&apos;s base unit of measure.
-            </p>
-          </div>
-
-          <div className="space-y-2">
-            <label htmlFor="reason" className="block text-sm font-medium text-primary">
-              Reference / Reason <span className="text-tertiary font-normal">(Optional)</span>
-            </label>
-            <div className="relative">
-              <FileText className="absolute left-3 top-3 h-4 w-4 text-tertiary" />
-              <Input
-                type="text"
-                name="reason"
-                id="reason"
-                maxLength={500}
-                placeholder="e.g. PO-2026-09-19"
-                className="pl-9"
-              />
-            </div>
-          </div>
-        </CardContent>
-        <CardFooter className="flex justify-between border-t border-border bg-slate-50 dark:bg-slate-900/50 p-6">
+        </div>
+        
+        <div className="flex items-center justify-end gap-3 border-t border-slate-100 bg-slate-50/50 px-6 py-4">
           <Button
             type="button"
             variant="outline"
             onClick={() => router.push("/inventory")}
             disabled={loading}
+            className="rounded-lg bg-white shadow-sm hover:bg-slate-50"
           >
             Cancel
           </Button>
           <Button
             type="submit"
             disabled={loading || variants.length === 0}
+            className="rounded-lg shadow-sm"
           >
             {loading ? "Receiving..." : "Receive Stock"}
           </Button>
-        </CardFooter>
-      </form>
-    </Card>
+        </div>
+      </div>
+    </form>
   );
 }
