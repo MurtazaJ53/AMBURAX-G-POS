@@ -123,7 +123,9 @@ export async function getHeldBill(tenantId: string, storeId: string, id: string)
     include: {
       items: {
         include: {
-          variant: true,
+          variant: {
+            include: { product: true }
+          },
         }
       }
     }
