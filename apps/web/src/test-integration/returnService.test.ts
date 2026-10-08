@@ -25,6 +25,7 @@ describe("Returns & Exchanges Domain Foundation", () => {
     await db.sale.deleteMany({ where: { tenantId } });
     await db.productVariant.deleteMany({ where: { tenantId } });
     await db.product.deleteMany({ where: { tenantId } });
+    await db.outboxEvent.deleteMany({ where: { tenantId } });
     await db.store.deleteMany({ where: { tenantId } });
     await db.user.deleteMany({ where: { tenantId } });
     await db.tenant.deleteMany({ where: { id: tenantId } });
@@ -110,6 +111,7 @@ describe("Returns & Exchanges Domain Foundation", () => {
     await db.sale.deleteMany({ where: { tenantId } });
     await db.productVariant.deleteMany({ where: { tenantId } });
     await db.product.deleteMany({ where: { tenantId } });
+    await db.outboxEvent.deleteMany({ where: { tenantId } });
     await db.store.deleteMany({ where: { tenantId } });
     await db.user.deleteMany({ where: { tenantId } });
     await db.tenant.deleteMany({ where: { id: tenantId } });

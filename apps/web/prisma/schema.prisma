@@ -1828,7 +1828,7 @@ model SaleReturn {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  originalSale Sale                @relation(fields: [originalSaleId], references: [id])
+  originalSale Sale                @relation(fields: [tenantId, originalSaleId], references: [tenantId, id])
   items        SaleReturnItem[]
   payments     SaleReturnPayment[]
 
