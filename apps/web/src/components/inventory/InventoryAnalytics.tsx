@@ -228,6 +228,7 @@ export const MOVEMENT_LABELS: Record<StockMovementType, string> = {
   OPENING_BALANCE: "Opening balance",
   RECEIPT: "Receipt",
   SALE: "Sale",
+  RETURN: "Return",
   ADJUSTMENT: "Adjustment",
   STOCK_TAKE: "Stock take",
 };

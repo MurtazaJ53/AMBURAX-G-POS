@@ -117,10 +117,11 @@ model Tenant {
   // rather than an `isDefault` flag on PriceList for the same reason customer addresses use
   // pointers: a column holds one value, so "two tenant defaults" is not a state the database
   // can represent, and no partial unique index (which Prisma cannot model) is needed.
-  defaultPriceListId String?
-  defaultPriceList   PriceList?   @relation("TenantDefaultPriceList", fields: [defaultPriceListId, id], references: [id, tenantId])
-  StockLevel         StockLevel[]
-  heldBills          HeldBill[]
+  defaultPriceListId  String?
+  defaultPriceList    PriceList?           @relation("TenantDefaultPriceList", fields: [defaultPriceListId, id], references: [id, tenantId])
+  StockLevel          StockLevel[]
+  heldBills           HeldBill[]
+  pendingPriceChanges PendingPriceChange[]
 
   @@map("tenants")
 }
@@ -767,13 +768,14 @@ model ProductVariant {
 
   // Composite. A variant of one tenant hanging off another tenant's product would put a
   // foreign product's name and unit on this tenant's sale lines.
-  product        Product         @relation(fields: [productId, tenantId], references: [id, tenantId])
-  saleItems      SaleItem[]
-  orderItems     OrderItem[]
-  stockLevels    StockLevel[]
-  stockMovements StockMovement[]
-  priceListItems PriceListItem[]
-  heldBillItems  HeldBillItem[]
+  product             Product              @relation(fields: [productId, tenantId], references: [id, tenantId])
+  saleItems           SaleItem[]
+  orderItems          OrderItem[]
+  stockLevels         StockLevel[]
+  stockMovements      StockMovement[]
+  priceListItems      PriceListItem[]
+  heldBillItems       HeldBillItem[]
+  pendingPriceChanges PendingPriceChange[]
 
   // SKU and barcode are unique per tenant, not globally: two businesses may legitimately
   // use the same SKU string, and a global constraint would leak one tenant's namespace
@@ -1125,6 +1127,8 @@ model Sale {
   posSessionId String?
   posSession   PosSession? @relation(fields: [posSessionId, tenantId], references: [id, tenantId])
 
+  returns SaleReturn[]
+
   @@unique([tenantId, idempotencyKey])
   @@unique([storeId, billNumber])
   // The referencable half of SaleItem's composite foreign key, the same shape every other
@@ -1162,6 +1166,8 @@ model SaleItem {
   sale    Sale           @relation(fields: [saleId, tenantId], references: [id, tenantId], onDelete: Cascade)
   variant ProductVariant @relation(fields: [variantId, tenantId], references: [id, tenantId])
 
+  returnItems SaleReturnItem[]
+
   @@index([tenantId, saleId])
   @@index([saleId])
   @@index([variantId])
@@ -1193,19 +1199,19 @@ model SalePayment {
 // Records cash/bank payment collected against a customer's outstanding balance,
 // which is then asynchronously synchronized to an ERPNext Payment Entry via Outbox.
 model KhataPayment {
-  id                String         @id @default(cuid())
+  id                String        @id @default(cuid())
   tenantId          String
   customerId        String
   actorUserId       String
   amountMinor       Int
-  paymentMethod     PaymentMethod  @default(CASH)
+  paymentMethod     PaymentMethod @default(CASH)
   reference         String?
   notes             String?
-  idempotencyKey    String         @unique
-  erpSyncStatus     ErpSyncStatus  @default(PENDING)
+  idempotencyKey    String        @unique
+  erpSyncStatus     ErpSyncStatus @default(PENDING)
   erpPaymentEntryId String?
-  createdAt         DateTime       @default(now())
-  updatedAt         DateTime       @updatedAt
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
 
   tenant   Tenant   @relation(fields: [tenantId], references: [id])
   customer Customer @relation(fields: [customerId, tenantId], references: [id, tenantId])
@@ -1266,6 +1272,8 @@ enum StockMovementType {
   // The POS decrement. Produced inside the sale transaction, so it exists if and only if the
   // sale does.
   SALE
+  // Stock returning from a customer into a store's inventory.
+  RETURN
   // A correction with a stated reason: damage, theft, shrinkage, a data-entry error.
   ADJUSTMENT
   // The delta between a physical count and the recorded balance. Distinct from ADJUSTMENT
@@ -1307,6 +1315,15 @@ model StockMovement {
   // Not authoritative — the running sum is — but it makes a ledger readable without
   // replaying it, and makes drift obvious to a sweep comparing the two.
   balanceAfter Int
+
+  // What one base unit cost to buy, in minor units, as the person receiving the goods stated it.
+  // RECEIPT only, and optional: a shop that does not track purchase prices still receives
+  // stock. Recorded per receipt rather than on the variant because cost is a property of a
+  // delivery — the March lot and the October lot of the same shirt cost different amounts.
+  //
+  // Informational here. Valuation (FIFO / moving average) belongs to the ledger owner, which
+  // receives this as the Material Receipt's basic rate; nothing in AMBURAX values stock.
+  unitCostMinor Int?
 
   // Free text for ADJUSTMENT and STOCK_TAKE. An unexplained correction is indistinguishable
   // from a mistake.
@@ -1733,4 +1750,124 @@ model HeldBillItem {
   @@unique([heldBillId, variantId])
   @@index([tenantId, heldBillId])
   @@map("held_bill_items")
+}
+
+// A selling-price change waiting for older stock to sell through.
+//
+// The retail problem it solves: a shirt restocks with a higher MRP printed on the new tags, but
+// the shelf still holds units tagged at the old MRP, and those may never be charged above what
+// their tag says. So the new price is queued, not applied: `unitsAhead` starts at the number of
+// units on hand before the delivery arrived, every unit that leaves stock (sale, write-off,
+// count shortfall) is taken off it — oldest first, which is how a shelf actually empties — and
+// the price switches by itself, inside the transaction that sold the last older unit.
+//
+// Tenant-wide, because the selling price is: the variant has one price, so "older stock" means
+// every older unit in every store.
+//
+// Rows are never deleted. APPLIED and CANCELLED rows are the history of why a price changed.
+model PendingPriceChange {
+  id        String @id @default(cuid())
+  tenantId  String
+  variantId String
+
+  newPriceMinor Int
+  newMrpMinor   Int?
+
+  // What the price was when this was queued, so the history reads "999 to 1199" without
+  // reconstructing it.
+  previousPriceMinor Int
+  previousMrpMinor   Int?
+
+  // Older units still to leave stock before this price takes over. Decremented atomically by
+  // the stock ledger; at or below zero the change applies.
+  unitsAhead Int
+
+  status PriceChangeStatus @default(PENDING)
+
+  // The receipt that brought in the new-price stock.
+  sourceMovementId String?
+  actorUserId      String?
+
+  createdAt DateTime  @default(now())
+  appliedAt DateTime?
+
+  tenant  Tenant         @relation(fields: [tenantId], references: [id])
+  variant ProductVariant @relation(fields: [variantId, tenantId], references: [id, tenantId])
+
+  @@index([tenantId, variantId, status])
+  @@map("pending_price_changes")
+}
+
+enum PriceChangeStatus {
+  PENDING
+  APPLIED
+  // Superseded by a later decision: a price set directly, or a newer receipt that changed the
+  // price for all stock at once.
+  CANCELLED
+}
+
+// =========================================================================================
+// RETURNS & EXCHANGES
+// =========================================================================================
+
+model SaleReturn {
+  id             String @id @default(cuid())
+  tenantId       String
+  storeId        String
+  originalSaleId String
+
+  status           SaleStatus @default(COMPLETED)
+  totalRefundMinor Int
+  reason           String?
+
+  idempotencyKey    String
+  erpSyncStatus     ErpSyncStatus @default(PENDING)
+  erpInvoiceId      String?
+  amburaxExchangeId String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  originalSale Sale                @relation(fields: [originalSaleId], references: [id])
+  items        SaleReturnItem[]
+  payments     SaleReturnPayment[]
+
+  @@unique([tenantId, idempotencyKey])
+  @@index([tenantId, storeId])
+  @@index([originalSaleId])
+  @@map("sale_returns")
+}
+
+model SaleReturnItem {
+  id                 String @id @default(cuid())
+  saleReturnId       String
+  originalSaleItemId String
+
+  quantity    Int
+  refundMinor Int
+
+  saleReturn       SaleReturn @relation(fields: [saleReturnId], references: [id], onDelete: Cascade)
+  originalSaleItem SaleItem   @relation(fields: [originalSaleItemId], references: [id])
+
+  @@index([saleReturnId])
+  @@index([originalSaleItemId])
+  @@map("sale_return_items")
+}
+
+model SaleReturnPayment {
+  id           String @id @default(cuid())
+  saleReturnId String
+
+  method      PaymentMethod
+  amountMinor Int
+  status      PaymentStatus @default(PENDING)
+  reference   String?
+  confirmedAt DateTime?
+
+  createdAt DateTime @default(now())
+
+  saleReturn SaleReturn @relation(fields: [saleReturnId], references: [id], onDelete: Cascade)
+
+  @@index([saleReturnId])
+  @@map("sale_return_payments")
 }
