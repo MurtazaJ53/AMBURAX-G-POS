@@ -24,6 +24,7 @@ import { formatMinor } from "@/server/sales/saleTotals";
 import { formatDateOnly, formatDateTime, formatTime } from "@/app/(app)/sales/formatDateTime";
 import { StatusBadge } from "@/app/(app)/_components/ui";
 import { ActiveDot, CustomerAvatar, NotConnectedChip, SegmentPill, StatTile } from "../customerUi";
+import { CustomerKhataSection } from "../CustomerKhataSection";
 
 function SectionCard(props: {
   title: string;
@@ -311,29 +312,7 @@ export default async function CustomerProfilePage(props: { params: Promise<{ id:
             )}
           </SectionCard>
 
-          <section
-            aria-labelledby="profile-khata-heading"
-            className="cust-rise relative overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm"
-            style={{ ["--i" as string]: 10 }}
-          >
-            <div aria-hidden="true" className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-blue-600 via-indigo-500 to-violet-500" />
-            <div className="p-5">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <h2 id="profile-khata-heading" className="flex items-center gap-2 text-sm font-semibold text-slate-900">
-                  <span aria-hidden="true" className="flex h-7 w-7 items-center justify-center rounded-lg bg-gradient-to-br from-blue-600 to-indigo-600 text-white">
-                    <BookOpen className="h-4 w-4" />
-                  </span>
-                  Khata &amp; dues
-                </h2>
-                <NotConnectedChip />
-              </div>
-              <p className="mt-3 text-sm font-medium text-slate-800">Accounting sync not connected</p>
-              <p className="mt-1 text-xs leading-relaxed text-slate-600">
-                Outstanding balance, ledger entries and payment history are held by the accounting sync.
-                They will appear here once receivables are connected — AMBURAX does not estimate them.
-              </p>
-            </div>
-          </section>
+          <CustomerKhataSection customerId={customer.id} />
         </div>
       </div>
     </div>
