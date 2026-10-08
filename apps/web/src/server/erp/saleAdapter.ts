@@ -104,12 +104,15 @@ export class ErpSaleAdapter {
         rate: item.unitPriceMinor / 100,
       }));
 
-      const payments = [
-        {
-          mode_of_payment: sale.paidMinor > 0 ? "Cash" : undefined,
-          amount: sale.paidMinor / 100,
-        }
-      ].filter(p => p.amount > 0);
+      const payments = sale.payments.map((p) => {
+        let mode = "Cash";
+        if (p.method === "UPI") mode = "UPI";
+        else if (p.method === "CARD") mode = "Credit Card";
+        return {
+          mode_of_payment: mode,
+          amount: p.amountMinor / 100,
+        };
+      }).filter(p => p.amount > 0);
 
       if (!sale.store.erpnextWarehouseId) {
         throw new ErpError({
@@ -140,7 +143,11 @@ export class ErpSaleAdapter {
             const custAdapter = new ErpCustomerAdapter(this.transport);
             customerName = await custAdapter.syncCustomer(tenantId, sale.customerId, correlationId);
           }
-        } catch {
+        } catch (err) {
+          // A paid bill can fall back to the walk-in "Cash" customer and lose nothing. A bill
+          // with udhar cannot: its outstanding amount would land on "Cash" and vanish from the
+          // customer's khata. So it waits and retries until the customer itself is synced.
+          if (sale.paidMinor < sale.totalMinor) throw err;
           customerName = "Cash";
         }
       }
@@ -151,6 +158,10 @@ export class ErpSaleAdapter {
         customer: customerName,
         is_pos: 1,
         update_stock: 1,
+        // Submitted on insert, not left as a draft. A draft posts nothing: no stock leaves the
+        // warehouse, and an udhar bill's unpaid amount never becomes an outstanding receivable,
+        // so the customer's khata in the ledger (which reads submitted invoices) would miss it.
+        docstatus: 1,
         set_warehouse: sale.store.erpnextWarehouseId, 
         items,
         payments,
