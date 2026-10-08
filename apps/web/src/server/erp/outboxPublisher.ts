@@ -4,6 +4,7 @@ import { ErpStoreAdapter } from "@/server/erp/storeAdapter";
 import { ErpInventoryAdapter } from "@/server/erp/inventoryAdapter";
 import { ErpCustomerAdapter } from "@/server/erp/customerAdapter";
 import { ErpPaymentAdapter } from "@/server/erp/paymentAdapter";
+import { ErpReturnAdapter } from "@/server/erp/returnAdapter";
 import type { PublishableEvent, OutboxPublisher } from "@/server/events/publisher";
 
 export class ErpOutboxPublisher implements OutboxPublisher {
@@ -13,7 +14,8 @@ export class ErpOutboxPublisher implements OutboxPublisher {
     private storeAdapter = new ErpStoreAdapter(),
     private inventoryAdapter = new ErpInventoryAdapter(),
     private customerAdapter = new ErpCustomerAdapter(),
-    private paymentAdapter = new ErpPaymentAdapter()
+    private paymentAdapter = new ErpPaymentAdapter(),
+    private returnAdapter = new ErpReturnAdapter()
   ) {}
 
   async publish(event: PublishableEvent): Promise<void> {
@@ -47,6 +49,11 @@ export class ErpOutboxPublisher implements OutboxPublisher {
         throw new Error("CustomerPaymentCollected event missing entityId");
       }
       await this.paymentAdapter.syncPayment(event.tenantId, event.entityId, event.correlationId);
+    } else if (event.eventType === "SaleReturnCreated") {
+      if (!event.entityId) {
+        throw new Error("SaleReturnCreated event missing entityId");
+      }
+      await this.returnAdapter.syncReturn(event.tenantId, event.entityId, event.correlationId);
     }
   }
 }

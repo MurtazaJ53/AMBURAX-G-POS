@@ -1,6 +1,7 @@
 import { db } from "@/server/db";
 import { StockMovementType, SaleStatus, PaymentStatus } from "@prisma/client";
 import { randomUUID } from "crypto";
+import { enqueueOutboxEvent } from "@/server/events/outbox";
 
 export class ReturnDomainError extends Error {
   constructor(public code: string, message: string) {
@@ -181,6 +182,15 @@ export async function createReturn(input: CreateReturnInput) {
         items: true,
         payments: true,
       },
+    });
+
+    await enqueueOutboxEvent(tx, {
+      tenantId: input.tenantId,
+      storeId: input.storeId,
+      eventType: "SaleReturnCreated",
+      correlationId: randomUUID(),
+      entityId: newReturn.id,
+      payload: { saleReturnId: newReturn.id },
     });
 
     return { saleReturn: newReturn, duplicate: false };
