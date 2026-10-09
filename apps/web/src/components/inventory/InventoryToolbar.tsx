@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Search, SlidersHorizontal, RotateCcw, List, Grid2X2 } from "lucide-react";
 import Link from "next/link";
@@ -34,6 +34,10 @@ export function InventoryToolbar({
     setQuery(search || "");
   }
 
+  // Pending state for the live search below, so a filter in flight is visible rather than
+  // looking like nothing happened.
+  const [isPending, startTransition] = useTransition();
+
   const apply = (updates: { q?: string; status?: string; category?: string; brand?: string; view?: string }) => {
     const p = new URLSearchParams();
     
@@ -61,6 +65,31 @@ export function InventoryToolbar({
     router.push(`/inventory?${p.toString()}`);
   };
 
+  /*
+    Live search, 350ms — the same debounce the sales screen already uses, so every search box
+    in the product behaves the same way. This one previously did nothing until Enter.
+
+    `query` is re-synced from the `search` prop during render (Reset, Back, Forward), so the
+    comparison below is what stops the effect re-pushing the query it just navigated to.
+    Enter still submits immediately; the pending timer is cleared on unmount.
+  */
+  useEffect(() => {
+    const next = query.trim();
+    if (next === (search ?? "")) return;
+    const t = window.setTimeout(() => {
+      startTransition(() => {
+        const p = new URLSearchParams();
+        if (next) p.set("q", next);
+        if (status) p.set("status", status);
+        if (category) p.set("category", category);
+        if (brand) p.set("brand", brand);
+        if (view && view !== "table") p.set("view", view);
+        router.push(`/inventory?${p.toString()}`);
+      });
+    }, 350);
+    return () => window.clearTimeout(t);
+  }, [query, search, status, category, brand, view, router]);
+
   return (
     <div className="flex flex-wrap items-center gap-2 py-4 border-b border-border mb-4">
       <form 
@@ -80,6 +109,15 @@ export function InventoryToolbar({
           className="block w-full h-8 rounded border border-border bg-background-card pl-8 pr-3 text-[13px] text-primary placeholder:text-secondary focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary shadow-sm"
           aria-label="Search inventory"
         />
+        {/* Absolutely positioned, so showing it never resizes the field. */}
+        {isPending && (
+          <span aria-hidden="true" className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2">
+            <span className="block h-3.5 w-3.5 animate-spin rounded-full border-2 border-slate-200 border-t-blue-600" />
+          </span>
+        )}
+        <span className="sr-only" role="status" aria-live="polite">
+          {isPending ? "Updating inventory results" : ""}
+        </span>
         <button type="submit" className="sr-only">Search</button>
       </form>
       

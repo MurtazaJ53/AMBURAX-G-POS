@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { useActionState, useCallback, useEffect, useRef, useState, useSyncExternalStore, useTransition } from "react";
 import { createPortal } from "react-dom";
 import { useRouter, useSearchParams } from "next/navigation";
 import { CheckCircle2, Download, Filter, Loader2, Phone, Plus, Search, Send, Upload, User, X } from "lucide-react";
@@ -313,6 +313,8 @@ export function CustomerToolbar({
   const router = useRouter();
   const searchParams = useSearchParams();
   const [query, setQuery] = useState(initialQuery);
+  // Pending state for the debounced search below.
+  const [isPending, startTransition] = useTransition();
 
   // The box follows the URL, so Back/Forward and "Clear filters" never leave stale text.
   useEffect(() => {
@@ -334,6 +336,29 @@ export function CustomerToolbar({
     const q = query.trim();
     push((p) => (q ? p.set("q", q) : p.delete("q")));
   }
+
+  /*
+    Live search, 350ms — the same debounce the sales, inventory and catalogue boxes use, so
+    every search field in the product behaves alike. This one previously did nothing at all
+    until Enter was pressed.
+
+    The comparison against the URL's current `q` is load-bearing: the effect above re-syncs
+    `query` from `searchParams` on every navigation, so without it this would push the query
+    it had just navigated to and loop. Enter still applies immediately.
+  */
+  useEffect(() => {
+    const next = query.trim();
+    if (next === (searchParams.get("q") ?? "")) return;
+    const t = window.setTimeout(() => {
+      startTransition(() => {
+        push((p) => (next ? p.set("q", next) : p.delete("q")));
+      });
+    }, 350);
+    return () => window.clearTimeout(t);
+    // `push` is recreated each render but closes only over router and searchParams, both of
+    // which are tracked here.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [query, searchParams]);
 
   const tabs = [
     { label: "All Customers", active: true },
@@ -399,6 +424,15 @@ export function CustomerToolbar({
             placeholder="Search name, phone or email..."
             className="h-10 w-full rounded-lg border border-border bg-background-card pl-9 pr-9 text-[11px] text-primary placeholder:text-tertiary transition-colors hover:border-border focus:border-border-focus focus:outline-none focus:ring-4 focus:ring-border-focus [&::-webkit-search-cancel-button]:hidden"
           />
+          {/* Sits left of the clear button, absolutely positioned so the field never resizes. */}
+          {isPending && (
+            <span aria-hidden="true" className="pointer-events-none absolute right-9 top-1/2 -translate-y-1/2">
+              <span className="block h-3.5 w-3.5 animate-spin rounded-full border-2 border-slate-200 border-t-blue-600" />
+            </span>
+          )}
+          <span className="sr-only" role="status" aria-live="polite">
+            {isPending ? "Updating customer results" : ""}
+          </span>
           {query && (
             <button
               type="button"

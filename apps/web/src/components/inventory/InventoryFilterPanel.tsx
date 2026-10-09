@@ -75,23 +75,45 @@ export function InventoryFilterPanel({
 
   const visibleBrands = showAllBrands ? facets.brands : facets.brands.slice(0, 5);
 
-  const apply = (updates: { q?: string; status?: string; category?: string; brand?: string }) => {
-    const p = new URLSearchParams();
-    
-    const newSearch = updates.q !== undefined ? updates.q : search;
-    const newStatus = updates.status !== undefined ? updates.status : status;
-    const newCat = updates.category !== undefined ? updates.category : category;
-    const newBrand = updates.brand !== undefined ? updates.brand : brand;
+  // Pending state so a live filter shows it is working rather than looking stale.
+  const [isPending, startTransition] = React.useTransition();
 
-    if (newSearch) p.set("q", newSearch);
-    if (newStatus) p.set("status", newStatus);
-    if (newCat) p.set("category", newCat);
-    if (newBrand) p.set("brand", newBrand);
-    if (view && view !== "table") p.set("view", view);
+  // Memoised so the debounce effect below can depend on it without re-subscribing on every
+  // render. The body is otherwise unchanged.
+  const apply = React.useCallback(
+    (updates: { q?: string; status?: string; category?: string; brand?: string }) => {
+      const p = new URLSearchParams();
 
-    router.push(`/inventory?${p.toString()}`);
-    if (onNavigate) onNavigate();
-  };
+      const newSearch = updates.q !== undefined ? updates.q : search;
+      const newStatus = updates.status !== undefined ? updates.status : status;
+      const newCat = updates.category !== undefined ? updates.category : category;
+      const newBrand = updates.brand !== undefined ? updates.brand : brand;
+
+      if (newSearch) p.set("q", newSearch);
+      if (newStatus) p.set("status", newStatus);
+      if (newCat) p.set("category", newCat);
+      if (newBrand) p.set("brand", newBrand);
+      if (view && view !== "table") p.set("view", view);
+
+      startTransition(() => {
+        router.push(`/inventory?${p.toString()}`);
+      });
+      if (onNavigate) onNavigate();
+    },
+    [search, status, category, brand, view, router, onNavigate],
+  );
+
+  /*
+    Live search, 350ms — the same debounce the sales screen already uses. This box previously
+    did nothing until Enter. Comparing against the `search` prop before firing stops the
+    effect re-pushing the query it just navigated to.
+  */
+  React.useEffect(() => {
+    const next = searchDraft.trim();
+    if (next === (search ?? "")) return;
+    const t = window.setTimeout(() => apply({ q: next || undefined }), 350);
+    return () => window.clearTimeout(t);
+  }, [searchDraft, search, apply]);
 
   const toggleFilter = (current: string | undefined, value: string) => {
     return current === value ? undefined : value;
@@ -114,8 +136,18 @@ export function InventoryFilterPanel({
               value={searchDraft}
               onChange={(e) => setSearchDraft(e.target.value)}
               placeholder="Search by SKU or name..."
+              aria-label="Search inventory by SKU or name"
               className="min-w-0 flex-1 bg-transparent text-xs text-secondary outline-none placeholder:text-tertiary"
             />
+            {/* Reserved width, so the row does not shift when the spinner comes and goes. */}
+            <span className="flex h-3 w-3 shrink-0 items-center justify-center" aria-hidden="true">
+              {isPending && (
+                <span className="h-2.5 w-2.5 animate-spin rounded-full border-[1.5px] border-slate-300 border-t-blue-600" />
+              )}
+            </span>
+            <span className="sr-only" role="status" aria-live="polite">
+              {isPending ? "Updating results" : ""}
+            </span>
           </form>
         </div>
       </div>

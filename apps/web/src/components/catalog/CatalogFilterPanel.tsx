@@ -109,13 +109,35 @@ export function CatalogFilterPanel({ filters, facets, onNavigate }: CatalogFilte
     setSearchDraft(filters.query);
   }
 
+  // `isPending` is what makes a live filter honest: between the keystroke and the new rows
+  // arriving there is a real fetch, and without this the list just sits there looking stale.
+  const [isPending, startTransition] = React.useTransition();
+
   const apply = React.useCallback(
     (changes: Partial<CatalogFilters>) => {
-      router.push(catalogHref(withFilters(filters, changes)));
+      startTransition(() => {
+        router.push(catalogHref(withFilters(filters, changes)));
+      });
       onNavigate?.();
     },
     [filters, router, onNavigate],
   );
+
+  /*
+    Live search. The box used to require Enter, so typing changed nothing until you pressed
+    it — the results below simply did not move. 350ms matches the debounce the sales history
+    screen already uses, so the two screens feel the same.
+
+    The guard matters: `searchDraft` is re-synced from the URL during render, so without
+    comparing against `filters.query` this effect would re-push the same query on every
+    navigation and loop. Enter still works and applies immediately.
+  */
+  React.useEffect(() => {
+    const next = searchDraft.trim();
+    if (next === filters.query) return;
+    const t = window.setTimeout(() => apply({ query: next }), 350);
+    return () => window.clearTimeout(t);
+  }, [searchDraft, filters.query, apply]);
 
   const visibleBrands = showAllBrands ? facets.brands : facets.brands.slice(0, 5);
   const stockCounts: Record<StockStatus, number> = {
@@ -168,6 +190,15 @@ export function CatalogFilterPanel({ filters, facets, onNavigate }: CatalogFilte
               aria-label="Search within results"
               className="min-w-0 flex-1 bg-transparent text-xs text-secondary outline-none placeholder:text-tertiary"
             />
+            {/* Reserved width, so the row never shifts when the spinner appears or leaves. */}
+            <span className="flex h-3.5 w-3.5 shrink-0 items-center justify-center" aria-hidden="true">
+              {isPending && (
+                <span className="h-3 w-3 animate-spin rounded-full border-[1.5px] border-slate-300 border-t-blue-600" />
+              )}
+            </span>
+            <span className="sr-only" role="status" aria-live="polite">
+              {isPending ? "Updating results" : ""}
+            </span>
           </form>
         </div>
 
