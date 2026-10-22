@@ -1,10 +1,36 @@
 import { db } from "@/server/db";
+import { requireCompany } from "@/server/erp/documentSync";
 import { ErpClient } from "@/server/erp/client";
 import { resolveErpEnvironment, EnvErpCredentialProvider } from "@/server/erp/config";
 import type { ErpEnvironment } from "@/server/erp/config";
 import { HttpErpTransport } from "@/server/erp/httpTransport";
 import { ErpError } from "@/server/erp/errors";
 import type { ErpTransport } from "@/server/erp/transport";
+import { STORE_SCOPE_SELECT, storeScopeOf } from "@/server/sales/storeScope";
+
+/** A khata payment was attempted without an explicitly mapped Store company/currency. */
+export class KhataPaymentScopeError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "KhataPaymentScopeError";
+  }
+}
+
+/**
+ * Khata payment collection is disabled until payment allocation is implemented and approved.
+ * Recording an unallocated payment would lower displayed dues and post an ERP Payment Entry.
+ */
+export class KhataPaymentsUnavailableError extends Error {
+  constructor() {
+    super("Khata payment collection is not available until payment allocation is approved.");
+    this.name = "KhataPaymentsUnavailableError";
+  }
+}
+
+/** Fail-closed gate, checked before any read or write. */
+function assertKhataPaymentsEnabled(): void {
+  throw new KhataPaymentsUnavailableError();
+}
 
 export interface OutstandingInvoice {
   name: string;
@@ -266,7 +292,7 @@ export class ErpKhataService {
     }
 
     // Query all outstanding Sales Invoices for this company in ERPNext
-    const company = envResult.environment.companyId ?? "Amburax Retail";
+    const company = requireCompany(envResult.environment, correlationId);
     const filters = JSON.stringify([
       ["company", "=", company],
       ["outstanding_amount", ">", 0],
@@ -442,6 +468,8 @@ export class ErpKhataService {
     tenantId: string;
     customerId: string;
     actorUserId: string;
+    /** The authorized session Store; its persisted Company/currency scope the payment. */
+    storeId: string;
     amountMinor: number;
     paymentMethod?: "CASH" | "UPI" | "CARD";
     reference?: string | null;
@@ -449,6 +477,9 @@ export class ErpKhataService {
     idempotencyKey: string;
     correlationId?: string;
   }) {
+    // Disabled at the service boundary so no caller can bypass the route: nothing below runs.
+    assertKhataPaymentsEnabled();
+
     const correlationId = params.correlationId ?? `corr-khata-pay-${Date.now()}`;
 
     if (params.amountMinor <= 0) {
@@ -460,6 +491,19 @@ export class ErpKhataService {
     });
     if (!customer) {
       throw new Error(`Customer ${params.customerId} not found for tenant ${params.tenantId}`);
+    }
+
+    // Scope comes only from the persisted Store, never the request. Without an explicit
+    // company/currency mapping nothing is written: no unscoped payment, no outbox event.
+    if (!params.storeId?.trim()) throw new KhataPaymentScopeError("A store is required to collect a khata payment");
+    const store = await db.store.findFirst({
+      where: { id: params.storeId, tenantId: params.tenantId },
+      select: STORE_SCOPE_SELECT,
+    });
+    if (!store) throw new Error(`Store ${params.storeId} not found for tenant ${params.tenantId}`);
+    const scope = storeScopeOf(store);
+    if (!scope) {
+      throw new KhataPaymentScopeError(`Store ${params.storeId} is not mapped to a legal company and currency`);
     }
 
     // Fast-path idempotency check
@@ -486,6 +530,8 @@ export class ErpKhataService {
           reference: params.reference ?? null,
           notes: params.notes ?? null,
           idempotencyKey: params.idempotencyKey,
+          companyId: scope.companyId,
+          currency: scope.currency,
         },
       });
 

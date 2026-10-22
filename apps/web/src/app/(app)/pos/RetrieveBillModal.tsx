@@ -46,6 +46,8 @@ export function RetrieveBillModal({ open, onClose, onRetrieve }: RetrieveBillMod
   const [bills, setBills] = useState<HeldBill[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  // A failed resume or discard is shown in the dialog, next to the list it concerns, not in alert().
+  const [actionError, setActionError] = useState<string | null>(null);
 
   const fetchBills = async () => {
     setLoading(true);
@@ -67,12 +69,23 @@ export function RetrieveBillModal({ open, onClose, onRetrieve }: RetrieveBillMod
   useEffect(() => {
     if (open) {
       // eslint-disable-next-line react-hooks/set-state-in-effect
+      setActionError(null);
       fetchBills();
     }
   }, [open]);
 
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [open, onClose]);
+
   const handleDiscard = async (bill: HeldBill) => {
-    if (!window.confirm("Are you sure you want to discard this held bill?")) return;
+    if (!window.confirm("Discard this held bill? Its items will not be restored.")) return;
+    setActionError(null);
     try {
       const res = await fetch(`/api/v1/sales/held-bills/${bill.id}/discard`, {
         method: "POST",
@@ -85,27 +98,30 @@ export function RetrieveBillModal({ open, onClose, onRetrieve }: RetrieveBillMod
       }
       fetchBills();
     } catch (err: any) {
-      alert(err.message);
+      setActionError(err.message);
     }
   };
 
   const handleRetrieve = async (bill: HeldBill) => {
+    setActionError(null);
     try {
       const res = await fetch(`/api/v1/sales/held-bills/${bill.id}/resume`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ expectedVersion: bill.version }),
       });
-      // Read body once — the stream can only be consumed once
       const data = await res.json().catch(() => null);
       if (!res.ok) {
         throw new Error(data?.message || "Failed to resume bill");
+      }
+      if (data?.warnings && Array.isArray(data.warnings) && data.warnings.length > 0) {
+        alert("Stock Notice:\n" + data.warnings.join("\n"));
       }
       // Use the full bill from the resume response: it includes variant+product data
       // needed to restore the cart. The list-version bill only carries minimal variant info.
       onRetrieve(data?.heldBill ?? bill);
     } catch (err: any) {
-      alert(err.message);
+      setActionError(err.message);
       fetchBills(); // refresh list in case it was already claimed
     }
   };
@@ -115,36 +131,53 @@ export function RetrieveBillModal({ open, onClose, onRetrieve }: RetrieveBillMod
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-0">
       <div
-        className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm transition-opacity"
+        aria-hidden="true"
+        className="amb-fade-in fixed inset-0 bg-slate-900/50 backdrop-blur-sm"
         onClick={onClose}
       />
 
-      <div className="relative z-10 w-full max-w-2xl transform overflow-hidden rounded-xl bg-white text-left shadow-2xl transition-all">
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="retrieve-bill-title"
+        className="amb-pop-in relative z-10 w-full max-w-2xl overflow-hidden rounded-xl bg-white text-left shadow-2xl"
+      >
         <div className="flex items-center justify-between border-b border-slate-200 px-6 py-4">
-          <h3 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
-            <History className="h-5 w-5 text-sky-600" />
+          <h3 id="retrieve-bill-title" className="flex items-center gap-2 text-lg font-semibold text-slate-900">
+            <History aria-hidden="true" className="h-5 w-5 text-sky-600" />
             Retrieve Held Bill
           </h3>
           <button
+            type="button"
+            autoFocus
             onClick={onClose}
-            className="rounded-lg p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
+            aria-label="Close held bills"
+            className="amb-focus flex h-11 w-11 items-center justify-center rounded-lg text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-700"
           >
-            <X className="h-5 w-5" />
+            <X aria-hidden="true" className="h-5 w-5" />
           </button>
         </div>
 
         <div className="p-6">
+          {actionError && (
+            <p role="alert" className="amb-pop-in mb-4 rounded-lg bg-rose-50 p-3 text-sm text-rose-700">
+              {actionError}
+            </p>
+          )}
           {loading ? (
             <div className="flex justify-center py-8">
-              <p className="text-sm text-slate-500">Loading held bills...</p>
+              <p className="text-sm text-slate-500">Loading held bills…</p>
             </div>
           ) : error ? (
-            <div className="rounded-lg bg-rose-50 p-4 text-rose-700">
+            <div role="alert" className="rounded-lg bg-rose-50 p-4 text-rose-700">
               <p className="text-sm">{error}</p>
+              <button type="button" onClick={() => void fetchBills()} className="amb-focus mt-2 min-h-11 text-sm font-semibold underline">
+                Try again
+              </button>
             </div>
           ) : bills.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-12 text-center">
-              <History className="mb-4 h-12 w-12 text-slate-300" />
+              <History aria-hidden="true" className="mb-4 h-12 w-12 text-slate-300" />
               <h4 className="text-[15px] font-medium text-slate-900">No held bills</h4>
               <p className="mt-1 text-sm text-slate-500">
                 There are no currently parked bills in this store.
@@ -167,34 +200,37 @@ export function RetrieveBillModal({ open, onClose, onRetrieve }: RetrieveBillMod
                       <div className="flex flex-col gap-1">
                         <div className="flex items-center gap-3 text-[13px] text-slate-600">
                           <span className="flex items-center gap-1">
-                            <Clock className="h-3.5 w-3.5" />
+                            <Clock aria-hidden="true" className="h-3.5 w-3.5" />
                             {new Date(bill.createdAt).toLocaleTimeString([], {
                               hour: "2-digit",
                               minute: "2-digit",
                             })}
                           </span>
                           <span className="flex items-center gap-1">
-                            <User className="h-3.5 w-3.5" />
+                            <User aria-hidden="true" className="h-3.5 w-3.5" />
                             {bill.heldByUser?.name || "Unknown"}
                           </span>
                         </div>
                         <div className="flex items-center gap-1.5 font-medium text-slate-900">
-                          <Package className="h-4 w-4 text-slate-400" />
+                          <Package aria-hidden="true" className="h-4 w-4 text-slate-500" />
                           {totalItems} item{totalItems === 1 ? "" : "s"} —{" "}
                           {formatMinor(totalMinor)}
                         </div>
                       </div>
                       <div className="flex items-center gap-2">
                         <button
+                          type="button"
                           onClick={() => handleDiscard(bill)}
-                          title="Discard Bill"
-                          className="rounded-lg border border-rose-200 bg-white p-2.5 text-rose-600 transition-colors hover:bg-rose-50 hover:text-rose-700"
+                          aria-label={`Discard bill held by ${bill.heldByUser?.name || "unknown"}`}
+                          title="Discard bill"
+                          className="amb-focus flex h-11 w-11 items-center justify-center rounded-lg border border-rose-200 bg-white p-2.5 text-rose-600 transition-colors hover:bg-rose-50 hover:text-rose-700"
                         >
-                          <Trash2 className="h-4 w-4" />
+                          <Trash2 aria-hidden="true" className="h-4 w-4" />
                         </button>
                         <button
+                          type="button"
                           onClick={() => handleRetrieve(bill)}
-                          className="rounded-lg bg-sky-600 px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-sky-700"
+                          className="amb-focus min-h-11 rounded-lg bg-primary px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-primary-hover"
                         >
                           Resume
                         </button>

@@ -124,6 +124,12 @@ export interface SalesFilters {
   from?: Date;
   /** Exclusive end of the range. */
   to?: Date;
+  /** Filter by cashier/staff who rang the bill */
+  cashierId?: string;
+  /** Filter by minimum total amount in minor units */
+  minAmountMinor?: number;
+  /** Filter by maximum total amount in minor units */
+  maxAmountMinor?: number;
 }
 
 function buildSalesWhere(params: { tenantId: string; storeId?: string } & SalesFilters) {
@@ -134,6 +140,15 @@ function buildSalesWhere(params: { tenantId: string; storeId?: string } & SalesF
     ...(params.storeId ? { storeId: params.storeId } : {}),
     ...(params.status ? { status: params.status } : {}),
     ...(params.method ? { payments: { some: { method: params.method } } } : {}),
+    ...(params.cashierId ? { cashierId: params.cashierId } : {}),
+    ...(params.minAmountMinor !== undefined || params.maxAmountMinor !== undefined
+      ? {
+          totalMinor: {
+            ...(params.minAmountMinor !== undefined ? { gte: params.minAmountMinor } : {}),
+            ...(params.maxAmountMinor !== undefined ? { lte: params.maxAmountMinor } : {}),
+          },
+        }
+      : {}),
     ...(params.from || params.to
       ? {
           completedAt: {
@@ -182,6 +197,72 @@ export async function listSalesPage(
   return { rows: rows.map(toListRow), total, page, pageCount };
 }
 
+/** The CSV export refuses, never truncates, beyond this many rows. */
+export const SALES_EXPORT_MAX_ROWS = 5_000;
+
+export type SalesExportResult =
+  | {
+      status: "ok";
+      rows: {
+        billNumber: string;
+        completedAt: Date;
+        paymentMethod: string | null;
+        status: string;
+        subtotalMinor: number;
+        taxMinor: number;
+        discountMinor: number;
+        totalMinor: number;
+        paidMinor: number;
+      }[];
+    }
+  | { status: "too_many_rows"; total: number; max: number };
+
+/**
+ * Rows for the Sales CSV: the same `where` (tenant, store and filters) as the Sales screen, the
+ * stored amounts exactly as saved, and only the approved columns — no customer or internal ids.
+ * Counted first so an oversized export is refused before any rows are read.
+ */
+export async function listSalesForExport(
+  params: { tenantId: string; storeId: string } & SalesFilters,
+): Promise<SalesExportResult> {
+  const where = buildSalesWhere(params);
+  const total = await db.sale.count({ where });
+  if (total > SALES_EXPORT_MAX_ROWS) return { status: "too_many_rows", total, max: SALES_EXPORT_MAX_ROWS };
+
+  const sales = await db.sale.findMany({
+    where,
+    select: {
+      billNumber: true,
+      completedAt: true,
+      status: true,
+      subtotalMinor: true,
+      taxMinor: true,
+      discountMinor: true,
+      totalMinor: true,
+      paidMinor: true,
+      payments: { select: { method: true } },
+    },
+    orderBy: [{ completedAt: "desc" }, { billNumber: "desc" }],
+    take: SALES_EXPORT_MAX_ROWS,
+  });
+
+  return {
+    status: "ok",
+    rows: sales.map((s) => ({
+      billNumber: s.billNumber,
+      completedAt: s.completedAt,
+      // Same wording as the Sales list: one method, or distinct methods joined for a split.
+      paymentMethod: s.payments.length === 0 ? null : Array.from(new Set(s.payments.map((p) => p.method))).join(" + "),
+      status: s.status,
+      subtotalMinor: s.subtotalMinor,
+      taxMinor: s.taxMinor,
+      discountMinor: s.discountMinor,
+      totalMinor: s.totalMinor,
+      paidMinor: s.paidMinor,
+    })),
+  };
+}
+
 export interface SalesSummary {
   /** Takings across every sale matching the current filters, in minor units. */
   totalMinor: number;
@@ -223,6 +304,9 @@ export async function getSalesSummary(
 
 export interface SaleDetail {
   id: string;
+  /** Why the bill was discounted, and who authorised it (the cashier, or the approving manager). */
+  discountReason: string | null;
+  discountAuthorisedByName: string | null;
   billNumber: string;
   createdAt: Date;
   completedAt: Date;
@@ -245,7 +329,7 @@ export interface SaleDetail {
   posTerminal: string | null;
   posShiftStart: Date | null;
   posShiftEnd: Date | null;
-  customer: { name: string; phone: string | null } | null;
+  customer: { name: string; phone: string | null; gstin: string | null } | null;
   items: {
     id: string;
     name: string;
@@ -256,6 +340,8 @@ export interface SaleDetail {
     taxMinor: number;
     lineDiscountMinor: number;
     lineTotalMinor: number;
+    /** GST type when sold; null on lines recorded before 2026-10-16. */
+    taxTreatment: string | null;
     imageUrl: string | null;
     /**
      * Size and colour are read LIVE from the variant. They are NOT snapshots.
@@ -302,6 +388,8 @@ export async function getSaleDetail(params: {
       erpInvoiceId: true,
       subtotalMinor: true,
       discountMinor: true,
+      discountReason: true,
+      discountAuthorisedByUserId: true,
       taxMinor: true,
       totalMinor: true,
       paidMinor: true,
@@ -316,7 +404,7 @@ export async function getSaleDetail(params: {
         },
       },
       cashier: { select: { name: true } },
-      customer: { select: { name: true, phone: true } },
+      customer: { select: { name: true, phone: true, gstin: true } },
       posSession: {
         select: {
           openedAt: true,
@@ -335,6 +423,7 @@ export async function getSaleDetail(params: {
           taxMinor: true,
           lineDiscountMinor: true,
           lineTotalMinor: true,
+          taxTreatment: true,
           // `size` and `colour` are live variant reads, not snapshots — see the note on
           // SaleDetail.items above.
           variant: {
@@ -356,6 +445,14 @@ export async function getSaleDetail(params: {
 
   if (!sale) return null;
 
+  // Scoped by tenant, so an authoriser id can never surface another tenant's user.
+  const discountAuthoriser = sale.discountAuthorisedByUserId
+    ? await db.user.findFirst({
+        where: { id: sale.discountAuthorisedByUserId, tenantId: params.tenantId },
+        select: { name: true },
+      })
+    : null;
+
   return {
     id: sale.id,
     billNumber: sale.billNumber,
@@ -376,10 +473,12 @@ export async function getSaleDetail(params: {
     storeState: sale.store.state,
     storePostalCode: sale.store.postalCode,
     cashierName: sale.cashier.name,
+    discountReason: sale.discountReason,
+    discountAuthorisedByName: discountAuthoriser?.name ?? null,
     posTerminal: sale.posSession?.posDevice.name ?? sale.posSession?.posDevice.code ?? null,
     posShiftStart: sale.posSession?.openedAt ?? null,
     posShiftEnd: sale.posSession?.closedAt ?? null,
-    customer: sale.customer ? { name: sale.customer.name, phone: sale.customer.phone } : null,
+    customer: sale.customer ? { name: sale.customer.name, phone: sale.customer.phone, gstin: sale.customer.gstin } : null,
     // Snapshots, not live joins: the bill shows what was charged, not what the catalogue
     // says today.
     items: sale.items.map((i) => ({
@@ -392,6 +491,7 @@ export async function getSaleDetail(params: {
       taxMinor: i.taxMinor,
       lineDiscountMinor: i.lineDiscountMinor,
       lineTotalMinor: i.lineTotalMinor,
+      taxTreatment: i.taxTreatment ?? null,
       imageUrl: i.variant?.product?.imageUrl ?? null,
       size: i.variant?.size ?? null,
       colour: i.variant?.colour ?? null,

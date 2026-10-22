@@ -25,6 +25,12 @@ import { formatDateOnly, formatDateTime, formatTime } from "@/app/(app)/sales/fo
 import { StatusBadge } from "@/app/(app)/_components/ui";
 import { ActiveDot, CustomerAvatar, NotConnectedChip, SegmentPill, StatTile } from "../customerUi";
 import { CustomerKhataSection } from "../CustomerKhataSection";
+import { CustomerCreditMode } from "./CustomerCreditMode";
+import { CustomerPricingTier } from "./CustomerPricingTier";
+import { PhoneVerify } from "./PhoneVerify";
+import { CustomerStatementButton } from "./CustomerStatementButton";
+import { canManageCredit } from "@/server/khata/customerCreditOverride";
+import { listPriceLists } from "@/server/pricing/pricingService";
 
 function SectionCard(props: {
   title: string;
@@ -69,6 +75,13 @@ export default async function CustomerProfilePage(props: { params: Promise<{ id:
 
   const addressResult = await listCustomerAddresses({ tenantId: auth.tenantId, customerId: customer.id });
   const addresses = addressResult.status === "ok" ? addressResult.addresses : [];
+
+  // Q5/Q9/Q10: who may set udhar, and whether the phone is verified (needed for udhar).
+  const [mayManageCredit, verification, priceLists] = await Promise.all([
+    canManageCredit({ tenantId: auth.tenantId, userId: auth.userId, tenantRole: auth.tenantRole, storeId: auth.storeId }),
+    db.customer.findFirst({ where: { id: customer.id, tenantId: auth.tenantId }, select: { phone: true, phoneVerifiedAt: true } }),
+    listPriceLists(auth.tenantId),
+  ]);
 
   const recentSales = await db.sale.findMany({
     where: { tenantId: auth.tenantId, customerId: customer.id, status: "COMPLETED" },
@@ -121,6 +134,16 @@ export default async function CustomerProfilePage(props: { params: Promise<{ id:
             </div>
           </div>
           <div className="flex flex-wrap gap-2">
+            <CustomerStatementButton
+              customer={{
+                id: customer.id,
+                name: customer.name,
+                phone: customer.phone,
+                email: customer.email,
+                customerType: customer.customerType,
+              }}
+              storeName={auth.storeName}
+            />
             {customer.phone && (
               <a href={`tel:${customer.phone}`} className={actionClass}>
                 <Phone aria-hidden="true" className="h-4 w-4 text-slate-500" />
@@ -162,10 +185,24 @@ export default async function CustomerProfilePage(props: { params: Promise<{ id:
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1fr)_380px]">
         {/* ------------------------------------------------------------ main */}
         <div className="min-w-0 space-y-6">
-          <SectionCard title="Recent transactions" icon={<ReceiptText className="h-4 w-4" />} index={6}>
+          <SectionCard
+            title="Recent transactions"
+            icon={<ReceiptText className="h-4 w-4" />}
+            index={6}
+            action={
+              customer.purchaseCount > 0 ? (
+                <Link
+                  href={`/customers/${customer.id}/history`}
+                  className="inline-flex min-h-11 items-center rounded-lg px-3 text-xs font-semibold text-sky-700 hover:bg-sky-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-600"
+                >
+                  Full history
+                </Link>
+              ) : undefined
+            }
+          >
             {recentSales.length === 0 ? (
               <div className="px-6 py-12 text-center">
-                <span aria-hidden="true" className="mx-auto flex h-11 w-11 items-center justify-center rounded-full bg-slate-100 text-slate-400">
+                <span aria-hidden="true" className="mx-auto flex h-11 w-11 items-center justify-center rounded-full bg-slate-100 text-slate-500">
                   <ShoppingBag className="h-5 w-5" />
                 </span>
                 <p className="mt-3 text-sm font-medium text-slate-900">No purchases yet</p>
@@ -302,15 +339,36 @@ export default async function CustomerProfilePage(props: { params: Promise<{ id:
                 )}
                 {customer.priceListId !== null && (
                   <div className="flex justify-between gap-4 px-5 py-3">
-                    <dt className="text-slate-600">Price list</dt>
+                    <dt className="text-slate-600">Price list ID</dt>
                     <dd className="truncate font-semibold text-slate-900">{customer.priceListId}</dd>
                   </div>
                 )}
               </dl>
             ) : (
-              <p className="px-5 py-4 text-sm text-slate-600">No special terms have been agreed with this customer.</p>
+              <p className="px-5 py-4 text-sm text-slate-600">No special credit terms have been agreed with this customer.</p>
             )}
+
+            <CustomerPricingTier
+              customerId={customer.id}
+              currentPriceListId={customer.priceListId}
+              availablePriceLists={priceLists.filter((pl) => pl.isActive)}
+              canManage={auth.tenantRole === "OWNER" || auth.membershipRole === "STORE_MANAGER"}
+            />
           </SectionCard>
+
+          {verification?.phone && auth.canSell && (
+            <SectionCard title="Phone verification" icon={<User className="h-4 w-4" />} index={10}>
+              <div className="px-5 py-4">
+                <PhoneVerify customerId={customer.id} verified={verification.phoneVerifiedAt !== null} />
+              </div>
+            </SectionCard>
+          )}
+
+          {mayManageCredit && (
+            <SectionCard title="Udhar access" icon={<BookOpen className="h-4 w-4" />} index={11}>
+              <CustomerCreditMode customerId={customer.id} />
+            </SectionCard>
+          )}
 
           <CustomerKhataSection customerId={customer.id} />
         </div>

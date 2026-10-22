@@ -12,6 +12,7 @@ export interface CustomerHit {
   /** Udhar owed on khata, in minor units. */
   dueMinor?: number;
   creditLimitMinor?: number | null;
+  loyaltyPoints?: number;
 }
 
 export type PickerMode = "search" | "new";
@@ -24,8 +25,11 @@ interface NewForm {
   name: string;
   email: string;
   gstin: string;
+  line1: string;
+  city: string;
+  postalCode: string;
 }
-const BLANK: NewForm = { phone: "", name: "", email: "", gstin: "" };
+const BLANK: NewForm = { phone: "", name: "", email: "", gstin: "", line1: "", city: "", postalCode: "" };
 
 /**
  * The customer on this bill.
@@ -146,7 +150,7 @@ export function CustomerPicker(props: {
   }
 
   async function save() {
-    setTouched({ phone: true, name: true, email: true, gstin: true });
+    setTouched({ phone: true, name: true, email: true, gstin: true, line1: true, city: true, postalCode: true });
     if (!formValid || saving) return;
     setSaving(true);
     setServerError(null);
@@ -159,6 +163,11 @@ export function CustomerPicker(props: {
           phone: form.phone,
           email: form.email || null,
           gstin: form.gstin || null,
+          address: form.line1 || form.city || form.postalCode ? {
+            line1: form.line1,
+            city: form.city,
+            postalCode: form.postalCode,
+          } : null,
         }),
       });
       const data = await res.json().catch(() => ({}));
@@ -227,7 +236,7 @@ export function CustomerPicker(props: {
               setNotice(null);
             }}
             aria-label={`Remove ${customer.name} from this bill`}
-            className="flex h-8 w-8 cursor-pointer items-center justify-center rounded-lg text-slate-400 transition-colors hover:bg-rose-50 hover:text-rose-600 focus-visible:outline focus-visible:outline-2 focus-visible:outline-sky-600"
+            className="flex h-8 w-8 cursor-pointer items-center justify-center rounded-lg text-slate-500 transition-colors hover:bg-rose-50 hover:text-rose-600 focus-visible:outline focus-visible:outline-2 focus-visible:outline-sky-600"
           >
             <X aria-hidden="true" className="h-4 w-4" />
           </button>
@@ -245,7 +254,7 @@ export function CustomerPicker(props: {
   if (!open) {
     return (
       <div className="flex items-center gap-3">
-        <span aria-hidden="true" className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-dashed border-slate-300 bg-white text-slate-400">
+        <span aria-hidden="true" className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-dashed border-slate-300 bg-white text-slate-500">
           <Users className="h-4 w-4" />
         </span>
         <div className="min-w-0 flex-1 leading-tight">
@@ -267,7 +276,7 @@ export function CustomerPicker(props: {
   // ---- new customer form -------------------------------------------------------------------
   if (mode === "new") {
     const input =
-      "h-9 w-full rounded-lg border bg-white px-3 text-[13px] text-slate-900 outline-none transition-colors placeholder:text-slate-400 focus:ring-4";
+      "h-9 w-full rounded-lg border bg-white px-3 text-[13px] text-slate-900 outline-none transition-colors placeholder:text-slate-500 focus:ring-4";
     const ok = "border-slate-300 focus:border-sky-500 focus:ring-sky-500/15";
     const bad = "border-rose-300 focus:border-rose-500 focus:ring-rose-500/15";
     const phoneErr = fieldError("phone");
@@ -298,7 +307,7 @@ export function CustomerPicker(props: {
             Mobile number <span className="text-rose-600">*</span>
           </label>
           <div className="relative">
-            <Phone aria-hidden="true" className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
+            <Phone aria-hidden="true" className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-500" />
             <input
               id="nc-phone"
               autoFocus={!form.phone}
@@ -356,40 +365,81 @@ export function CustomerPicker(props: {
           className="flex cursor-pointer items-center gap-1 text-[11.5px] font-medium text-sky-700 hover:text-sky-900"
         >
           <ChevronDown aria-hidden="true" className={`h-3.5 w-3.5 transition-transform ${moreOpen ? "rotate-180" : ""}`} />
-          E-mail and GSTIN (optional)
+          E-mail, GSTIN and Address (optional)
         </button>
 
         {moreOpen && (
-          <div className="amb-fade-in grid grid-cols-2 gap-2">
-            <div className="min-w-0">
-              <label htmlFor="nc-email" className="mb-1 block text-[11.5px] font-medium text-slate-700">E-mail</label>
-              <input
-                id="nc-email"
-                type="email"
-                autoComplete="off"
-                value={form.email}
-                onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))}
-                onBlur={() => setTouched((t) => ({ ...t, email: true }))}
-                placeholder="name@mail.com"
-                aria-invalid={emailErr ? true : undefined}
-                className={`${input} ${emailErr ? bad : ok}`}
-              />
-              {emailErr && <p className="mt-1 text-[11px] text-rose-600">{emailErr}</p>}
+          <div className="amb-fade-in space-y-2 rounded-lg border border-slate-200 bg-slate-50/60 p-2.5">
+            <div className="grid grid-cols-2 gap-2">
+              <div className="min-w-0">
+                <label htmlFor="nc-email" className="mb-1 block text-[11px] font-medium text-slate-700">E-mail</label>
+                <input
+                  id="nc-email"
+                  type="email"
+                  autoComplete="off"
+                  value={form.email}
+                  onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))}
+                  onBlur={() => setTouched((t) => ({ ...t, email: true }))}
+                  placeholder="name@mail.com"
+                  aria-invalid={emailErr ? true : undefined}
+                  className={`${input} ${emailErr ? bad : ok}`}
+                />
+                {emailErr && <p className="mt-1 text-[11px] text-rose-600">{emailErr}</p>}
+              </div>
+              <div className="min-w-0">
+                <label htmlFor="nc-gstin" className="mb-1 block text-[11px] font-medium text-slate-700">GSTIN</label>
+                <input
+                  id="nc-gstin"
+                  autoComplete="off"
+                  maxLength={15}
+                  value={form.gstin}
+                  onChange={(e) => setForm((f) => ({ ...f, gstin: e.target.value.toUpperCase() }))}
+                  onBlur={() => setTouched((t) => ({ ...t, gstin: true }))}
+                  placeholder="27ABCDE1234F1Z5"
+                  aria-invalid={gstinErr ? true : undefined}
+                  className={`${input} uppercase ${gstinErr ? bad : ok}`}
+                />
+                {gstinErr && <p className="mt-1 text-[11px] text-rose-600">{gstinErr}</p>}
+              </div>
             </div>
-            <div className="min-w-0">
-              <label htmlFor="nc-gstin" className="mb-1 block text-[11.5px] font-medium text-slate-700">GSTIN</label>
-              <input
-                id="nc-gstin"
-                autoComplete="off"
-                maxLength={15}
-                value={form.gstin}
-                onChange={(e) => setForm((f) => ({ ...f, gstin: e.target.value.toUpperCase() }))}
-                onBlur={() => setTouched((t) => ({ ...t, gstin: true }))}
-                placeholder="27ABCDE1234F1Z5"
-                aria-invalid={gstinErr ? true : undefined}
-                className={`${input} uppercase ${gstinErr ? bad : ok}`}
-              />
-              {gstinErr && <p className="mt-1 text-[11px] text-rose-600">{gstinErr}</p>}
+
+            <div className="border-t border-slate-200/60 pt-2 space-y-2">
+              <div className="min-w-0">
+                <label htmlFor="nc-line1" className="mb-1 block text-[11px] font-medium text-slate-700">Street Address</label>
+                <input
+                  id="nc-line1"
+                  autoComplete="off"
+                  value={form.line1}
+                  onChange={(e) => setForm((f) => ({ ...f, line1: e.target.value }))}
+                  placeholder="Shop / House / Road"
+                  className={input}
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <div className="min-w-0">
+                  <label htmlFor="nc-city" className="mb-1 block text-[11px] font-medium text-slate-700">City</label>
+                  <input
+                    id="nc-city"
+                    autoComplete="off"
+                    value={form.city}
+                    onChange={(e) => setForm((f) => ({ ...f, city: e.target.value }))}
+                    placeholder="e.g. Mumbai"
+                    className={input}
+                  />
+                </div>
+                <div className="min-w-0">
+                  <label htmlFor="nc-postal" className="mb-1 block text-[11px] font-medium text-slate-700">PIN Code</label>
+                  <input
+                    id="nc-postal"
+                    autoComplete="off"
+                    maxLength={16}
+                    value={form.postalCode}
+                    onChange={(e) => setForm((f) => ({ ...f, postalCode: e.target.value.toUpperCase() }))}
+                    placeholder="400001"
+                    className={`${input} uppercase`}
+                  />
+                </div>
+              </div>
             </div>
           </div>
         )}
@@ -409,7 +459,7 @@ export function CustomerPicker(props: {
           <button
             type="submit"
             disabled={saving}
-            className="amb-press inline-flex h-9 flex-1 cursor-pointer items-center justify-center gap-1.5 rounded-lg bg-sky-600 px-3 text-xs font-semibold text-white transition-colors hover:bg-sky-700 disabled:cursor-not-allowed disabled:opacity-60"
+            className="amb-press inline-flex h-9 flex-1 cursor-pointer items-center justify-center gap-1.5 rounded-lg bg-primary px-3 text-xs font-semibold text-white transition-colors hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-60"
           >
             <Check aria-hidden="true" className="h-3.5 w-3.5" />
             {saving ? "Saving…" : "Save & add to bill"}
@@ -431,7 +481,7 @@ export function CustomerPicker(props: {
         </button>
       </div>
       <div className="relative">
-        <Search aria-hidden="true" className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+        <Search aria-hidden="true" className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
         <input
           id="pos-customer-search"
           autoFocus

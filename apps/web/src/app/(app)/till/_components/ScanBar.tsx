@@ -1,6 +1,8 @@
 "use client";
 
-import { forwardRef, useState, type FormEvent } from "react";
+import { forwardRef, useEffect, useState, type FormEvent, type KeyboardEvent } from "react";
+import { searchCatalog } from "@/client/pos/posApi";
+import type { CatalogItem } from "@/client/pos/types";
 import { stockLabel, type ScanOutcome } from "@/client/pos/scanResult";
 import { formatMinor } from "@/server/sales/saleTotals";
 import { Chip, Kbd } from "./primitives";
@@ -16,12 +18,12 @@ import { ErrorBanner } from "./ErrorBanner";
  * form: no timing heuristics, no key-interval guessing, no driver assumptions. It also means
  * the same field serves a cashier typing a barcode by hand when a label will not read.
  *
- * ## Why this is not the search box
+ * ## One box, two paths that never mix
  *
- * It calls the exact-barcode endpoint, never catalogue search. Search runs a `contains` match
- * across SKU and product name, which is right for a person browsing and dangerous for a
- * scanner — a fuzzy match that lands on the wrong variant puts the wrong item on a bill and
- * nobody notices until the customer gets home.
+ * Enter always runs the exact-barcode lookup — a scanner types and presses Enter, and a fuzzy
+ * match must never put the wrong variant on a bill. While a person types (two or more
+ * characters), name/SKU suggestions appear below; only an explicit choice (click, or arrow keys
+ * then Enter) adds a suggestion. Shops whose stock has no barcodes sell from search alone.
  *
  * ## Feedback
  *
@@ -35,20 +37,68 @@ export const ScanBar = forwardRef<
   HTMLInputElement,
   {
     onScan: (barcode: string) => void;
+    onPick: (item: CatalogItem) => void;
     scanning: boolean;
     outcome: ScanOutcome | null;
     onDismiss: () => void;
     disabled: boolean;
     disabledReason?: string;
   }
->(function ScanBar({ onScan, scanning, outcome, onDismiss, disabled, disabledReason }, ref) {
+>(function ScanBar({ onScan, onPick, scanning, outcome, onDismiss, disabled, disabledReason }, ref) {
   const [value, setValue] = useState("");
+  const [hits, setHits] = useState<CatalogItem[]>([]);
+  const [active, setActive] = useState(-1);
+  const query = value.trim();
+
+  // Debounced name/SKU search. A scanner finishes and presses Enter well inside the debounce,
+  // which clears the field, so scans never trigger a search.
+  useEffect(() => {
+    if (disabled || query.length < 2) {
+      setHits([]);
+      setActive(-1);
+      return;
+    }
+    const controller = new AbortController();
+    const timer = setTimeout(async () => {
+      const result = await searchCatalog(query, controller.signal);
+      if (controller.signal.aborted) return;
+      setHits(result.ok ? result.data.results.slice(0, 8) : []);
+      setActive(-1);
+    }, 250);
+    return () => {
+      clearTimeout(timer);
+      controller.abort();
+    };
+  }, [query, disabled]);
+
+  function pick(item: CatalogItem) {
+    onPick(item);
+    setValue("");
+    setHits([]);
+    setActive(-1);
+  }
+
+  function onKeyDown(event: KeyboardEvent<HTMLInputElement>) {
+    if (hits.length === 0) return;
+    if (event.key === "ArrowDown") {
+      event.preventDefault();
+      setActive((i) => (i + 1) % hits.length);
+    } else if (event.key === "ArrowUp") {
+      event.preventDefault();
+      setActive((i) => (i <= 0 ? hits.length - 1 : i - 1));
+    }
+  }
 
   function submit(event: FormEvent) {
     event.preventDefault();
     if (disabled) return;
+    if (active >= 0 && hits[active]) {
+      pick(hits[active]!);
+      return;
+    }
     const barcode = value.trim();
     if (!barcode) return;
+    setHits([]);
     onScan(barcode);
     // Cleared immediately so the next scan lands in an empty field. The scanner will not wait
     // for the network, and neither should the cashier.
@@ -59,7 +109,7 @@ export const ScanBar = forwardRef<
     <div className="space-y-3">
       <form onSubmit={submit}>
         <label htmlFor="till-scan" className="sr-only">
-          Scan or type a barcode
+          Scan or type a barcode, or search by name or SKU
         </label>
         <div className="relative">
           <input
@@ -67,13 +117,19 @@ export const ScanBar = forwardRef<
             ref={ref}
             value={value}
             onChange={(event) => setValue(event.target.value)}
+            onKeyDown={onKeyDown}
+            role="combobox"
+            aria-expanded={hits.length > 0}
+            aria-controls="till-scan-results"
+            aria-autocomplete="list"
+            aria-activedescendant={active >= 0 ? `till-hit-${active}` : undefined}
             disabled={disabled}
             autoComplete="off"
             autoCorrect="off"
             autoCapitalize="off"
             spellCheck={false}
             inputMode="text"
-            placeholder={disabled ? (disabledReason ?? "Not ready") : "Scan or type a barcode"}
+            placeholder={disabled ? (disabledReason ?? "Not ready") : "Scan a barcode or type a name / SKU"}
             aria-describedby="till-scan-hint"
             className="h-16 w-full rounded-amb-lg border-2 border-amb-line-strong bg-amb-raised px-5 pr-28 text-lg font-medium text-amb-ink placeholder:text-amb-ink-muted focus:border-amb-accent disabled:bg-amb-sunken disabled:text-amb-ink-muted"
           />
@@ -85,9 +141,47 @@ export const ScanBar = forwardRef<
             )}
             <Kbd>F2</Kbd>
           </div>
+          {hits.length > 0 && (
+            <ul
+              id="till-scan-results"
+              role="listbox"
+              aria-label="Matching products"
+              className="amb-fade-in absolute inset-x-0 top-full z-20 mt-1 max-h-80 overflow-y-auto rounded-amb-lg border border-amb-line bg-amb-raised p-1 shadow-amb"
+            >
+              {hits.map((item, i) => (
+                <li
+                  key={item.variantId}
+                  id={`till-hit-${i}`}
+                  role="option"
+                  aria-selected={i === active}
+                  onMouseDown={(event) => {
+                    event.preventDefault();
+                    pick(item);
+                  }}
+                  onMouseEnter={() => setActive(i)}
+                  className={`flex min-h-touch cursor-pointer items-center justify-between gap-3 rounded-amb px-3 py-2 transition-colors duration-100 ${
+                    i === active ? "bg-amb-accent-soft" : "hover:bg-amb-sunken"
+                  }`}
+                >
+                  <span className="min-w-0">
+                    <span className="block truncate text-sm font-semibold text-amb-ink">{item.productName}</span>
+                    <span className="block truncate text-xs text-amb-ink-secondary">
+                      {item.sku}
+                      {item.size ? ` · ${item.size}` : ""}
+                      {item.colour ? ` · ${item.colour}` : ""}
+                      {` · ${stockLabel(item.stockQuantity)}`}
+                    </span>
+                  </span>
+                  <span className="amb-tnum shrink-0 text-sm font-semibold text-amb-ink">
+                    {formatMinor(item.priceMinor)}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
         </div>
         <p id="till-scan-hint" className="mt-1.5 text-xs text-amb-ink-muted">
-          Press F2 from anywhere to return here. A scanner works without any setup.
+          Enter looks up a barcode. Type 2+ letters to search by name or SKU, ↑↓ to choose. F2 returns here.
         </p>
       </form>
 

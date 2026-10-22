@@ -23,10 +23,18 @@ import {
 
 import { CopyButton } from "./CopyButton";
 import { PrintButton } from "./PrintButton";
+import { WhatsAppReceiptButton } from "./WhatsAppReceiptButton";
+import { DownloadPdfButton } from "./DownloadPdfButton";
+import { ShareReceiptButton } from "./ShareReceiptButton";
+import { CancelBillModal } from "./CancelBillModal";
+import { GstSummaryButton } from "./GstSummaryButton";
 import { resolvePosContext } from "@/server/sales/posContext";
 import { getSaleDetail } from "@/server/sales/saleQueries";
+import { canAuthorizeReturn } from "@/server/sales/returnRoles";
 import { formatMinor } from "@/server/sales/saleTotals";
 import { formatDateTime } from "../formatDateTime";
+import { gstTypeLabel } from "@/server/catalog/gstTaxTreatment";
+import { listApprovers } from "@/server/identity/approvalPin";
 
 /**
  * One bill, laid out as the Phase-2 reference: a header with the bill's actions, a summary
@@ -109,6 +117,76 @@ function PendingAction({ icon, label }: { icon: React.ReactNode; label: string }
   );
 }
 
+/**
+ * The one action on this page that is real but conditional.
+ *
+ * Returns exist; exchanges do not, so this is labelled "Return" rather than claiming both. When
+ * the bill cannot be returned, or the viewer may not authorise one, it stays a genuinely
+ * disabled button that says which of the two it is — rather than a link that leads to a refusal.
+ */
+function ReturnAction({
+  saleId,
+  completed,
+  authorised,
+  tile = false,
+}: {
+  saleId: string;
+  completed: boolean;
+  authorised: boolean;
+  tile?: boolean;
+}) {
+  const shape = tile ? `${ACTION} justify-center` : ACTION;
+
+  if (!completed) {
+    return (
+      <button type="button" disabled title="Only a completed bill can be returned" className={`${shape} cursor-not-allowed text-tertiary`}>
+        <RefreshCcw aria-hidden="true" className="h-4 w-4" />
+        Return
+        <span className="sr-only"> (only a completed bill can be returned)</span>
+      </button>
+    );
+  }
+
+  if (!authorised) {
+    return (
+      <button type="button" disabled title="Only a store manager or the owner can authorise a return" className={`${shape} cursor-not-allowed text-tertiary`}>
+        <RefreshCcw aria-hidden="true" className="h-4 w-4" />
+        Return
+        <span className="sr-only"> (only a store manager or the owner can authorise a return)</span>
+      </button>
+    );
+  }
+
+  return (
+    <Link href={`/sales/${saleId}/return`} className={`amb-press amb-focus ${shape} text-secondary transition-colors hover:text-primary`}>
+      <RefreshCcw aria-hidden="true" className="h-4 w-4" />
+      Return
+    </Link>
+  );
+}
+
+function ExchangeAction({
+  saleId,
+  completed,
+  authorised,
+}: {
+  saleId: string;
+  completed: boolean;
+  authorised: boolean;
+}) {
+  if (!completed || !authorised) return null;
+
+  return (
+    <Link
+      href={`/sales/${saleId}/exchange`}
+      className={`amb-press amb-focus ${ACTION} text-indigo-700 transition-colors hover:bg-indigo-50 hover:text-indigo-900 border-indigo-200`}
+    >
+      <Repeat aria-hidden="true" className="h-4 w-4 text-indigo-600" />
+      Exchange
+    </Link>
+  );
+}
+
 function methodLabel(method: string): string {
   return method === "UPI" ? "UPI" : method.charAt(0) + method.slice(1).toLowerCase();
 }
@@ -127,11 +205,62 @@ export default async function SaleDetailPage({ params }: { params: Promise<{ id:
   if (!sale) notFound();
 
   const completed = sale.status === "COMPLETED";
+  // PERMISSIONS.md puts returns with the manager. Mirrored here only so the button is honest;
+  // `createReturn` enforces it regardless of what this page renders.
+  const mayReturn = canAuthorizeReturn({
+    tenantRole: ctx.context.tenantRole,
+    membershipRole: ctx.context.membershipRole,
+  });
   const isPosted = sale.erpSyncStatus === "SYNCED" || sale.erpSyncStatus === "POSTED" || sale.erpSyncStatus === "SUCCESS";
   const erpTone: Tone = isPosted ? "success" : sale.erpSyncStatus === "FAILED" ? "danger" : "warning";
   const erpText = isPosted ? "Submitted" : sale.erpSyncStatus === "FAILED" ? "Failed" : "Pending";
   const units = sale.items.reduce((n, i) => n + i.quantity, 0);
   const balanceMinor = sale.totalMinor - sale.paidMinor;
+
+  const receiptData = {
+    storeName: sale.storeName,
+    storeAddress: [sale.storeAddressLine, sale.storeCity, sale.storeState, sale.storePostalCode].filter(Boolean).join(", "),
+    storeGstin: null,
+    storeState: sale.storeState,
+    storeStateCode: "29", // Standard default (Karnataka / state code)
+    billNumber: sale.billNumber,
+    date: sale.completedAt,
+    cashierName: sale.cashierName,
+    terminalName: sale.posTerminal,
+    customerName: sale.customer?.name ?? null,
+    customerPhone: sale.customer?.phone ?? null,
+    customerGstin: sale.customer?.gstin ?? null,
+    customerAddress: null,
+    placeOfSupply: sale.storeState,
+    items: sale.items.map((i) => ({
+      name: i.name,
+      variant: [i.size, i.colour].filter(Boolean).join(" / ") || null,
+      sku: i.sku,
+      quantity: i.quantity,
+      unitPriceMinor: i.unitPriceMinor,
+      gstRateBp: i.taxRateBp,
+      totalMinor: i.lineTotalMinor,
+    })),
+    subtotalMinor: sale.subtotalMinor,
+    discountMinor: sale.discountMinor,
+    cgstMinor: Math.round(sale.taxMinor / 2),
+    sgstMinor: Math.round(sale.taxMinor / 2),
+    totalMinor: sale.totalMinor,
+    payments: sale.payments.map((p) => ({
+      method: p.method,
+      amountMinor: p.amountMinor,
+      reference: p.reference,
+    })),
+    footerMessage: "Thank you for shopping! Exchange valid for 7 days with original tag & bill.",
+  };
+
+  const isOwnerOrManager = ctx.context.tenantRole === "OWNER" || ctx.context.membershipRole === "STORE_MANAGER";
+  const approvers = await listApprovers({ tenantId: ctx.context.tenantId, storeId: ctx.context.storeId }).catch(() => []);
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const saleDay = new Date(sale.completedAt);
+  saleDay.setHours(0, 0, 0, 0);
+  const isSameDay = saleDay.getTime() === today.getTime();
 
   return (
     <div className="w-full min-w-0 p-4 sm:p-5 print:p-0">
@@ -149,10 +278,31 @@ export default async function SaleDetailPage({ params }: { params: Promise<{ id:
           <p className="mt-0.5 text-[15px] text-tertiary">View complete transaction details, items, payments and history</p>
         </div>
         <div className="flex flex-wrap items-center gap-2.5 print:hidden">
-          <PrintButton />
-          <PendingAction icon={<Download className="h-4 w-4" />} label="Download PDF" />
-          <PendingAction icon={<Share2 className="h-4 w-4" />} label="Share" />
-          <PendingAction icon={<RefreshCcw className="h-4 w-4" />} label="Return / Exchange" />
+          <PrintButton receiptData={receiptData} />
+          <WhatsAppReceiptButton
+            billNumber={sale.billNumber}
+            customerName={sale.customer?.name}
+            customerPhone={sale.customer?.phone}
+            storeName={sale.storeName}
+            totalMinor={sale.totalMinor}
+          />
+          <DownloadPdfButton billNumber={sale.billNumber} />
+          <ShareReceiptButton
+            billNumber={sale.billNumber}
+            totalFormatted={formatMinor(sale.totalMinor)}
+            storeName={sale.storeName}
+          />
+          <ReturnAction saleId={sale.id} completed={completed} authorised={mayReturn} />
+          <ExchangeAction saleId={sale.id} completed={completed} authorised={mayReturn} />
+          {completed && (
+            <CancelBillModal
+              saleId={sale.id}
+              billNumber={sale.billNumber}
+              approvers={approvers}
+              isOwnerOrManager={isOwnerOrManager}
+              isSameDay={isSameDay}
+            />
+          )}
           <button type="button" disabled title="More actions are not available yet" className={`${ACTION} cursor-not-allowed text-tertiary`}>
             More <ChevronDown aria-hidden="true" className="h-4 w-4" />
             <span className="sr-only"> (not available yet)</span>
@@ -244,7 +394,26 @@ export default async function SaleDetailPage({ params }: { params: Promise<{ id:
             </div>
           </Card>
 
-          <Card title={`Items (${sale.items.length})`} index={2}>
+          <Card
+            title={`Items (${sale.items.length})`}
+            index={2}
+            action={
+              <GstSummaryButton
+                items={sale.items.map((i) => ({
+                  name: i.name,
+                  sku: i.sku,
+                  taxRateBp: i.taxRateBp,
+                  taxMinor: i.taxMinor,
+                  lineTotalMinor: i.lineTotalMinor,
+                  taxTreatment: i.taxTreatment,
+                }))}
+                subtotalMinor={sale.subtotalMinor}
+                totalTaxMinor={sale.taxMinor}
+                placeOfSupply={sale.storeState}
+                billNumber={sale.billNumber}
+              />
+            }
+          >
             {/* Fixed-layout table from md up — fits its box, never scrolls sideways. */}
             <div className="hidden px-3 pb-3 md:block">
               <table className="w-full table-fixed text-[11px]">
@@ -288,7 +457,9 @@ export default async function SaleDetailPage({ params }: { params: Promise<{ id:
                         <td className="px-2 py-2 text-center tabular-nums text-secondary">{item.quantity}</td>
                         <td className="truncate px-2 py-2 text-right tabular-nums text-secondary">{formatMinor(item.unitPriceMinor).replace("₹", "")}</td>
                         <td className="truncate px-2 py-2 text-right tabular-nums text-secondary">{formatMinor(item.lineDiscountMinor).replace("₹", "")}</td>
-                        <td className="truncate px-2 py-2 text-right tabular-nums text-secondary">{formatMinor(item.taxMinor).replace("₹", "")}</td>
+                        <td className="truncate px-2 py-2 text-right tabular-nums text-secondary">
+                          {gstTypeLabel(item.taxTreatment) ?? formatMinor(item.taxMinor).replace("₹", "")}
+                        </td>
                         <td className="truncate px-3 py-2 text-right text-[13px] font-semibold tabular-nums text-primary">{formatMinor(item.lineTotalMinor).replace("₹", "")}</td>
                       </tr>
                     );
@@ -318,7 +489,7 @@ export default async function SaleDetailPage({ params }: { params: Promise<{ id:
                       </p>
                       <div className="mt-1 flex items-center justify-between gap-2 text-[10px]">
                         <span className="truncate tabular-nums text-secondary">
-                          {item.quantity} × {formatMinor(item.unitPriceMinor)} · tax {formatMinor(item.taxMinor)}
+                          {item.quantity} × {formatMinor(item.unitPriceMinor)} · {gstTypeLabel(item.taxTreatment) ?? `tax ${formatMinor(item.taxMinor)}`}
                         </span>
                         <span className="shrink-0 font-semibold tabular-nums text-primary">{formatMinor(item.lineTotalMinor)}</span>
                       </div>
@@ -383,16 +554,22 @@ export default async function SaleDetailPage({ params }: { params: Promise<{ id:
               <dl className="space-y-1.5 px-4 pb-2 text-[11px]">
                 <div className="flex justify-between">
                   <dt className="text-tertiary">Items Total</dt>
-                  <dd className="tabular-nums text-primary">{formatMinor(sale.subtotalMinor + sale.discountMinor)}</dd>
+                  <dd className="tabular-nums text-primary">{formatMinor(sale.totalMinor + sale.discountMinor)}</dd>
                 </div>
                 <div className="flex justify-between">
-                  <dt className="text-tertiary">Item Discount</dt>
+                  <dt className="text-tertiary">Discount</dt>
                   <dd className={`tabular-nums ${sale.discountMinor > 0 ? "text-danger" : "text-primary"}`}>
                     {sale.discountMinor > 0 ? `-${formatMinor(sale.discountMinor)}` : formatMinor(0)}
                   </dd>
                 </div>
+                {sale.discountMinor > 0 && sale.discountReason && (
+                  <p className="-mt-0.5 text-[10px] text-tertiary">
+                    {sale.discountReason}
+                    {sale.discountAuthorisedByName ? ` · authorised by ${sale.discountAuthorisedByName}` : ""}
+                  </p>
+                )}
                 <div className="flex justify-between">
-                  <dt className="text-tertiary">Subtotal</dt>
+                  <dt className="text-tertiary">Taxable value</dt>
                   <dd className="tabular-nums text-primary">{formatMinor(sale.subtotalMinor)}</dd>
                 </div>
                 <div className="flex justify-between">
@@ -442,16 +619,26 @@ export default async function SaleDetailPage({ params }: { params: Promise<{ id:
           <div className="grid gap-4 print:hidden lg:col-span-2 xl:grid-cols-[minmax(0,1.6fr)_minmax(0,1.05fr)_minmax(0,1.45fr)]">
             <Card title="Actions" index={5}>
               <div className="grid grid-cols-2 gap-2 px-4 pb-4 sm:grid-cols-3 [&_button]:gap-1.5 [&_button]:px-2 [&_button]:text-[11px]">
-                <PrintButton variant="tile" />
+                <PrintButton variant="tile" receiptData={receiptData} />
                 <PendingAction icon={<Mail className="h-4 w-4" />} label="Email Bill" />
                 <PendingAction icon={<MessageCircle className="h-4 w-4" />} label="WhatsApp" />
                 <div className="col-span-2 grid grid-cols-2 gap-2 sm:col-span-3">
-                  <PendingAction icon={<RefreshCcw className="h-4 w-4" />} label="Return / Exchange" />
-                  <button type="button" disabled title="Cancelling a bill is not available yet" className={`${ACTION} cursor-not-allowed justify-center border-rose-100 bg-danger-subtle/60 text-rose-300`}>
-                    <XCircle aria-hidden="true" className="h-4 w-4" />
-                    Cancel Bill
-                    <span className="sr-only"> (not available yet)</span>
-                  </button>
+                  <ReturnAction saleId={sale.id} completed={completed} authorised={mayReturn} tile />
+                  {completed ? (
+                    <CancelBillModal
+                      saleId={sale.id}
+                      billNumber={sale.billNumber}
+                      approvers={approvers}
+                      isOwnerOrManager={isOwnerOrManager}
+                      isSameDay={isSameDay}
+                      tile
+                    />
+                  ) : (
+                    <button type="button" disabled title="Bill is voided" className={`${ACTION} cursor-not-allowed justify-center border-slate-200 bg-slate-50 text-slate-400`}>
+                      <XCircle aria-hidden="true" className="h-4 w-4" />
+                      Voided
+                    </button>
+                  )}
                 </div>
               </div>
             </Card>
@@ -479,9 +666,15 @@ export default async function SaleDetailPage({ params }: { params: Promise<{ id:
                   </Link>
                 </li>
                 <li>
-                  <span className="flex items-center gap-2.5 py-1 text-tertiary" title="Exchanges are not available yet">
-                    <Repeat aria-hidden="true" className="h-4 w-4" /> Apply for Exchange
-                  </span>
+                  {completed && mayReturn ? (
+                    <Link href={`/sales/${sale.id}/exchange`} className="flex items-center gap-2.5 py-1 text-primary hover:text-primary-active">
+                      <Repeat aria-hidden="true" className="h-4 w-4 text-indigo-600" /> Apply for Exchange
+                    </Link>
+                  ) : (
+                    <span className="flex items-center gap-2.5 py-1 text-tertiary" title="Only completed bills can be exchanged">
+                      <Repeat aria-hidden="true" className="h-4 w-4" /> Apply for Exchange
+                    </span>
+                  )}
                 </li>
               </ul>
             </Card>

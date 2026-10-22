@@ -13,6 +13,15 @@ import { randomUUID } from "node:crypto";
  * "add" twice cannot duplicate either.
  */
 
+import {
+  normalizeEmail,
+  normalizeGstin,
+  normalizeName,
+  normalizePhone,
+  phoneLookupVariants,
+} from "@/lib/customerFields";
+import type { Prisma } from "@prisma/client";
+
 export interface CustomerHit {
   id: string;
   name: string;
@@ -20,6 +29,32 @@ export interface CustomerHit {
 }
 
 export const CUSTOMER_SEARCH_LIMIT = 20;
+
+export async function getCustomerDue(
+  params: { tenantId: string; customerId: string },
+  client: { $queryRaw: Prisma.TransactionClient["$queryRaw"] } = db,
+): Promise<number> {
+  const [salesResult, paymentsResult] = await Promise.all([
+    client.$queryRaw<{ sum: bigint | number | null }[]>`
+      SELECT SUM("totalMinor" - "paidMinor") AS "sum"
+        FROM "sales"
+       WHERE "tenantId" = ${params.tenantId}
+         AND "customerId" = ${params.customerId}
+         AND "status" = 'COMPLETED'
+         AND "paidMinor" < "totalMinor"
+    `,
+    client.$queryRaw<{ sum: bigint | number | null }[]>`
+      SELECT SUM("amountMinor") AS "sum"
+        FROM "khata_payments"
+       WHERE "tenantId" = ${params.tenantId}
+         AND "customerId" = ${params.customerId}
+    `,
+  ]);
+
+  const salesDue = Number(salesResult[0]?.sum ?? 0);
+  const paymentsCollected = Number(paymentsResult[0]?.sum ?? 0);
+  return Math.max(0, salesDue - paymentsCollected);
+}
 
 export async function searchCustomers(params: {
   tenantId: string;
@@ -29,16 +64,30 @@ export async function searchCustomers(params: {
   const query = params.query.trim();
   if (query.length === 0) return [];
 
-  return db.customer.findMany({
+  // If query could be a phone number, extract digits and generate variants
+  const digits = query.replace(/\D/g, "");
+  const searchVariants = digits.length >= 4 ? phoneLookupVariants(`+91${digits.slice(-10)}`) : [];
+
+  const phoneConditions: Prisma.CustomerWhereInput[] = [
+    { phone: { contains: query } },
+    ...searchVariants.map((v) => ({ phone: { contains: v } })),
+  ];
+
+  const customers = await db.customer.findMany({
     where: {
       tenantId: params.tenantId,
       isActive: true,
-      OR: [{ phone: { contains: query } }, { name: { contains: query, mode: "insensitive" } }],
+      OR: [
+        ...phoneConditions,
+        { name: { contains: query, mode: "insensitive" } },
+      ],
     },
     select: { id: true, name: true, phone: true },
     orderBy: { name: "asc" },
     take: Math.min(params.limit ?? CUSTOMER_SEARCH_LIMIT, CUSTOMER_SEARCH_LIMIT),
   });
+
+  return customers;
 }
 
 /* ------------------------------------------------- the Customers workspace */
@@ -82,12 +131,35 @@ export async function listCustomers(params: {
   tenantId: string;
   query?: string;
   customerType?: CustomerType;
+  /** Undefined lists every customer; false lists only inactive ones (the Inactive Customers tab). */
+  isActive?: boolean;
+  cohort?: "active" | "lapsed" | "inactive" | "new";
   page?: number;
 }): Promise<CustomerPage> {
   const trimmed = (params.query ?? "").trim();
-  const where = {
+  const now = new Date();
+  const thirtyDaysAgo = new Date(now.getTime() - 30 * 86_400_000);
+  const ninetyDaysAgo = new Date(now.getTime() - 90 * 86_400_000);
+
+  let cohortCondition: Prisma.CustomerWhereInput = {};
+  if (params.cohort === "new") {
+    cohortCondition = { createdAt: { gte: thirtyDaysAgo } };
+  } else if (params.cohort === "active") {
+    cohortCondition = { sales: { some: { status: "COMPLETED", completedAt: { gte: thirtyDaysAgo } } } };
+  } else if (params.cohort === "lapsed") {
+    cohortCondition = {
+      sales: {
+        some: { status: "COMPLETED", completedAt: { lt: thirtyDaysAgo, gte: ninetyDaysAgo } },
+        none: { status: "COMPLETED", completedAt: { gte: thirtyDaysAgo } },
+      },
+    };
+  }
+
+  const where: Prisma.CustomerWhereInput = {
     tenantId: params.tenantId,
     ...(params.customerType ? { customerType: params.customerType } : {}),
+    ...(params.isActive !== undefined ? { isActive: params.isActive } : {}),
+    ...cohortCondition,
     ...(trimmed.length === 0
       ? {}
       : {
@@ -187,7 +259,17 @@ export async function getCustomerSummary(params: { tenantId: string }): Promise<
 
 export type CreateCustomerResult =
   | { status: "invalid_name" }
+  | { status: "validation_error"; field: "name" | "phone" | "email" | "gstin" | "address"; error: string }
   | { status: "ok"; customer: CustomerHit; existing: boolean };
+
+export interface CustomerAddressInput {
+  line1: string;
+  line2?: string | null;
+  city: string;
+  state?: string | null;
+  postalCode: string;
+  country?: string | null;
+}
 
 /**
  * Attach a walk-in customer.
@@ -201,17 +283,76 @@ export async function createCustomer(params: {
   tenantId: string;
   name: string;
   phone?: string | null;
+  email?: string | null;
+  gstin?: string | null;
+  address?: CustomerAddressInput | null;
   actorUserId?: string | null;
   correlationId?: string;
 }): Promise<CreateCustomerResult> {
-  const name = params.name.trim();
-  if (name.length < 2) return { status: "invalid_name" };
+  const nameRes = normalizeName(params.name);
+  if (!nameRes.ok) {
+    return { status: "validation_error", field: "name", error: nameRes.error };
+  }
+  const name = nameRes.value;
 
-  const phone = params.phone?.trim() || null;
+  let phone: string | null = null;
+  if (params.phone !== undefined && params.phone !== null && params.phone.trim() !== "") {
+    const phoneRes = normalizePhone(params.phone);
+    if (!phoneRes.ok) {
+      return { status: "validation_error", field: "phone", error: phoneRes.error };
+    }
+    phone = phoneRes.value;
+  }
+
+  let email: string | null = null;
+  if (params.email !== undefined && params.email !== null && params.email.trim() !== "") {
+    const emailRes = normalizeEmail(params.email);
+    if (!emailRes.ok) {
+      return { status: "validation_error", field: "email", error: emailRes.error };
+    }
+    email = emailRes.value;
+  }
+
+  let gstin: string | null = null;
+  if (params.gstin !== undefined && params.gstin !== null && params.gstin.trim() !== "") {
+    const gstinRes = normalizeGstin(params.gstin);
+    if (!gstinRes.ok) {
+      return { status: "validation_error", field: "gstin", error: gstinRes.error };
+    }
+    gstin = gstinRes.value;
+  }
+
+  let addressData: { line1: string; line2: string | null; city: string; state: string; postalCode: string; country: string } | null = null;
+  if (params.address && (params.address.line1?.trim() || params.address.city?.trim() || params.address.postalCode?.trim())) {
+    const l1 = params.address.line1?.trim() || "";
+    const city = params.address.city?.trim() || "";
+    const postal = params.address.postalCode?.trim() || "";
+    if (!l1) {
+      return { status: "validation_error", field: "address", error: "Enter street address (Line 1)." };
+    }
+    if (!city) {
+      return { status: "validation_error", field: "address", error: "Enter city." };
+    }
+    if (!postal) {
+      return { status: "validation_error", field: "address", error: "Enter postal / PIN code." };
+    }
+    addressData = {
+      line1: l1.replace(/\s+/g, " "),
+      line2: params.address.line2?.trim() ? params.address.line2.trim().replace(/\s+/g, " ") : null,
+      city: city.replace(/\s+/g, " "),
+      state: (params.address.state?.trim() || "State").replace(/\s+/g, " "),
+      postalCode: postal.toUpperCase().replace(/\s+/g, " "),
+      country: (params.address.country?.trim() || "IN").toUpperCase().slice(0, 2),
+    };
+  }
 
   if (phone) {
-    const existing = await db.customer.findUnique({
-      where: { tenantId_phone: { tenantId: params.tenantId, phone } },
+    const variants = phoneLookupVariants(phone);
+    const existing = await db.customer.findFirst({
+      where: {
+        tenantId: params.tenantId,
+        OR: [{ phone }, ...variants.map((v) => ({ phone: v }))],
+      },
       select: { id: true, name: true, phone: true },
     });
     if (existing) return { status: "ok", customer: existing, existing: true };
@@ -220,10 +361,44 @@ export async function createCustomer(params: {
   const correlationId = params.correlationId ?? randomUUID();
 
   const created = await db.$transaction(async (tx) => {
+    let createdAddressId: string | null = null;
+    if (addressData) {
+      const addr = await tx.address.create({
+        data: {
+          tenantId: params.tenantId,
+          line1: addressData.line1,
+          line2: addressData.line2,
+          city: addressData.city,
+          state: addressData.state,
+          postalCode: addressData.postalCode,
+          country: addressData.country,
+          type: "BOTH",
+        },
+      });
+      createdAddressId = addr.id;
+    }
+
     const cust = await tx.customer.create({
-      data: { tenantId: params.tenantId, name, phone },
+      data: {
+        tenantId: params.tenantId,
+        name,
+        phone,
+        email,
+        gstin,
+        ...(createdAddressId ? { defaultBillingAddressId: createdAddressId, defaultShippingAddressId: createdAddressId } : {}),
+      },
       select: { id: true, name: true, phone: true },
     });
+
+    if (createdAddressId) {
+      await tx.customerAddress.create({
+        data: {
+          tenantId: params.tenantId,
+          customerId: cust.id,
+          addressId: createdAddressId,
+        },
+      });
+    }
 
     await enqueueOutboxEvent(tx, {
       tenantId: params.tenantId,
@@ -235,6 +410,9 @@ export async function createCustomer(params: {
         customerId: cust.id,
         name: cust.name,
         phone: cust.phone,
+        email,
+        gstin,
+        address: addressData,
       },
     });
 
@@ -293,9 +471,15 @@ export async function updateCustomer(input: UpdateCustomerInput): Promise<Update
   const correlationId = input.correlationId ?? randomUUID();
 
   const updated = await db.$transaction(async (tx) => {
+    const phoneChanged = input.phone !== undefined && phone !== existing.phone;
     const cust = await tx.customer.update({
       where: { id_tenantId: { id: input.id, tenantId: input.tenantId } },
-      data: { name, phone, email },
+      data: {
+        name,
+        phone,
+        email,
+        ...(phoneChanged ? { phoneVerifiedAt: null } : {}),
+      },
       select: { id: true, name: true, phone: true },
     });
 

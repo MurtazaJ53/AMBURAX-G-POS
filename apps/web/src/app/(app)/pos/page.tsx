@@ -1,3 +1,4 @@
+import { db } from "@/server/db";
 import { redirect } from "next/navigation";
 import { cookies } from "next/headers";
 import { env } from "@/lib/env";
@@ -5,6 +6,8 @@ import { logError } from "@/lib/safeLog";
 import { ServiceUnavailableScreen } from "@/app/ServiceUnavailableScreen";
 import { resolvePosContext, type PosContextResult } from "@/server/sales/posContext";
 import { PosTerminal } from "./PosTerminal";
+import { DEFAULT_APPAREL_SLAB, getApparelSlab } from "@/server/tax/taxSettings";
+import { listApprovers } from "@/server/identity/approvalPin";
 import { PermissionDeniedState } from "../_components/ui";
 
 /**
@@ -55,11 +58,30 @@ export default async function PosPage() {
     );
   }
 
+  // The slab is read here so the till's preview uses the same rates the server will charge.
+  // A failed read falls back to the defaults the server would also use for an unset tenant.
+  const slab = await getApparelSlab(context.tenantId).catch(() => DEFAULT_APPAREL_SLAB);
+  const mayGiveLargeDiscount = context.tenantRole === "OWNER" || context.membershipRole === "STORE_MANAGER";
+  // No GSTIN = not GST-registered: NON_GST items sell at 0% (same rule as createSale). On a lookup
+  // failure assume registered, so the till errs towards refusing rather than mis-taxing.
+  const gstRegistered = await db.tenant
+    .findUnique({ where: { id: context.tenantId }, select: { taxId: true } })
+    .then((t) => Boolean(t?.taxId?.trim()))
+    .catch(() => true);
+  // Who can approve a cashier's larger discount with their PIN. Not needed for a manager's own till.
+  const approvers = mayGiveLargeDiscount
+    ? []
+    : await listApprovers({ tenantId: context.tenantId, storeId: context.storeId }).catch(() => []);
+
   return (
     <PosTerminal
       storeName={context.storeName}
       storeCode={context.storeCode}
       cashierName={context.userName}
+      slab={slab}
+      mayGiveLargeDiscount={mayGiveLargeDiscount}
+      approvers={approvers}
+      gstRegistered={gstRegistered}
     />
   );
 }

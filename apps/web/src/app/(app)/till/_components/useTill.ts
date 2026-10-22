@@ -19,7 +19,8 @@ import { initialSessionState, sessionReducer, activeSession } from "@/client/pos
 import * as api from "@/client/pos/posApi";
 import type { CreateSaleRequest } from "@/client/pos/posApi";
 import { presentError, type PresentedError } from "@/client/platform/errorCatalog";
-import type { CustomerHit, PaymentMethod, PosDevice } from "@/client/pos/types";
+import type { CatalogItem, CustomerHit, PaymentMethod, PosDevice } from "@/client/pos/types";
+import { offlineStore } from "@/client/pos/offlineStore";
 
 /**
  * Everything the till does, wired to the reducers that decide what it means.
@@ -56,6 +57,29 @@ export interface DeviceState {
   devices: PosDevice[];
   error: PresentedError | null;
 }
+
+/**
+ * Opening cash for the current shift. `suggestedMinor` is the cash counted when this terminal last
+ * closed (a suggestion the cashier confirms or corrects); `recordedMinor` is what this shift has on
+ * record. `phase: "unavailable"` means the lookup failed — selling is never blocked on it.
+ */
+export interface OpeningCashState {
+  phase: "loading" | "ready" | "unavailable";
+  suggestedMinor: number | null;
+  fromClosedAt: string | null;
+  recordedMinor: number | null;
+  saving: boolean;
+  error: string | null;
+}
+
+const OPENING_INITIAL: OpeningCashState = {
+  phase: "loading",
+  suggestedMinor: null,
+  fromClosedAt: null,
+  recordedMinor: null,
+  saving: false,
+  error: null,
+};
 
 export function useTill(currentUserId: string) {
   const [devices, setDevices] = useState<DeviceState>({
@@ -127,12 +151,59 @@ export function useTill(currentUserId: string) {
     return () => controller.abort();
   }, [selectedDeviceId, currentUserId]);
 
-  const openShift = useCallback(async () => {
+  // --- opening cash --------------------------------------------------------------
+  const [opening, setOpening] = useState<OpeningCashState>(OPENING_INITIAL);
+  const activeSessionId = activeSession(session)?.id ?? null;
+
+  useEffect(() => {
     if (!selectedDeviceId) return;
-    dispatchSession({ type: "open" });
-    const result = await api.openSession(selectedDeviceId);
-    dispatchSession({ type: "open_answered", result, status: result.ok ? result.status : 0 });
-  }, [selectedDeviceId]);
+    const controller = new AbortController();
+    void (async () => {
+      const result = await api.openingCash(selectedDeviceId, activeSessionId ?? undefined, controller.signal);
+      if (controller.signal.aborted) return;
+      setOpening((prev) =>
+        result.ok
+          ? {
+              ...prev,
+              phase: "ready",
+              suggestedMinor: result.data.suggestedMinor,
+              fromClosedAt: result.data.fromClosedAt,
+              recordedMinor: result.data.sessionFloatMinor,
+            }
+          : { ...prev, phase: "unavailable" },
+      );
+    })();
+    return () => controller.abort();
+  }, [selectedDeviceId, activeSessionId]);
+
+  const recordOpening = useCallback(async (sessionId: string, amountMinor: number) => {
+    setOpening((prev) => ({ ...prev, saving: true, error: null }));
+    const result = await api.recordOpeningCash(sessionId, amountMinor);
+    setOpening((prev) =>
+      result.ok
+        ? { ...prev, saving: false, recordedMinor: amountMinor }
+        : {
+            ...prev,
+            saving: false,
+            error: result.kind === "api" ? result.message : "Couldn't save the opening cash. Try again.",
+          },
+    );
+    return result.ok;
+  }, []);
+
+  /** Open the shift, then record the opening cash the cashier confirmed (when given). */
+  const openShift = useCallback(
+    async (openingMinor?: number | null) => {
+      if (!selectedDeviceId) return;
+      dispatchSession({ type: "open" });
+      const result = await api.openSession(selectedDeviceId);
+      dispatchSession({ type: "open_answered", result, status: result.ok ? result.status : 0 });
+      if (result.ok && openingMinor != null && !result.data.resumed) {
+        await recordOpening(result.data.session.id, openingMinor);
+      }
+    },
+    [selectedDeviceId, recordOpening],
+  );
 
   const closeShift = useCallback(
     async (closingNote: string) => {
@@ -150,7 +221,21 @@ export function useTill(currentUserId: string) {
     const trimmed = barcode.trim();
     if (trimmed.length === 0) return;
     setScanning(true);
-    const result = await api.scanBarcode(trimmed);
+    let result = await api.scanBarcode(trimmed);
+
+    // Offline fallback if network is down or request failed
+    if (!result.ok) {
+      const offlineHit = await offlineStore.scanOfflineBarcode(trimmed).catch(() => null);
+      if (offlineHit) {
+        result = {
+          ok: true,
+          status: 200,
+          data: { item: offlineHit },
+          correlationId: "offline-cached",
+        };
+      }
+    }
+
     const outcome = classifyScan(trimmed, result);
     setScan(outcome);
     setScanning(false);
@@ -161,6 +246,12 @@ export function useTill(currentUserId: string) {
   }, []);
 
   const clearScan = useCallback(() => setScan(null), []);
+
+  /** A product picked from name/SKU search goes on the bill like a scan. */
+  const pickItem = useCallback((item: CatalogItem) => {
+    setScan(null);
+    dispatchBill({ type: "picked", item });
+  }, []);
 
   // --- customer ----------------------------------------------------------------
   const attachCustomer = useCallback((customer: CustomerHit) => {
@@ -204,7 +295,43 @@ export function useTill(currentUserId: string) {
     if (!request) return;
     let live = true;
     void (async () => {
-      const result = await api.createSale(request);
+      let result = await api.createSale(request);
+
+      // If the browser is explicitly offline, enqueue in durable local queue
+      if (!result.ok && typeof navigator !== "undefined" && navigator.onLine === false) {
+        await offlineStore.enqueueSale({
+          idempotencyKey: request.idempotencyKey,
+          request,
+          totalMinor: totals.totalMinor,
+          itemCount: bill.lines.reduce((acc, l) => acc + l.quantity, 0),
+          createdAt: Date.now(),
+          status: "PENDING",
+          retryCount: 0,
+        }).catch(() => undefined);
+
+        // Synthesize an offline completed receipt
+        result = {
+          ok: true,
+          status: 200,
+          data: {
+            sale: {
+              id: `offline-${request.idempotencyKey.slice(0, 12)}`,
+              billNumber: `OFF-${request.idempotencyKey.slice(-6).toUpperCase()}`,
+              totalMinor: totals.totalMinor,
+              subtotalMinor: totals.subtotalMinor,
+              taxMinor: totals.taxMinor,
+              discountMinor: 0,
+              paidMinor: totals.totalMinor,
+              paymentStatus: "CONFIRMED",
+              erpSyncStatus: "QUEUED_OFFLINE",
+              completedAt: new Date().toISOString(),
+            },
+            duplicate: false,
+          },
+          correlationId: "offline-queued",
+        };
+      }
+
       if (live) dispatchCompletion({ type: "answered", result });
     })();
     return () => {
@@ -212,7 +339,7 @@ export function useTill(currentUserId: string) {
       // in-flight sale is precisely how an unknown outcome is manufactured.
       live = false;
     };
-  }, [inFlightAttempt]);
+  }, [inFlightAttempt, totals, bill.lines]);
 
   const unresolvedAttempt = completion.phase === "unresolved" ? completion.attempt : 0;
 
@@ -247,6 +374,9 @@ export function useTill(currentUserId: string) {
     dispatchSession,
     openShift,
     closeShift,
+    opening,
+    recordOpening,
+    pickItem,
     bill,
     dispatchBill,
     totals,

@@ -5,6 +5,7 @@ import { createHeldBill, listHeldBills } from "@/server/sales/heldBillService";
 import { apiError, forbidden, noStore, unauthorized } from "@/lib/apiError";
 import { randomUUID } from "node:crypto";
 import { env } from "@/lib/env";
+import { logError } from "@/lib/safeLog";
 
 const createHeldBillSchema = z.object({
   idempotencyKey: z.string().trim().min(8).max(200),
@@ -48,7 +49,7 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ status: "ok", heldBill: result.heldBill, duplicate: result.duplicate, correlationId });
   } catch (err: any) {
-    console.error("Failed to create held bill:", err);
+    logError("sales/held-bills: create failed", err, { correlationId });
     return apiError({ code: "server_error", message: err.message || "Failed to hold bill.", status: 500, correlationId });
   }
 }
@@ -73,7 +74,7 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json({ status: "ok", heldBills: bills, correlationId });
   } catch (err: any) {
-    console.error("Failed to list held bills:", err);
+    logError("sales/held-bills: list failed", err, { correlationId });
     return apiError({ code: "server_error", message: err.message || "Failed to list held bills.", status: 500, correlationId });
   }
 }

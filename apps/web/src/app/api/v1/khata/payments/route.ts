@@ -3,21 +3,26 @@ import { randomUUID } from "node:crypto";
 import { z } from "zod";
 import { env } from "@/lib/env";
 import { logError } from "@/lib/safeLog";
-import { apiError, unauthorized, serviceUnavailable } from "@/lib/apiError";
+import { apiError, forbidden, noStore, unauthorized, serviceUnavailable } from "@/lib/apiError";
 import { resolvePosContext } from "@/server/sales/posContext";
-import { ErpKhataService } from "@/server/khata/khataService";
+import { collectRepayment } from "@/server/khata/repayment";
 
 export const runtime = "nodejs";
 
+// Tenant, store, Company and currency come from the session and the persisted store, never the body.
 const collectPaymentSchema = z.object({
   customerId: z.string().trim().min(1),
+  /** Cash: what the customer handed over (change is worked out). UPI/card: the amount paid. */
   amountMinor: z.number().int().positive("Payment amount must be greater than zero"),
   paymentMethod: z.enum(["CASH", "UPI", "CARD"]).default("CASH"),
   reference: z.string().trim().max(100).optional(),
-  notes: z.string().trim().max(500).optional(),
   idempotencyKey: z.string().trim().min(8).max(200),
-});
+}).strict();
 
+/**
+ * Collect a Khata repayment (Q6/Q7, owner 2026-10-14): settles the oldest bills first, refuses
+ * overpayment (cash returns change), and records allocations on the ledger. See khata/repayment.ts.
+ */
 export async function POST(req: NextRequest) {
   const correlationId = req.headers.get("x-correlation-id") ?? randomUUID();
   const sessionToken = req.cookies.get(env.SESSION_COOKIE_NAME)?.value;
@@ -26,12 +31,7 @@ export async function POST(req: NextRequest) {
   try {
     body = await req.json();
   } catch {
-    return apiError({
-      code: "invalid_request",
-      message: "Malformed request body.",
-      status: 400,
-      correlationId,
-    });
+    return apiError({ code: "invalid_request", message: "Malformed request body.", status: 400, correlationId });
   }
 
   const parsed = collectPaymentSchema.safeParse(body);
@@ -47,39 +47,39 @@ export async function POST(req: NextRequest) {
   try {
     const resolved = await resolvePosContext(sessionToken);
     if (resolved.status === "unauthorized") return unauthorized(correlationId);
-    if (resolved.status === "no_store") {
-      const { noStore } = await import("@/lib/apiError");
-      return noStore(correlationId);
-    }
+    if (resolved.status === "no_store") return noStore(correlationId);
+    // Collecting money at the counter is a selling task.
+    if (!resolved.context.canSell) return forbidden(correlationId, "Your role can't take payments in this store.");
 
-    const khataService = new ErpKhataService();
-    const result = await khataService.collectCustomerPayment({
-      tenantId: resolved.context.tenantId,
+    const result = await collectRepayment({
+      actor: { tenantId: resolved.context.tenantId, userId: resolved.context.userId },
+      storeId: resolved.context.storeId,
       customerId: parsed.data.customerId,
-      actorUserId: resolved.context.userId,
-      amountMinor: parsed.data.amountMinor,
-      paymentMethod: parsed.data.paymentMethod,
-      reference: parsed.data.reference,
-      notes: parsed.data.notes,
+      method: parsed.data.paymentMethod,
+      tenderedMinor: parsed.data.amountMinor,
+      reference: parsed.data.reference ?? null,
       idempotencyKey: parsed.data.idempotencyKey,
       correlationId,
     });
 
-    return NextResponse.json({
-      status: "ok",
-      payment: result.payment,
-      duplicate: result.duplicate,
-      correlationId,
-    }, { status: 200 });
-  } catch (err: unknown) {
-    if (err instanceof Error && err.message.includes("not found")) {
-      return apiError({
-        code: "not_found",
-        message: err.message,
-        status: 404,
-        correlationId,
-      });
+    switch (result.status) {
+      case "ok":
+        return NextResponse.json({ ...result, correlationId }, { status: 200 });
+      case "not_found":
+        return apiError({ code: "not_found", message: "Customer not found.", status: 404, correlationId });
+      case "company_unavailable":
+        return apiError({
+          code: "khata_scope_unavailable",
+          message: "This store is not mapped to a legal company and currency, so khata payments cannot be collected.",
+          status: 409,
+          correlationId,
+        });
+      case "nothing_due":
+        return apiError({ code: "nothing_due", message: "This customer owes nothing here.", status: 409, correlationId });
+      case "validation_error":
+        return apiError({ code: "validation_error", message: result.reason, status: 400, correlationId });
     }
+  } catch (err: unknown) {
     logError("khata: collect payment failed", err, { correlationId });
     return serviceUnavailable(correlationId, "Could not collect khata payment.");
   }

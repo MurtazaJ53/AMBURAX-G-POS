@@ -13,6 +13,7 @@ import { CustomerPanel } from "./CustomerPanel";
 import { PaymentPanel } from "./PaymentPanel";
 import { CompletionPanel } from "./CompletionPanel";
 import { Kbd } from "./primitives";
+import { OperatorBar } from "./OperatorBar";
 
 /**
  * The POS command surface.
@@ -80,9 +81,12 @@ export function TillWorkspace({
   }, [till.completion.phase, router]);
 
   // The scan field takes focus as soon as the till is ready to sell, and again after each
-  // completed bill — a cashier should never have to click before scanning.
+  // completed bill — a cashier should never have to click before scanning. If the cashier has
+  // already jumped to the customer field (F4 pressed before this effect ran), that choice wins.
   useEffect(() => {
-    if (sellable && !finished) focusScan();
+    if (!sellable || finished) return;
+    if (customerRef.current && document.activeElement === customerRef.current) return;
+    focusScan();
   }, [sellable, finished, focusScan]);
 
   useEffect(() => {
@@ -132,6 +136,8 @@ export function TillWorkspace({
         session={till.session}
       />
 
+      <OperatorBar signedInName={cashierName} />
+
       <div className="grid min-h-0 flex-1 gap-4 lg:grid-cols-[minmax(0,1fr)_26rem]">
         {/* --- scan and bill ------------------------------------------------ */}
         <div className="flex min-h-0 flex-col gap-4">
@@ -144,18 +150,37 @@ export function TillWorkspace({
               <ScanBar
                 ref={scanRef}
                 onScan={till.submitScan}
+                onPick={till.pickItem}
                 scanning={till.scanning}
                 outcome={till.scan}
                 onDismiss={till.clearScan}
                 disabled={!sellable}
                 disabledReason="Open a shift to start scanning"
               />
-              <BillPanel
-                bill={till.bill}
-                totals={till.totals}
-                dispatch={till.dispatchBill}
-                readOnly={!sellable || busy}
-              />
+              {sellable ? (
+                <BillPanel
+                  bill={till.bill}
+                  totals={till.totals}
+                  dispatch={till.dispatchBill}
+                  readOnly={busy}
+                />
+              ) : (
+                // Before a shift is open, the centre of the screen is the start-of-shift steps —
+                // the one thing the cashier can do next.
+                <div className="amb-fade-in mx-auto w-full max-w-xl">
+                  <SessionPanel
+                    devices={till.devices}
+                    selectedDevice={till.selectedDevice}
+                    onSelectDevice={till.selectDevice}
+                    session={till.session}
+                    opening={till.opening}
+                    onOpen={(minor) => void till.openShift(minor)}
+                    onRecordOpening={(id, minor) => void till.recordOpening(id, minor)}
+                    onClose={(note) => void till.closeShift(note)}
+                    onDismiss={() => till.dispatchSession({ type: "dismiss" })}
+                  />
+                </div>
+              )}
             </>
           )}
         </div>
@@ -172,20 +197,23 @@ export function TillWorkspace({
             Refusing to shrink gives each panel its natural height and lets `overflow-y-auto` do
             what it was put here to do. */}
         <div className="flex min-h-0 flex-col gap-4 overflow-y-auto [&>*]:shrink-0">
-          {/* One instance, reordered rather than re-rendered. A till that cannot sell needs the
-              shift panel first; a till that can needs it out of the way. Rendering it twice
-              would unmount it on the transition and lose a half-typed closing note. */}
-          <div className={sellable ? "order-3" : "order-none"}>
-            <SessionPanel
-              devices={till.devices}
-              selectedDevice={till.selectedDevice}
-              onSelectDevice={till.selectDevice}
-              session={till.session}
-              onOpen={() => void till.openShift()}
-              onClose={(note) => void till.closeShift(note)}
-              onDismiss={() => till.dispatchSession({ type: "dismiss" })}
-            />
-          </div>
+          {/* While selling, the shift panel sits below payment, out of the way. Before a shift is
+              open it is rendered in the centre instead (left column). */}
+          {sellable && (
+            <div className="order-3">
+              <SessionPanel
+                devices={till.devices}
+                selectedDevice={till.selectedDevice}
+                onSelectDevice={till.selectDevice}
+                session={till.session}
+                opening={till.opening}
+                onOpen={(minor) => void till.openShift(minor)}
+                onRecordOpening={(id, minor) => void till.recordOpening(id, minor)}
+                onClose={(note) => void till.closeShift(note)}
+                onDismiss={() => till.dispatchSession({ type: "dismiss" })}
+              />
+            </div>
+          )}
 
           <CustomerPanel
             ref={customerRef}

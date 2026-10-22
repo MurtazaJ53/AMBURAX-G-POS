@@ -16,6 +16,8 @@ const createReturnSchema = z.object({
   idempotencyKey: z.string().trim().min(8).max(200),
   reason: z.string().trim().max(500).optional(),
   amburaxExchangeId: z.string().trim().optional(),
+  // E7: the till paying the refund. Checked on the server against the caller's own rights.
+  posSessionId: z.string().trim().min(1).max(64).optional(),
   items: z
     .array(
       z.object({
@@ -69,12 +71,20 @@ export async function POST(
     const result = await createReturn({
       tenantId: resolved.context.tenantId,
       storeId: resolved.context.storeId,
+      // Session-derived, like the tenant and store above. A body that named its own role would
+      // be ignored, not honoured.
+      actor: {
+        userId: resolved.context.userId,
+        tenantRole: resolved.context.tenantRole,
+        membershipRole: resolved.context.membershipRole,
+      },
       originalSaleId: saleId,
       idempotencyKey: parsed.data.idempotencyKey,
       reason: parsed.data.reason,
       amburaxExchangeId: parsed.data.amburaxExchangeId,
       items: parsed.data.items,
       refundPayments: parsed.data.refundPayments,
+      posSessionId: parsed.data.posSessionId ?? null,
     });
 
     return NextResponse.json(
@@ -86,6 +96,7 @@ export async function POST(
       let status = 400;
       if (err.code === "NOT_FOUND") status = 404;
       if (err.code === "FORBIDDEN") status = 403;
+      if (err.code === "CASH_SHORT" || err.code === "CONFLICT") status = 409;
       
       return apiError({
         code: err.code.toLowerCase(),

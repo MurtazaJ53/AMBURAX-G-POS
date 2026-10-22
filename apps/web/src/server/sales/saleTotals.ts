@@ -25,6 +25,8 @@ export interface PricedLine {
   unitPriceMinor: number;
   /** Copied from the variant row. Never from the request. */
   taxRateBp: number;
+  /** APPAREL_SLAB lines take their rate from the slab at sale time; FIXED (default) use taxRateBp. */
+  taxRateMode?: "FIXED" | "APPAREL_SLAB";
 }
 
 export interface ComputedLine extends PricedLine {
@@ -37,7 +39,9 @@ export interface ComputedLine extends PricedLine {
 
 export interface SaleTotals {
   lines: ComputedLine[];
-  /** Sum of line totals net of tax — what the goods are worth before tax. */
+  /** Sum of tax-inclusive line totals before any discount. */
+  grossMinor: number;
+  /** Taxable value: totalMinor less the GST it contains. */
   subtotalMinor: number;
   discountMinor: number;
   taxMinor: number;
@@ -80,35 +84,99 @@ export function taxFromInclusive(grossMinor: number, taxRateBp: number): number 
 }
 
 /**
+ * The garment GST slab (owner decision 2026-10-13): the low rate when the value of one piece,
+ * excluding GST at the low rate, is at or below the threshold; the high rate above it.
+ */
+export interface ApparelSlab {
+  thresholdMinor: number;
+  lowRateBp: number;
+  highRateBp: number;
+}
+
+/**
+ * The slab rate for a line, from what the customer actually pays for it (after discount).
+ *
+ * Integer-only: "net / qty / (1 + low) <= threshold" is rearranged to
+ * `net * 10000 <= threshold * qty * (10000 + low)` so no fraction of a paisa is ever rounded
+ * into or out of the slab.
+ */
+export function apparelSlabRateBp(netLineMinor: number, quantity: number, slab: ApparelSlab): number {
+  const withinLow = netLineMinor * 10_000 <= slab.thresholdMinor * quantity * (10_000 + slab.lowRateBp);
+  return withinLow ? slab.lowRateBp : slab.highRateBp;
+}
+
+/**
+ * Spread a bill discount over its lines in proportion to each line's value, using largest
+ * remainders so the parts always add up to the whole, to the paisa.
+ */
+export function allocateDiscount(lineTotals: number[], discountMinor: number): number[] {
+  const gross = lineTotals.reduce((a, b) => a + b, 0);
+  if (discountMinor <= 0 || gross <= 0) return lineTotals.map(() => 0);
+  const exact = lineTotals.map((t) => (t * discountMinor) / gross);
+  const parts = exact.map((e) => Math.floor(e));
+  let left = discountMinor - parts.reduce((a, b) => a + b, 0);
+  const order = exact
+    .map((e, i) => ({ i, frac: e - Math.floor(e) }))
+    .sort((a, b) => b.frac - a.frac || a.i - b.i);
+  for (const { i } of order) {
+    if (left <= 0) break;
+    parts[i]! += 1;
+    left -= 1;
+  }
+  return parts;
+}
+
+/**
  * Compute every amount for a sale.
  *
  * `discountMinor` is a whole-sale discount entered by the operator. It is clamped to the
  * sale total: a discount larger than the bill would produce a negative total, which is a
  * refund — a different transaction with different accounting, not something the checkout
  * path should be able to create by accident.
+ *
+ * The discount is allocated across lines, and each line's GST is extracted from what the
+ * customer pays for it after discount: a discount lowers the taxable value. A line whose
+ * variant uses the garment slab takes its rate from that discounted per-piece value.
  */
-export function computeSaleTotals(lines: PricedLine[], discountMinor = 0): SaleTotals {
-  const computed: ComputedLine[] = lines.map((line) => {
-    const lineTotalMinor = line.unitPriceMinor * line.quantity;
+export function computeSaleTotals(
+  lines: PricedLine[],
+  discountMinor = 0,
+  slab: ApparelSlab | null = null,
+): SaleTotals {
+  const lineTotals = lines.map((line) => line.unitPriceMinor * line.quantity);
+  const grossMinor = lineTotals.reduce((sum, t) => sum + t, 0);
+  const discount = Math.max(0, Math.min(Math.round(discountMinor), grossMinor));
+  const shares = allocateDiscount(lineTotals, discount);
+
+  const computed: ComputedLine[] = lines.map((line, i) => {
+    const lineTotalMinor = lineTotals[i]!;
+    const lineDiscountMinor = shares[i]!;
+    const netMinor = lineTotalMinor - lineDiscountMinor;
+    const taxRateBp =
+      line.taxRateMode === "APPAREL_SLAB" && slab
+        ? apparelSlabRateBp(netMinor, line.quantity, slab)
+        : line.taxRateBp;
     return {
       ...line,
+      taxRateBp,
       lineTotalMinor,
-      taxMinor: taxFromInclusive(lineTotalMinor, line.taxRateBp),
-      lineDiscountMinor: 0,
+      lineDiscountMinor,
+      taxMinor: taxFromInclusive(netMinor, taxRateBp),
     };
   });
 
-  const grossMinor = computed.reduce((sum, l) => sum + l.lineTotalMinor, 0);
   const taxMinor = computed.reduce((sum, l) => sum + l.taxMinor, 0);
-  const discount = Math.max(0, Math.min(Math.round(discountMinor), grossMinor));
+  const totalMinor = grossMinor - discount;
 
   return {
     lines: computed,
-    // Net of tax, so subtotal + tax = gross, which is what a receipt must show.
-    subtotalMinor: grossMinor - taxMinor,
+    grossMinor,
+    // The taxable value: what the customer pays, net of the GST it contains. With no discount
+    // this is gross minus tax, exactly as before.
+    subtotalMinor: totalMinor - taxMinor,
     discountMinor: discount,
     taxMinor,
-    totalMinor: grossMinor - discount,
+    totalMinor,
   };
 }
 

@@ -52,7 +52,25 @@ export async function resolvePosContext(
   const session = await resolveSession(sessionToken);
   if (!session) return { status: "unauthorized" };
 
-  const store = await db.store.findFirst({
+  // A12: the store this session chose, if any — re-checked on every request, so a removed
+  // membership stops working immediately. Otherwise the tenant's default store, as before.
+  let store: { id: string; name: string; code: string } | null = null;
+  if (session.activeStoreId) {
+    const chosen = await db.store.findFirst({
+      where: { id: session.activeStoreId, tenantId: session.tenantId },
+      select: { id: true, name: true, code: true },
+    });
+    if (chosen) {
+      const allowed =
+        session.user.tenantRole === "OWNER" ||
+        (await db.storeMembership.findUnique({
+          where: { userId_storeId: { userId: session.userId, storeId: chosen.id } },
+          select: { storeId: true },
+        })) !== null;
+      if (allowed) store = chosen;
+    }
+  }
+  store ??= await db.store.findFirst({
     where: { tenantId: session.tenantId },
     orderBy: [{ isDefault: "desc" }, { createdAt: "asc" }],
     select: { id: true, name: true, code: true },

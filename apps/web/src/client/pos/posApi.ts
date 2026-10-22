@@ -104,3 +104,26 @@ export function createSale(
 ): Promise<ApiResult<{ sale: CompletedSale; duplicate: boolean }>> {
   return apiRequest("/api/v1/sales", { method: "POST", body: request, timeoutMs: 30_000 });
 }
+
+/**
+ * Opening cash for the start-of-shift step: the suggestion (cash counted when this terminal last
+ * closed) and, with `sessionId`, what that shift already recorded. Null means none.
+ */
+export function openingCash(
+  posDeviceId: string,
+  sessionId?: string,
+  signal?: AbortSignal,
+): Promise<
+  ApiResult<{ suggestedMinor: number | null; fromClosedAt: string | null; sessionFloatMinor: number | null }>
+> {
+  const qs = sessionId ? `?sessionId=${encodeURIComponent(sessionId)}` : "";
+  return apiRequest(`/api/v1/pos/devices/${encodeURIComponent(posDeviceId)}/opening-cash${qs}`, { signal });
+}
+
+/** Record a shift's opening cash, once. The server refuses a second figure. */
+export function recordOpeningCash(sessionId: string, amountMinor: number): Promise<ApiResult<{ status: string }>> {
+  return apiRequest(`/api/v1/pos/sessions/${encodeURIComponent(sessionId)}/opening-cash`, {
+    method: "POST",
+    body: { amountMinor },
+  });
+}

@@ -24,6 +24,7 @@ import type { CustomerType } from "@prisma/client";
 import { CustomerActions, CustomerToolbar } from "./CustomerClient";
 import { CustomerDetailPanel } from "./CustomerDetailPanel";
 import { CustomerAvatar, SegmentPill } from "./customerUi";
+import { CustomerPhoneCell } from "./CustomerPhoneCell";
 
 /**
  * Customers (CRM), laid out as the Phase-2 reference: five headline cards, the views and
@@ -42,6 +43,13 @@ const SEGMENT_COLOURS: Record<CustomerType, string> = {
   DISTRIBUTOR: "#f59e0b",
 };
 const SEGMENT_LABEL: Record<CustomerType, string> = { RETAIL: "Retail", WHOLESALE: "Wholesale", DISTRIBUTOR: "Distributor" };
+
+function spendTier(spentMinor: number): { label: string; className: string } {
+  if (spentMinor >= 5_000_000) return { label: "Platinum", className: "bg-purple-100 text-purple-800 border-purple-200" };
+  if (spentMinor >= 2_000_000) return { label: "Gold", className: "bg-amber-100 text-amber-800 border-amber-200" };
+  if (spentMinor >= 500_000) return { label: "Silver", className: "bg-slate-200 text-slate-800 border-slate-300" };
+  return { label: "Bronze", className: "bg-orange-50 text-orange-800 border-orange-200" };
+}
 
 const KPI_TONES = {
   sky: "bg-primary-subtle text-primary",
@@ -81,7 +89,7 @@ function pageWindow(page: number, count: number): (number | "gap")[] {
 export default async function CustomersPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string; page?: string; selected?: string; customerType?: string }>;
+  searchParams: Promise<{ q?: string; page?: string; selected?: string; customerType?: string; status?: string; cohort?: string }>;
 }) {
   const token = (await cookies()).get(env.SESSION_COOKIE_NAME)?.value;
   const sp = await searchParams;
@@ -89,6 +97,11 @@ export default async function CustomersPage({
   const page = Number.parseInt(sp.page ?? "1", 10) || 1;
   const selectedId = sp.selected;
   const customerType = SEGMENTS.includes(sp.customerType as CustomerType) ? (sp.customerType as CustomerType) : "";
+  // Same convention as the segment: an unrecognised value is ignored and the default view
+  // (all of this tenant's customers) shows. "inactive" means strictly isActive = false.
+  const status: "inactive" | "" = sp.status === "inactive" ? "inactive" : "";
+  const cohort: "active" | "lapsed" | "new" | "" =
+    sp.cohort === "active" || sp.cohort === "lapsed" || sp.cohort === "new" ? sp.cohort : "";
 
   let resolved: PosContextResult;
   try {
@@ -101,6 +114,7 @@ export default async function CustomersPage({
   if (resolved.status === "unauthorized") redirect("/auth/login");
   if (resolved.status === "no_store") redirect("/dashboard");
   const context = resolved.context;
+  const isOwnerOrManager = context.tenantRole === "OWNER" || context.membershipRole === "STORE_MANAGER";
 
   let result: CustomerPage;
   let summary: CustomerSummary;
@@ -108,7 +122,14 @@ export default async function CustomersPage({
   let detail: CustomerDetail | null = null;
   try {
     [result, summary, analytics] = await Promise.all([
-      listCustomers({ tenantId: context.tenantId, query, customerType: customerType || undefined, page }),
+      listCustomers({
+        tenantId: context.tenantId,
+        query,
+        customerType: customerType || undefined,
+        isActive: status === "inactive" ? false : undefined,
+        cohort: cohort || undefined,
+        page,
+      }),
       getCustomerSummary({ tenantId: context.tenantId }),
       getCustomerAnalytics({ tenantId: context.tenantId }),
     ]);
@@ -125,6 +146,8 @@ export default async function CustomersPage({
     const p = new URLSearchParams();
     if (query) p.set("q", query);
     if (customerType) p.set("customerType", customerType);
+    if (status) p.set("status", status);
+    if (cohort) p.set("cohort", cohort);
     if (pageNo > 1) p.set("page", String(pageNo));
     if (selected) p.set("selected", selected);
     const qs = p.toString();
@@ -188,7 +211,7 @@ export default async function CustomersPage({
 
       {/* ------------------------------------------------------- views + filters */}
       <div className="mb-3 border-b border-border">
-        <CustomerToolbar initialQuery={query} initialType={customerType} total={result.total} />
+        <CustomerToolbar initialQuery={query} initialType={customerType} status={status} cohort={cohort} total={result.total} />
       </div>
 
       {/* --------------------------------------------------------- directory */}
@@ -256,10 +279,17 @@ export default async function CustomersPage({
                             <td className="px-2 py-2">
                               <div className="flex min-w-0 items-center gap-2">
                                 <CustomerAvatar id={customer.id} name={customer.name} size="xs" />
-                                <p className="truncate font-medium text-primary">{customer.name}</p>
+                                <div className="min-w-0">
+                                  <p className="truncate font-medium text-primary">{customer.name}</p>
+                                  <span className={`inline-block rounded px-1.5 py-0.2 text-[9px] font-bold border ${spendTier(customer.totalSpentMinor).className}`}>
+                                    {spendTier(customer.totalSpentMinor).label}
+                                  </span>
+                                </div>
                               </div>
                             </td>
-                            <td className="hidden truncate px-2 py-2 tabular-nums text-secondary lg:table-cell">{customer.phone ?? "—"}</td>
+                            <td className="hidden truncate px-2 py-2 lg:table-cell">
+                              <CustomerPhoneCell phone={customer.phone} canViewUnmasked={isOwnerOrManager} />
+                            </td>
                             <td className="hidden truncate px-2 py-2 text-secondary min-[1700px]:table-cell">{customer.email ?? "—"}</td>
                             <td className="px-2 py-2">
                               <SegmentPill segment={customer.customerType} />
@@ -386,7 +416,7 @@ export default async function CustomersPage({
         </section>
 
         {detail ? (
-          <CustomerDetailPanel key={detail.id} detail={detail} closeHref={hrefWith()} />
+          <CustomerDetailPanel key={detail.id} detail={detail} closeHref={hrefWith()} isOwnerOrManager={isOwnerOrManager} />
         ) : (
           <aside
             aria-label="Customer details"

@@ -12,6 +12,10 @@ export const runtime = "nodejs";
 /** `null` clears the assignment, which falls the resolution chain through to the next step. */
 const assignSchema = z.object({ priceListId: z.string().min(1).nullable() });
 
+export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+  return PUT(req, ctx);
+}
+
 export async function PUT(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   const correlationId = req.headers.get("x-correlation-id") ?? randomUUID();
   const sessionToken = req.cookies.get(env.SESSION_COOKIE_NAME)?.value;

@@ -8,6 +8,15 @@
  * "Invalid Date".
  */
 
+export interface PendingPriceOption {
+  id: string;
+  priceMinor: number;
+  mrpMinor: number | null;
+  unitsAhead: number;
+  oldStockRemaining?: number;
+  newStockRemaining?: number;
+}
+
 export interface CatalogItem {
   variantId: string;
   productName: string;
@@ -16,12 +25,16 @@ export interface CatalogItem {
   size: string | null;
   colour: string | null;
   priceMinor: number;
+  mrpMinor?: number | null;
   taxRateBp: number;
+  /** APPAREL_SLAB variants take their GST rate from the store slab at sale time. */
+  taxRateMode?: "FIXED" | "APPAREL_SLAB";
   /**
    * Null means this store has never counted the variant. That is genuinely different from
    * zero and must never be rendered as "0 in stock" (ADR-080).
    */
   stockQuantity: number | null;
+  pendingPrices?: PendingPriceOption[];
 }
 
 /** What a scan returns. `isActive` is present here and absent from search results. */
@@ -47,6 +60,18 @@ export interface PosDevice {
   lastSeenAt: string | null;
   scanSoundEnabled: boolean;
   showProductImages: boolean;
+}
+
+export interface PosSessionSummary {
+  id: string;
+  posDeviceId: string;
+  posDeviceName: string;
+  posDeviceCode: string;
+  cashierName: string;
+  openedAt: string;
+  closedAt: string | null;
+  salesCount: number;
+  grossMinor: number;
 }
 
 export interface PosSession {

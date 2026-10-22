@@ -1,7 +1,10 @@
 import { db } from "@/server/db";
-import { StockMovementType, SaleStatus, PaymentStatus } from "@prisma/client";
+import { Prisma, StockMovementType, SaleStatus, PaymentStatus } from "@prisma/client";
 import { randomUUID } from "crypto";
 import { enqueueOutboxEvent } from "@/server/events/outbox";
+import { canAuthorizeReturn } from "@/server/sales/returnRoles";
+import { canHandleCash, expectedDrawerCash, lockSession } from "@/server/pos/cashRegister";
+import { onReturnCompleted } from "@/server/loyalty/loyalty";
 
 export class ReturnDomainError extends Error {
   constructor(public code: string, message: string) {
@@ -13,6 +16,20 @@ export class ReturnDomainError extends Error {
 export interface CreateReturnInput {
   tenantId: string;
   storeId: string;
+  /**
+   * Who is asking. Resolved from the session by the caller — never from the request body, which
+   * is why this carries roles rather than a user id the client could name.
+   */
+  actor: {
+    userId: string;
+    tenantRole: "OWNER" | "STAFF";
+    membershipRole: string | null;
+  };
+  /**
+   * E7 (owner 2026-10-14): the till session that actually pays the refund. Required for any cash
+   * refund; recorded for electronic refunds when given. Never inferred from the original sale.
+   */
+  posSessionId?: string | null;
   originalSaleId: string;
   idempotencyKey: string;
   reason?: string;
@@ -29,6 +46,15 @@ export interface CreateReturnInput {
 }
 
 export async function createReturn(input: CreateReturnInput) {
+  // 0. Authorization. First, before even the idempotency lookup: an unauthorised caller must
+  // not be able to learn whether a given key already exists, and must never reach a write.
+  if (!canAuthorizeReturn(input.actor)) {
+    throw new ReturnDomainError(
+      "FORBIDDEN",
+      "Only a store manager or the owner can authorise a return.",
+    );
+  }
+
   // 1. Idempotency Check
   const existing = await db.saleReturn.findUnique({
     where: {
@@ -72,6 +98,27 @@ export async function createReturn(input: CreateReturnInput) {
     throw new ReturnDomainError("BAD_REQUEST", "Cannot return an incomplete sale.");
   }
 
+  // 2b. The paying till (E7). It must be an open shift in this store whose drawer this person may
+  // handle; a cash refund cannot be made without one.
+  const cashRefundMinor = input.refundPayments.filter((p) => p.method === "CASH").reduce((s, p) => s + p.amountMinor, 0);
+  const payoutSessionId = input.posSessionId?.trim() || null;
+  if (cashRefundMinor > 0 && !payoutSessionId) {
+    throw new ReturnDomainError("TILL_REQUIRED", "Choose the till the cash refund is paid from.");
+  }
+  if (payoutSessionId) {
+    const till = await db.posSession.findFirst({
+      where: { id: payoutSessionId, tenantId: input.tenantId },
+      select: { storeId: true, cashierUserId: true, closedAt: true },
+    });
+    if (!till || till.storeId !== input.storeId) throw new ReturnDomainError("BAD_REQUEST", "That till is not in this store.");
+    if (till.closedAt) throw new ReturnDomainError("BAD_REQUEST", "That till's shift is closed.");
+    const allowed = await canHandleCash(
+      { tenantId: input.tenantId, userId: input.actor.userId, tenantRole: input.actor.tenantRole },
+      till,
+    );
+    if (!allowed) throw new ReturnDomainError("FORBIDDEN", "You can't pay refunds from that till.");
+  }
+
   // 3. Khata Validation & Money Rules
   const totalRefundRequested = input.refundPayments.reduce((sum, p) => sum + p.amountMinor, 0);
   const totalPaidMinor = sale.payments.reduce((sum, p) => sum + p.amountMinor, 0);
@@ -82,8 +129,8 @@ export async function createReturn(input: CreateReturnInput) {
     where: { originalSaleId: sale.id },
     include: { payments: true },
   });
-  
-  const previousRefundedCash = previousReturns.reduce((sum, ret) => 
+
+  const previousRefundedCash = previousReturns.reduce((sum, ret) =>
     sum + ret.payments.reduce((psum, p) => psum + p.amountMinor, 0), 0
   );
 
@@ -94,6 +141,7 @@ export async function createReturn(input: CreateReturnInput) {
   }
 
   // 4. Atomic Concurrency & Stock Validation
+  try {
   return await db.$transaction(async (tx) => {
     let totalCalculatedRefundMinor = 0;
     const returnItemsData: any[] = [];
@@ -120,8 +168,10 @@ export async function createReturn(input: CreateReturnInput) {
         throw new ReturnDomainError("BAD_REQUEST", "Return quantity exceeds originally sold quantity.");
       }
 
-      // Historical Price Logic
-      const proratedRefundMinor = Math.round(originalItem.lineTotalMinor * (returnReq.quantity / originalItem.quantity));
+      // Historical Price Logic: refund what the customer actually paid for these units, i.e.
+      // the line total less its share of any bill discount.
+      const paidForLineMinor = originalItem.lineTotalMinor - originalItem.lineDiscountMinor;
+      const proratedRefundMinor = Math.round(paidForLineMinor * (returnReq.quantity / originalItem.quantity));
       totalCalculatedRefundMinor += proratedRefundMinor;
 
       returnItemsData.push({
@@ -155,6 +205,19 @@ export async function createReturn(input: CreateReturnInput) {
       throw new ReturnDomainError("BAD_REQUEST", "Requested refund amount exceeds historical item value.");
     }
 
+    // 4b. Cash can't leave a drawer that doesn't hold it (E7). The session row is locked first, so
+    // two refunds or a refund and a pay-out can't both spend the same cash.
+    if (cashRefundMinor > 0 && payoutSessionId) {
+      await lockSession(tx, input.tenantId, payoutSessionId);
+      const inDrawer = await expectedDrawerCash(tx, input.tenantId, payoutSessionId);
+      if (cashRefundMinor > inDrawer) {
+        throw new ReturnDomainError(
+          "CASH_SHORT",
+          "This till doesn't hold enough cash for the refund. Refund to the original UPI or card instead, or pay it from another till.",
+        );
+      }
+    }
+
     // 5. Create Domain Objects
     const newReturn = await tx.saleReturn.create({
       data: {
@@ -166,6 +229,8 @@ export async function createReturn(input: CreateReturnInput) {
         reason: input.reason,
         idempotencyKey: input.idempotencyKey,
         amburaxExchangeId: input.amburaxExchangeId,
+        processedByUserId: input.actor.userId,
+        posSessionId: payoutSessionId,
         items: {
           create: returnItemsData,
         },
@@ -193,8 +258,30 @@ export async function createReturn(input: CreateReturnInput) {
       payload: { saleReturnId: newReturn.id },
     });
 
+    // Decision 41: compensating loyalty entries, inert until finance + GST sign-off.
+    await onReturnCompleted(tx, {
+      tenantId: input.tenantId,
+      saleId: sale.id,
+      returnId: newReturn.id,
+      currency: sale.currencySnapshot,
+      refundMinor: totalCalculatedRefundMinor,
+      saleTotalMinor: sale.totalMinor,
+    });
+
     return { saleReturn: newReturn, duplicate: false };
   }, {
     isolationLevel: "Serializable",
   });
+  } catch (err) {
+    // Two returns (or a return and a payout) touching the same bill or drawer at once: Postgres keeps
+    // one and aborts the other. P2034 is Prisma's write conflict; P2010 carrying 40001 is the same
+    // serialization failure surfacing from the till's row lock. Say so plainly.
+    if (
+      err instanceof Prisma.PrismaClientKnownRequestError &&
+      (err.code === "P2034" || (err.code === "P2010" && JSON.stringify(err.meta ?? {}).includes("40001")))
+    ) {
+      throw new ReturnDomainError("CONFLICT", "Another return on this bill or till was saved at the same moment (conflict). Try again.");
+    }
+    throw err;
+  }
 }

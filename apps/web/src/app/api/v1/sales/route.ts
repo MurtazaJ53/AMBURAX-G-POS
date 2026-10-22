@@ -4,6 +4,7 @@ import { z } from "zod";
 import { env } from "@/lib/env";
 import { logError } from "@/lib/safeLog";
 import { apiError, unauthorized, forbidden, noStore, serviceUnavailable } from "@/lib/apiError";
+import { resolveSeller } from "@/server/pos/tillOperator";
 import { resolvePosContext } from "@/server/sales/posContext";
 import { createSale } from "@/server/sales/saleService";
 import { MAX_LINES_PER_SALE, MAX_LINE_QUANTITY } from "@/server/sales/saleTotals";
@@ -59,6 +60,8 @@ const createSaleSchema = z.object({
       z.object({
         variantId: z.string().trim().min(1),
         quantity: z.number().int().min(1).max(MAX_LINE_QUANTITY),
+        unitPriceMinor: z.number().int().positive().optional(),
+        batchChoice: z.enum(["old", "new"]).optional(),
       }),
     )
     .min(1, "Add at least one item.")
@@ -68,9 +71,17 @@ const createSaleSchema = z.object({
   // here does not make it yours, open, or this store's.
   posSessionId: z.string().trim().min(1).nullish(),
   discountMinor: z.number().int().min(0).optional(),
+  discountReason: z.string().trim().max(200).nullish(),
+  discountApproval: z
+    .object({ approverUserId: z.string().trim().min(1).max(64), pin: z.string().regex(/^\d{4,6}$/) })
+    .nullish(),
+  onAccountMinor: z.number().int().min(0).optional(),
+  creditApproval: z
+    .object({ approverUserId: z.string().trim().min(1).max(64), pin: z.string().regex(/^\d{4,6}$/) })
+    .nullish(),
   payment: z.object({
     method: z.enum(["CASH", "UPI", "CARD"]),
-    amountMinor: z.number().int().optional(),
+    amountMinor: z.number().int().min(1).optional(),
     reference: z.string().trim().max(100).optional(),
   }).optional(),
   payments: z.array(z.object({
@@ -111,17 +122,34 @@ export async function POST(req: NextRequest) {
     if (resolved.status === "unauthorized") return unauthorized(correlationId);
     if (resolved.status === "no_store") return noStore(correlationId);
 
+    // Shared counter: a team member switched in by PIN is the seller of record (see tillOperator).
+    // If the lookup fails the bill falls back to the signed-in user, which is how every bill was
+    // recorded before the shared counter existed.
+    const seller = await resolveSeller({
+      sessionToken,
+      tenantId: resolved.context.tenantId,
+      storeId: resolved.context.storeId,
+      signedInUserId: resolved.context.userId,
+    }).catch((err: unknown) => {
+      logError("sales: seller lookup failed; using signed-in user", err, { correlationId });
+      return { sellerUserId: resolved.context.userId, viaOperator: false };
+    });
     const result = await createSale({
       tenantId: resolved.context.tenantId,
       storeId: resolved.context.storeId,
-      cashierUserId: resolved.context.userId,
+      cashierUserId: seller.sellerUserId,
+      sharedCounter: seller.viaOperator,
       idempotencyKey: parsed.data.idempotencyKey,
       lines: parsed.data.lines,
       customerId: parsed.data.customerId ?? null,
       posSessionId: parsed.data.posSessionId ?? null,
       discountMinor: parsed.data.discountMinor ?? 0,
+      discountReason: parsed.data.discountReason ?? null,
+      discountApproval: parsed.data.discountApproval ?? null,
       payment: parsed.data.payment,
       payments: parsed.data.payments,
+      onAccountMinor: parsed.data.onAccountMinor,
+      creditApproval: parsed.data.creditApproval ?? null,
       correlationId,
     });
 
@@ -150,6 +178,31 @@ export async function POST(req: NextRequest) {
           code: "validation_error",
           message: result.reason,
           status: 400,
+          correlationId,
+        });
+
+      case "credit_facility_unavailable":
+        return apiError({
+          // "udhar_needs_approval": the till asks for an owner/manager PIN and tries again.
+          code: result.needsApproval ? "udhar_needs_approval" : "credit_facility_unavailable",
+          message: result.reason,
+          status: 422,
+          correlationId,
+        });
+
+      case "discount_not_allowed":
+        return apiError({
+          code: "discount_not_allowed",
+          message: result.reason,
+          status: 403,
+          correlationId,
+        });
+
+      case "discount_unavailable":
+        return apiError({
+          code: "discount_unavailable",
+          message: "Bill discounts are not available yet.",
+          status: 409,
           correlationId,
         });
 
@@ -192,6 +245,22 @@ export async function POST(req: NextRequest) {
         return apiError({
           code: "inactive_variant",
           message: "One of the items is no longer for sale. Remove it and try again.",
+          status: 409,
+          correlationId,
+        });
+
+      case "unresolved_tax_treatment":
+        return apiError({
+          code: "unresolved_tax_treatment",
+          message: "This item cannot be sold until its tax treatment is classified in the catalogue.",
+          status: 409,
+          correlationId,
+        });
+
+      case "unsupported_tax_treatment":
+        return apiError({
+          code: "unsupported_tax_treatment",
+          message: `This item uses ${result.taxTreatment.replaceAll("_", " ")} treatment, which is not supported for POS checkout yet.`,
           status: 409,
           correlationId,
         });

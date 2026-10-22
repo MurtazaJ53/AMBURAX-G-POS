@@ -42,6 +42,13 @@ interface SalesWorkspaceProps {
   summary: SalesSummary;
   analytics: SalesAnalytics;
   carriedParams: Record<string, string | undefined>;
+  cashiers?: { id: string; name: string }[];
+  /**
+   * Whether this viewer may authorise a return. Resolved on the server from the session, and
+   * passed in rather than guessed here, so the inspector's Return button is honest about who it
+   * is for. `createReturn` enforces the same rule whatever this renders.
+   */
+  mayReturn: boolean;
 }
 
 const PAGE_SIZE = 20;
@@ -193,9 +200,9 @@ const KPI_TONES = {
   emerald: "bg-success-subtle text-success",
 } as const;
 
-function Kpi({ index, tone, icon, label, value, hint }: { index: number; tone: keyof typeof KPI_TONES; icon: React.ReactNode; label: string; value: string; hint: string }) {
-  return (
-    <div className="cust-rise flex min-w-0 items-center gap-4 rounded-xl border border-border bg-background-card px-4 py-3.5 shadow-sm xl:h-[95px]" style={{ ["--i" as string]: index }}>
+function Kpi({ index, tone, icon, label, value, hint, href }: { index: number; tone: keyof typeof KPI_TONES; icon: React.ReactNode; label: string; value: string; hint: string; href?: string }) {
+  const body = (
+    <>
       <span aria-hidden="true" className={`flex size-12 shrink-0 items-center justify-center rounded-xl ${KPI_TONES[tone]}`}>
         {icon}
       </span>
@@ -204,6 +211,16 @@ function Kpi({ index, tone, icon, label, value, hint }: { index: number; tone: k
         <p className="truncate text-[22px] font-bold leading-tight tracking-tight text-primary tabular-nums">{value}</p>
         <p className="truncate text-[13px] text-tertiary">{hint}</p>
       </div>
+    </>
+  );
+  const cls = "cust-rise flex min-w-0 items-center gap-4 rounded-xl border border-border bg-background-card px-4 py-3.5 shadow-sm xl:h-[95px]";
+  return href ? (
+    <Link href={href} className={`${cls} amb-focus amb-lift hover:border-sky-300`} style={{ ["--i" as string]: index }}>
+      {body}
+    </Link>
+  ) : (
+    <div className={cls} style={{ ["--i" as string]: index }}>
+      {body}
     </div>
   );
 }
@@ -213,7 +230,7 @@ const CONTROL =
 
 /* --------------------------------------------------------------- workspace */
 
-export function SalesWorkspace({ page, summary, analytics, carriedParams }: SalesWorkspaceProps) {
+export function SalesWorkspace({ page, summary, analytics, carriedParams, cashiers, mayReturn }: SalesWorkspaceProps) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -226,7 +243,43 @@ export function SalesWorkspace({ page, summary, analytics, carriedParams }: Sale
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [isOverlay, setIsOverlay] = useState(false);
   const [filtersOpen, setFiltersOpen] = useState(false);
+  const [moreFiltersOpen, setMoreFiltersOpen] = useState(false);
   const [query, setQuery] = useState(carriedParams.q ?? "");
+  const [exporting, setExporting] = useState(false);
+  const [exportError, setExportError] = useState<string | null>(null);
+
+  // The export reads the same applied filters as the list; tenant and store come from the session.
+  const exportCsv = async () => {
+    setExportError(null);
+    setExporting(true);
+    try {
+      const params = new URLSearchParams();
+      for (const key of ["q", "method", "status", "from", "to"] as const) {
+        const value = carriedParams[key];
+        if (value) params.set(key, value);
+      }
+      const res = await fetch(`/api/v1/sales/export${params.size ? `?${params.toString()}` : ""}`);
+      if (!res.ok) {
+        const body = await res.json().catch(() => null);
+        setExportError(body?.error?.message ?? "Could not export sales. Try again.");
+        return;
+      }
+      const blob = await res.blob();
+      const name = /filename="([^"]+)"/.exec(res.headers.get("Content-Disposition") ?? "")?.[1] ?? "sales.csv";
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = name;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+    } catch {
+      setExportError("Could not export sales. Check the connection and try again.");
+    } finally {
+      setExporting(false);
+    }
+  };
   const closeRef = useRef<HTMLButtonElement>(null);
   const openerRef = useRef<HTMLElement | null>(null);
 
@@ -385,16 +438,26 @@ export function SalesWorkspace({ page, summary, analytics, carriedParams }: Sale
             <Printer aria-hidden="true" className="h-4 w-4" />
             Print Bill
           </Link>
-          <button
-            type="button"
-            disabled
-            title="Returns and exchanges are not available yet"
-            className="inline-flex h-9 min-w-0 flex-1 cursor-not-allowed items-center justify-center gap-1.5 whitespace-nowrap rounded-lg border border-border bg-background-card px-2 text-[11px] font-semibold text-tertiary"
-          >
-            <RefreshCcw aria-hidden="true" className="h-4 w-4 shrink-0" />
-            <span className="truncate">Return / Exchange</span>
-            <span className="sr-only"> (not available yet)</span>
-          </button>
+          {mayReturn ? (
+            <Link
+              href={`/sales/${detail.id}/return`}
+              className="amb-press inline-flex h-9 min-w-0 flex-1 items-center justify-center gap-1.5 whitespace-nowrap rounded-lg border border-border bg-background-card px-2 text-[11px] font-semibold text-secondary transition-colors hover:text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-border-focus"
+            >
+              <RefreshCcw aria-hidden="true" className="h-4 w-4 shrink-0" />
+              <span className="truncate">Return</span>
+            </Link>
+          ) : (
+            <button
+              type="button"
+              disabled
+              title="Only a store manager or the owner can authorise a return"
+              className="inline-flex h-9 min-w-0 flex-1 cursor-not-allowed items-center justify-center gap-1.5 whitespace-nowrap rounded-lg border border-border bg-background-card px-2 text-[11px] font-semibold text-tertiary"
+            >
+              <RefreshCcw aria-hidden="true" className="h-4 w-4 shrink-0" />
+              <span className="truncate">Return</span>
+              <span className="sr-only"> (only a store manager or the owner can authorise a return)</span>
+            </button>
+          )}
           <button
             type="button"
             disabled
@@ -416,23 +479,40 @@ export function SalesWorkspace({ page, summary, analytics, carriedParams }: Sale
           <h1 className="text-[26px] font-bold tracking-tight text-primary">Sales &amp; Transaction History</h1>
           <p className="mt-0.5 text-[15px] text-tertiary">View, search and manage all your sales and transactions</p>
         </div>
-        <button
-          type="button"
-          disabled
-          title="Export is not available yet"
-          className="inline-flex h-10 cursor-not-allowed items-center gap-2 rounded-lg border border-border bg-background-card px-4 text-[13px] font-medium text-tertiary"
-        >
-          <Download aria-hidden="true" className="h-4 w-4" />
-          Export
-          <span className="sr-only"> (not available yet)</span>
-        </button>
+        <div className="flex flex-col items-end gap-1">
+          <div className="flex flex-wrap items-center gap-2">
+            <Link
+              href="/sales/imported"
+              title="View past bills imported from your previous software"
+              className="inline-flex h-10 items-center gap-2 rounded-lg border border-border bg-background-card px-4 text-[13px] font-medium text-primary hover:bg-background-subtle"
+            >
+              <Receipt aria-hidden="true" className="h-4 w-4 text-tertiary" />
+              Past Bills (Imported)
+            </Link>
+            <button
+              type="button"
+              onClick={() => void exportCsv()}
+              disabled={exporting}
+              title="Download the sales matching the current filters as CSV"
+              className="inline-flex h-10 items-center gap-2 rounded-lg border border-border bg-background-card px-4 text-[13px] font-medium text-primary hover:bg-background-subtle disabled:cursor-wait disabled:opacity-60"
+            >
+              <Download aria-hidden="true" className="h-4 w-4" />
+              {exporting ? "Exporting…" : "Export CSV"}
+            </button>
+          </div>
+          {exportError && (
+            <p role="alert" className="max-w-xs text-right text-[12px] text-danger">
+              {exportError}
+            </p>
+          )}
+        </div>
       </header>
 
       {/* -------------------------------------------------------------- KPIs */}
       <section aria-label="Sales summary for the current filters" className="mb-4 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <Kpi index={0} tone="sky" icon={<ShoppingCart className="h-6 w-6" />} label="Total Sales" value={formatMinor(summary.totalMinor)} hint="Matching the filters below" />
         <Kpi index={1} tone="violet" icon={<Receipt className="h-6 w-6" />} label="Total Bills" value={summary.billCount.toLocaleString("en-IN")} hint="Completed and voided" />
-        <Kpi index={2} tone="rose" icon={<RotateCcw className="h-6 w-6" />} label="Awaiting Sync" value={summary.unpostedCount.toLocaleString("en-IN")} hint="Not yet in accounting" />
+        <Kpi index={2} tone="rose" icon={<RotateCcw className="h-6 w-6" />} label="Awaiting Sync" value={summary.unpostedCount.toLocaleString("en-IN")} hint={summary.unpostedCount > 0 ? "Open to sync now" : "All in accounting"} href="/settings/system-health" />
         <Kpi
           index={3}
           tone="emerald"
@@ -538,10 +618,119 @@ export function SalesWorkspace({ page, summary, analytics, carriedParams }: Sale
           )}
         </div>
 
-        <button type="button" disabled title="More filters are not available yet" aria-label="More filters (not available yet)" className={`${CONTROL} hidden shrink-0 cursor-not-allowed items-center gap-2 px-3 text-[13px] font-medium text-tertiary lg:inline-flex 2xl:px-4`}>
-          <Filter aria-hidden="true" className="h-4 w-4" />
-          <span className="xl:hidden 2xl:inline">More Filters</span>
-        </button>
+        <div className="relative">
+          <button
+            type="button"
+            onClick={() => setMoreFiltersOpen((o) => !o)}
+            aria-expanded={moreFiltersOpen}
+            aria-label="More filters"
+            className={`${CONTROL} inline-flex items-center gap-2 px-3 text-[13px] font-medium transition-colors hover:border-slate-300 ${
+              carriedParams.cashierId || carriedParams.minAmount || carriedParams.maxAmount
+                ? "border-sky-400 bg-sky-50 text-sky-800"
+                : "text-secondary"
+            }`}
+          >
+            <Filter aria-hidden="true" className="h-4 w-4" />
+            <span>More Filters</span>
+            {(carriedParams.cashierId || carriedParams.minAmount || carriedParams.maxAmount) && (
+              <span className="rounded-full bg-sky-600 px-1.5 py-0.2 text-[10px] font-bold text-white">
+                {[carriedParams.cashierId, carriedParams.minAmount, carriedParams.maxAmount].filter(Boolean).length}
+              </span>
+            )}
+          </button>
+
+          {moreFiltersOpen && (
+            <div className="cust-pop-in absolute right-0 top-12 z-30 w-72 rounded-2xl border border-slate-200 bg-white p-4 shadow-xl">
+              <div className="mb-3 flex items-center justify-between border-b border-slate-100 pb-2">
+                <h4 className="text-xs font-bold text-slate-900">Advanced Filters</h4>
+                <button
+                  type="button"
+                  onClick={() => setMoreFiltersOpen(false)}
+                  className="rounded p-1 text-slate-400 hover:text-slate-600"
+                >
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              </div>
+
+              <div className="space-y-3">
+                {cashiers && cashiers.length > 0 && (
+                  <div>
+                    <label htmlFor="filter-cashier" className="block text-[11px] font-medium text-slate-600">
+                      Billed by (Staff)
+                    </label>
+                    <select
+                      id="filter-cashier"
+                      value={carriedParams.cashierId ?? ""}
+                      onChange={(e) => setParams({ cashierId: e.target.value || null })}
+                      className="mt-1 h-9 w-full rounded-lg border border-slate-200 bg-white px-2.5 text-xs text-slate-800 focus:border-sky-500 focus:outline-none"
+                    >
+                      <option value="">All Cashiers / Staff</option>
+                      {cashiers.map((c) => (
+                        <option key={c.id} value={c.id}>
+                          {c.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label htmlFor="filter-min-amt" className="block text-[11px] font-medium text-slate-600">
+                      Min Amount (₹)
+                    </label>
+                    <input
+                      id="filter-min-amt"
+                      type="number"
+                      min={0}
+                      placeholder="0"
+                      value={carriedParams.minAmount ?? ""}
+                      onChange={(e) => setParams({ minAmount: e.target.value || null })}
+                      className="mt-1 h-9 w-full rounded-lg border border-slate-200 bg-white px-2.5 text-xs tabular-nums text-slate-800 focus:border-sky-500 focus:outline-none"
+                    >
+                    </input>
+                  </div>
+                  <div>
+                    <label htmlFor="filter-max-amt" className="block text-[11px] font-medium text-slate-600">
+                      Max Amount (₹)
+                    </label>
+                    <input
+                      id="filter-max-amt"
+                      type="number"
+                      min={0}
+                      placeholder="No limit"
+                      value={carriedParams.maxAmount ?? ""}
+                      onChange={(e) => setParams({ maxAmount: e.target.value || null })}
+                      className="mt-1 h-9 w-full rounded-lg border border-slate-200 bg-white px-2.5 text-xs tabular-nums text-slate-800 focus:border-sky-500 focus:outline-none"
+                    >
+                    </input>
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between border-t border-slate-100 pt-3">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setParams({ cashierId: null, minAmount: null, maxAmount: null });
+                      setMoreFiltersOpen(false);
+                    }}
+                    className="text-[11px] font-semibold text-rose-600 hover:underline"
+                  >
+                    Clear advanced
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setMoreFiltersOpen(false)}
+                    className="rounded-lg bg-sky-700 px-3 py-1.5 text-[11px] font-bold text-white hover:bg-sky-800"
+                  >
+                    Apply
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+
         <button
           type="button"
           disabled={activeFilters === 0 && !status}

@@ -5,6 +5,7 @@ import { discardHeldBill } from "@/server/sales/heldBillService";
 import { apiError, forbidden, noStore, unauthorized } from "@/lib/apiError";
 import { randomUUID } from "node:crypto";
 import { env } from "@/lib/env";
+import { logError } from "@/lib/safeLog";
 
 const discardHeldBillSchema = z.object({
   expectedVersion: z.number().int().min(0),
@@ -43,7 +44,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
     return NextResponse.json({ status: "ok", correlationId });
   } catch (err: any) {
-    console.error("Failed to discard held bill:", err);
+    logError("sales/held-bills: discard failed", err, { correlationId, id });
     return apiError({ code: "server_error", message: err.message || "Failed to discard bill.", status: 500, correlationId });
   }
 }

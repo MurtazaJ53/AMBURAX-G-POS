@@ -31,7 +31,13 @@ export async function createHeldBill(input: CreateHeldBillInput) {
   }
 
   const now = new Date();
-  const expiresAt = new Date(now.getTime() + 24 * 60 * 60 * 1000); // 24 hours from now
+  // Screen 74: each store sets how long a held bill lasts (1-24 hours; decision 36 caps it at 24).
+  const store = await db.store.findFirst({
+    where: { id: input.storeId, tenantId: input.tenantId },
+    select: { heldBillHours: true },
+  });
+  const hours = Math.min(Math.max(store?.heldBillHours ?? 24, 1), 24);
+  const expiresAt = new Date(now.getTime() + hours * 60 * 60 * 1000);
 
   try {
     const created = await db.heldBill.create({
@@ -173,7 +179,47 @@ export async function resumeHeldBill(input: ResumeHeldBillInput) {
   // Fetch the successfully resumed bill
   const resumedBill = await getHeldBill(input.tenantId, input.storeId, input.id);
   
-  return { status: "ok", heldBill: resumedBill };
+  // Decision 36: Recheck stock and prices on resume to prevent overselling or stale price ring
+  const warnings: string[] = [];
+  for (const item of resumedBill.items) {
+    const stock = await db.stockLevel.findUnique({
+      where: { storeId_variantId: { storeId: input.storeId, variantId: item.variantId } },
+      select: { quantity: true },
+    });
+    const onHand = stock?.quantity ?? 0;
+    if (onHand < item.quantity) {
+      warnings.push(`Item ${item.variant.sku} only has ${onHand} unit(s) available in stock (cart requested ${item.quantity}).`);
+    }
+  }
+
+  return { status: "ok", heldBill: resumedBill, warnings };
+}
+
+export interface CleanupExpiredHeldBillsInput {
+  tenantId: string;
+  storeId?: string;
+  actorUserId?: string;
+}
+
+/**
+ * Bulk cleanup expired held bills older than store expiry threshold (Decision 36).
+ */
+export async function cleanupExpiredHeldBills(input: CleanupExpiredHeldBillsInput) {
+  const now = new Date();
+  const res = await db.heldBill.updateMany({
+    where: {
+      tenantId: input.tenantId,
+      ...(input.storeId ? { storeId: input.storeId } : {}),
+      resumedAt: null,
+      discardedAt: null,
+      expiresAt: { lte: now },
+    },
+    data: {
+      discardedAt: now,
+      discardedByUserId: input.actorUserId,
+    },
+  });
+  return { status: "ok", cleanedCount: res.count };
 }
 
 export interface DiscardHeldBillInput {

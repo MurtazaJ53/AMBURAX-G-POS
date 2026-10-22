@@ -1,9 +1,10 @@
 "use client";
 
 import { useActionState, useCallback, useEffect, useRef, useState, useSyncExternalStore, useTransition } from "react";
+import Link from "next/link";
 import { createPortal } from "react-dom";
 import { useRouter, useSearchParams } from "next/navigation";
-import { CheckCircle2, Download, Filter, Loader2, Phone, Plus, Search, Send, Upload, User, X } from "lucide-react";
+import { Building, CheckCircle2, Download, Filter, Loader2, Mail, MapPin, Phone, Plus, Search, Send, Upload, User, X } from "lucide-react";
 import { createCustomerAction, type ActionState } from "./actions";
 import { buttonClass } from "../_components/ui";
 
@@ -166,6 +167,94 @@ export function CustomerCreateDialog({
             </p>
           </div>
 
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label htmlFor="cust-email" className="mb-1.5 block text-[11px] font-medium text-primary">
+                Email <span className="font-normal text-tertiary">(optional)</span>
+              </label>
+              <div className="relative">
+                <Mail aria-hidden="true" className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-tertiary" />
+                <input
+                  id="cust-email"
+                  name="email"
+                  type="email"
+                  autoComplete="off"
+                  className="h-11 w-full rounded-xl border border-border bg-background-card pl-9 pr-3 text-[11px] text-primary placeholder:text-tertiary transition-colors focus:border-border-focus focus:outline-none focus:ring-4 focus:ring-border-focus"
+                  placeholder="name@mail.com"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label htmlFor="cust-gstin" className="mb-1.5 block text-[11px] font-medium text-primary">
+                GSTIN <span className="font-normal text-tertiary">(optional)</span>
+              </label>
+              <div className="relative">
+                <Building aria-hidden="true" className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-tertiary" />
+                <input
+                  id="cust-gstin"
+                  name="gstin"
+                  type="text"
+                  autoComplete="off"
+                  maxLength={15}
+                  className="h-11 w-full rounded-xl border border-border bg-background-card pl-9 pr-3 text-[11px] uppercase text-primary placeholder:text-tertiary transition-colors focus:border-border-focus focus:outline-none focus:ring-4 focus:ring-border-focus"
+                  placeholder="27ABCDE1234F1Z5"
+                />
+              </div>
+            </div>
+          </div>
+
+          <div className="rounded-xl border border-border bg-background-subtle/50 p-3 space-y-3">
+            <div className="flex items-center gap-1.5 text-[11px] font-semibold text-primary">
+              <MapPin aria-hidden="true" className="h-3.5 w-3.5 text-primary" />
+              Primary Address (optional)
+            </div>
+
+            <div>
+              <label htmlFor="cust-line1" className="mb-1 block text-[10px] font-medium text-secondary">
+                Street Address / Building
+              </label>
+              <input
+                id="cust-line1"
+                name="line1"
+                type="text"
+                autoComplete="off"
+                className="h-9 w-full rounded-lg border border-border bg-background-card px-3 text-[11px] text-primary placeholder:text-tertiary transition-colors focus:border-border-focus focus:outline-none focus:ring-2 focus:ring-border-focus"
+                placeholder="Shop No. 4, MG Road"
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <label htmlFor="cust-city" className="mb-1 block text-[10px] font-medium text-secondary">
+                  City
+                </label>
+                <input
+                  id="cust-city"
+                  name="city"
+                  type="text"
+                  autoComplete="off"
+                  className="h-9 w-full rounded-lg border border-border bg-background-card px-3 text-[11px] text-primary placeholder:text-tertiary transition-colors focus:border-border-focus focus:outline-none focus:ring-2 focus:ring-border-focus"
+                  placeholder="e.g. Mumbai"
+                />
+              </div>
+              <div>
+                <label htmlFor="cust-postal" className="mb-1 block text-[10px] font-medium text-secondary">
+                  PIN / Postal Code
+                </label>
+                <input
+                  id="cust-postal"
+                  name="postalCode"
+                  type="text"
+                  autoComplete="off"
+                  maxLength={16}
+                  className="h-9 w-full rounded-lg border border-border bg-background-card px-3 text-[11px] uppercase text-primary placeholder:text-tertiary transition-colors focus:border-border-focus focus:outline-none focus:ring-2 focus:ring-border-focus"
+                  placeholder="400001"
+                />
+              </div>
+            </div>
+          </div>
+
           <div className="flex flex-col-reverse gap-2 pt-2 sm:flex-row sm:justify-end">
             <button type="button" onClick={onClose} className={`${buttonClass("secondary")} h-10 rounded-xl`}>
               Cancel
@@ -304,10 +393,15 @@ const SEGMENTS = [
 export function CustomerToolbar({
   initialQuery,
   initialType,
+  status = "",
+  cohort = "",
   total,
 }: {
   initialQuery: string;
   initialType: string;
+  /** "inactive" when the Inactive Customers tab is selected. */
+  status?: "inactive" | "";
+  cohort?: "active" | "lapsed" | "new" | "";
   total: number;
 }) {
   const router = useRouter();
@@ -360,12 +454,33 @@ export function CustomerToolbar({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [query, searchParams]);
 
-  const tabs = [
-    { label: "All Customers", active: true },
-    { label: "Loyalty Members", active: false },
-    { label: "Inactive Customers", active: false },
-    { label: "Top Customers", active: false },
-    { label: "Customer Groups", active: false },
+  // A tab's link keeps the current search and segment, changes only `status` or `cohort`, and drops paging
+  // and selection like every other filter change.
+  const tabHref = (opts: { status?: "inactive" | ""; cohort?: "active" | "lapsed" | "new" | "" }) => {
+    const p = new URLSearchParams(searchParams.toString());
+    if (opts.status !== undefined) {
+      if (opts.status) p.set("status", opts.status);
+      else p.delete("status");
+    }
+    if (opts.cohort !== undefined) {
+      if (opts.cohort) p.set("cohort", opts.cohort);
+      else p.delete("cohort");
+    }
+    p.delete("page");
+    p.delete("selected");
+    const qs = p.toString();
+    return qs ? `/customers?${qs}` : "/customers";
+  };
+
+  const isAll = !status && !cohort;
+
+  const tabs: { label: string; href?: string; selected: boolean }[] = [
+    { label: "All Customers", href: tabHref({ status: "", cohort: "" }), selected: isAll },
+    { label: "Active (<30d)", href: tabHref({ status: "", cohort: "active" }), selected: cohort === "active" },
+    { label: "Lapsed (30-90d)", href: tabHref({ status: "", cohort: "lapsed" }), selected: cohort === "lapsed" },
+    { label: "New (30d)", href: tabHref({ status: "", cohort: "new" }), selected: cohort === "new" },
+    { label: "Inactive (>90d)", href: tabHref({ status: "inactive", cohort: "" }), selected: status === "inactive" },
+    { label: "Segments", href: "/customers/segments", selected: false },
   ];
 
   return (
@@ -373,25 +488,38 @@ export function CustomerToolbar({
       <h2 id="customer-toolbar-title" tabIndex={-1} className="sr-only outline-none">
         Customers ({total.toLocaleString("en-IN")})
       </h2>
-      {/* Only "All" has a backing query; the reference's other views are drawn, disabled. */}
+      {/* "All" and "Inactive" have backing queries; the reference's other views are drawn, disabled. */}
       <div role="tablist" aria-label="Customer views" className="no-scrollbar flex min-w-0 gap-1 overflow-x-auto">
-        {tabs.map((t) => (
-          <button
-            key={t.label}
-            type="button"
-            role="tab"
-            aria-selected={t.active}
-            disabled={!t.active}
-            title={t.active ? undefined : `${t.label} — not available yet`}
-            className={`relative h-11 shrink-0 whitespace-nowrap px-3 text-[13px] ${
-              t.active
-                ? "font-semibold text-brand after:absolute after:inset-x-0 after:bottom-0 after:h-[2px] after:rounded-full after:bg-brand"
-                : "cursor-not-allowed text-tertiary"
-            }`}
-          >
-            {t.label}
-          </button>
-        ))}
+        {tabs.map((t) =>
+          t.href ? (
+            <Link
+              key={t.label}
+              href={t.href}
+              role="tab"
+              aria-selected={t.selected}
+              aria-current={t.selected ? "page" : undefined}
+              className={`relative flex h-11 shrink-0 items-center whitespace-nowrap px-3 text-[13px] ${
+                t.selected
+                  ? "font-semibold text-brand after:absolute after:inset-x-0 after:bottom-0 after:h-[2px] after:rounded-full after:bg-brand"
+                  : "text-secondary hover:text-primary"
+              }`}
+            >
+              {t.label}
+            </Link>
+          ) : (
+            <button
+              key={t.label}
+              type="button"
+              role="tab"
+              aria-selected={false}
+              disabled
+              title={`${t.label} — not available yet`}
+              className="relative h-11 shrink-0 cursor-not-allowed whitespace-nowrap px-3 text-[13px] text-tertiary"
+            >
+              {t.label}
+            </button>
+          ),
+        )}
       </div>
 
       <div className="flex min-w-0 flex-1 flex-wrap items-center justify-end gap-3 pb-1 sm:flex-none">

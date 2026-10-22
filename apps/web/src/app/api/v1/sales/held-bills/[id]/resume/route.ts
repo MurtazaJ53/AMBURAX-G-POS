@@ -5,6 +5,7 @@ import { resumeHeldBill } from "@/server/sales/heldBillService";
 import { apiError, forbidden, noStore, unauthorized } from "@/lib/apiError";
 import { randomUUID } from "node:crypto";
 import { env } from "@/lib/env";
+import { logError } from "@/lib/safeLog";
 
 const resumeHeldBillSchema = z.object({
   expectedVersion: z.number().int().min(0),
@@ -41,9 +42,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       expectedVersion: parsed.data.expectedVersion,
     });
 
-    return NextResponse.json({ status: "ok", heldBill: result.heldBill, correlationId });
+    return NextResponse.json({ status: "ok", heldBill: result.heldBill, warnings: result.warnings, correlationId });
   } catch (err: any) {
-    console.error("Failed to resume held bill:", err);
+    logError("sales/held-bills: resume failed", err, { correlationId, id });
     return apiError({ code: "server_error", message: err.message || "Failed to resume bill.", status: 500, correlationId });
   }
 }

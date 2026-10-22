@@ -8,6 +8,7 @@ import { formatMinor } from "@/server/sales/saleTotals";
 import { type CustomerDetail } from "@/server/sales/customers";
 import { formatDateOnly } from "../sales/formatDateTime";
 import { ActiveDot, CustomerAvatar, NotConnectedChip, SegmentPill } from "./customerUi";
+import { CustomerPhoneCell } from "./CustomerPhoneCell";
 
 const TABS = [
   { id: "history", label: "Purchase History", icon: ReceiptText },
@@ -35,7 +36,15 @@ function findOpener(id: string): HTMLElement | null {
  * button and the backdrop all navigate to `closeHref`, which keeps the search, segment and
  * page the user came from, and focus is handed back to the row that opened it.
  */
-export function CustomerDetailPanel({ detail, closeHref }: { detail: CustomerDetail; closeHref: string }) {
+export function CustomerDetailPanel({
+  detail,
+  closeHref,
+  isOwnerOrManager = true,
+}: {
+  detail: CustomerDetail;
+  closeHref: string;
+  isOwnerOrManager?: boolean;
+}) {
   const router = useRouter();
   const [tab, setTab] = useState<TabId>("history");
   const [isOverlay, setIsOverlay] = useState(false);
@@ -173,13 +182,7 @@ export function CustomerDetailPanel({ detail, closeHref }: { detail: CustomerDet
           <ul className="space-y-2 px-4 py-3.5 text-[11px] text-secondary">
             <li className="flex items-center gap-2.5">
               <Phone aria-hidden="true" className="h-4 w-4 shrink-0 text-tertiary" />
-              {detail.phone ? (
-                <a href={`tel:${detail.phone}`} className="tabular-nums hover:text-primary-active hover:underline">
-                  {detail.phone}
-                </a>
-              ) : (
-                <span className="text-tertiary">No phone</span>
-              )}
+              <CustomerPhoneCell phone={detail.phone} canViewUnmasked={isOwnerOrManager} />
             </li>
             <li className="flex items-center gap-2.5">
               <Mail aria-hidden="true" className="h-4 w-4 shrink-0 text-tertiary" />

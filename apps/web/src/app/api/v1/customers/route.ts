@@ -39,6 +39,18 @@ const createSchema = z.object({
     .max(20)
     .regex(/^[+0-9 ()-]*$/, "Enter a valid phone number.")
     .optional(),
+  email: z.string().trim().nullish(),
+  gstin: z.string().trim().nullish(),
+  address: z
+    .object({
+      line1: z.string().trim().max(200).optional(),
+      line2: z.string().trim().max(200).nullish(),
+      city: z.string().trim().max(100).optional(),
+      state: z.string().trim().max(100).nullish(),
+      postalCode: z.string().trim().max(16).optional(),
+      country: z.string().trim().max(2).nullish(),
+    })
+    .nullish(),
 });
 
 /**
@@ -83,6 +95,16 @@ export async function POST(req: NextRequest) {
       tenantId: resolved.context.tenantId,
       name: parsed.data.name,
       phone: parsed.data.phone ?? null,
+      email: parsed.data.email ?? null,
+      gstin: parsed.data.gstin ?? null,
+      address: parsed.data.address ? {
+        line1: parsed.data.address.line1 ?? "",
+        line2: parsed.data.address.line2 ?? null,
+        city: parsed.data.address.city ?? "",
+        state: parsed.data.address.state ?? null,
+        postalCode: parsed.data.address.postalCode ?? "",
+        country: parsed.data.address.country ?? null,
+      } : null,
     });
 
     if (result.status === "invalid_name") {
@@ -92,6 +114,20 @@ export async function POST(req: NextRequest) {
         status: 400,
         correlationId,
       });
+    }
+
+    if (result.status === "validation_error") {
+      return NextResponse.json(
+        {
+          error: {
+            code: "validation_error",
+            message: result.error,
+            field: result.field,
+          },
+          correlationId,
+        },
+        { status: 400 },
+      );
     }
 
     return NextResponse.json(

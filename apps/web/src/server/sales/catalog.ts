@@ -1,4 +1,5 @@
 import { db } from "@/server/db";
+import { notDraftProductWhere } from "@/server/catalog/draftFilter";
 
 /**
  * Catalog and stock reads for the counter.
@@ -8,6 +9,15 @@ import { db } from "@/server/db";
  * absence of a tenant scope on any query in this file would be a cross-tenant data leak.
  */
 
+export interface PendingPriceOption {
+  id: string;
+  priceMinor: number;
+  mrpMinor: number | null;
+  unitsAhead: number;
+  oldStockRemaining?: number;
+  newStockRemaining?: number;
+}
+
 export interface CatalogHit {
   variantId: string;
   productName: string;
@@ -16,7 +26,10 @@ export interface CatalogHit {
   size: string | null;
   colour: string | null;
   priceMinor: number;
+  mrpMinor: number | null;
   taxRateBp: number;
+  taxRateMode: "FIXED" | "APPAREL_SLAB";
+  taxTreatment: string;
   /**
    * AMBURAX operational projection, not a confirmed ledger figure (ADR-080). Null when the
    * variant has never been counted in this store — genuinely different from zero, and not
@@ -24,31 +37,60 @@ export interface CatalogHit {
    */
   stockQuantity: number | null;
   imageUrl?: string | null;
+  pendingPrices?: PendingPriceOption[];
 }
 
 export const CATALOG_SEARCH_LIMIT = 30;
 
+export interface CatalogFilters {
+  category?: string;
+  brand?: string;
+  size?: string;
+  colour?: string;
+  /** Inclusive price bounds in minor units (paise). */
+  minPriceMinor?: number;
+  maxPriceMinor?: number;
+}
+
+/** Text filters match whole values, ignoring case — the same values the facet lists show. */
+const eq = (value: string) => ({ equals: value, mode: "insensitive" as const });
+
 /**
- * Search a tenant's sellable variants.
- *
- * An exact barcode match short-circuits: at a counter a scan must land on one item
- * immediately, rather than returning a list the operator then has to disambiguate. Only
- * when there is no barcode hit does it fall back to a name/SKU contains-match.
+ * One page of the till's catalogue: the typed query and the filters together, `limit` at a time
+ * from `offset`. `hasMore` comes from reading one row past the page, so the screen can offer
+ * "Load more" without a separate count over a large catalogue.
  */
-export async function searchCatalog(params: {
+export async function searchCatalogPage(params: {
   tenantId: string;
   storeId: string;
   query: string;
+  filters?: CatalogFilters;
   limit?: number;
-}): Promise<CatalogHit[]> {
+  offset?: number;
+}): Promise<{ results: CatalogHit[]; hasMore: boolean }> {
   const query = params.query.trim();
   const take = Math.min(params.limit ?? CATALOG_SEARCH_LIMIT, CATALOG_SEARCH_LIMIT);
+  const skip = Math.max(0, Math.floor(params.offset ?? 0));
+  const f = params.filters ?? {};
+  const product = {
+    isActive: true,
+    isDraft: false,
+    ...(f.category ? { category: eq(f.category) } : {}),
+    ...(f.brand ? { brand: eq(f.brand) } : {}),
+  };
+  const price =
+    f.minPriceMinor !== undefined || f.maxPriceMinor !== undefined
+      ? { priceMinor: { ...(f.minPriceMinor !== undefined ? { gte: f.minPriceMinor } : {}), ...(f.maxPriceMinor !== undefined ? { lte: f.maxPriceMinor } : {}) } }
+      : {};
 
   const variants = await db.productVariant.findMany({
     where: {
       tenantId: params.tenantId,
       isActive: true,
-      product: { isActive: true },
+      product,
+      ...(f.size ? { size: eq(f.size) } : {}),
+      ...(f.colour ? { colour: eq(f.colour) } : {}),
+      ...price,
       ...(query.length === 0
         ? {}
         : {
@@ -66,19 +108,25 @@ export async function searchCatalog(params: {
       size: true,
       colour: true,
       priceMinor: true,
+      mrpMinor: true,
       taxRateBp: true,
+      taxRateMode: true,
+      taxTreatment: true,
       product: { select: { name: true, imageUrl: true } },
       // Store-scoped so one store's count never appears on another's screen.
       stockLevels: { where: { storeId: params.storeId }, select: { quantity: true } },
     },
     orderBy: [{ product: { name: "asc" } }, { sku: "asc" }],
-    take,
+    skip,
+    take: take + 1,
   });
+  const hasMore = variants.length > take;
+  const page = hasMore ? variants.slice(0, take) : variants;
 
-  const exactBarcode = query.length > 0 ? variants.filter((v) => v.barcode === query) : [];
-  const rows = exactBarcode.length > 0 ? exactBarcode : variants;
+  const exactBarcode = query.length > 0 ? page.filter((v) => v.barcode === query) : [];
+  const rows = exactBarcode.length > 0 ? exactBarcode : page;
 
-  return rows.map((v) => ({
+  const results = rows.map((v) => ({
     variantId: v.id,
     productName: v.product.name,
     sku: v.sku,
@@ -86,12 +134,26 @@ export async function searchCatalog(params: {
     size: v.size,
     colour: v.colour,
     priceMinor: v.priceMinor,
+    mrpMinor: v.mrpMinor,
     taxRateBp: v.taxRateBp,
+    taxRateMode: v.taxRateMode,
+    taxTreatment: v.taxTreatment,
     stockQuantity: v.stockLevels[0]?.quantity ?? null,
     imageUrl: v.product.imageUrl ?? null,
   }));
+  return { results, hasMore: exactBarcode.length > 0 ? false : hasMore };
 }
 
+/**
+ * Search a tenant's sellable variants: the first page, no filters.
+ *
+ * An exact barcode match short-circuits: at a counter a scan must land on one item
+ * immediately, rather than returning a list the operator then has to disambiguate. Only
+ * when there is no barcode hit does it fall back to a name/SKU contains-match.
+ */
+export async function searchCatalog(params: { tenantId: string; storeId: string; query: string; limit?: number }): Promise<CatalogHit[]> {
+  return (await searchCatalogPage(params)).results;
+}
 
 /**
  * A scan: one barcode, one indexed read, one answer.
@@ -101,13 +163,8 @@ export async function searchCatalog(params: {
  * is right for a search box and wrong for a scanner, where the query is known to be exact and the
  * till is waiting. This goes straight to the `(tenantId, barcode)` unique index.
  *
- * It also differs in what it hides. `searchCatalog` filters to active variants, which is correct
- * for browsing; but a cashier who scans a withdrawn item deserves "this item is not for sale"
- * rather than "unknown barcode", so an inactive variant is returned **with its flag** and the
- * refusal is left to `saleService`, which already enforces it.
- *
- * Returns null for an unknown barcode, and for another tenant's barcode — indistinguishable, as
- * everywhere else.
+ * It also checks if there are pending queued price changes (e.g. Solution B: collision items with
+ * older stock at ₹799 and new stock at ₹899), providing the cashier with options if needed.
  */
 export async function scanBarcode(params: {
   tenantId: string;
@@ -117,8 +174,24 @@ export async function scanBarcode(params: {
   const barcode = params.barcode.trim();
   if (barcode.length === 0) return null;
 
+  // 1. First look up the barcode in the new variant_barcodes table
+  let matchedVariantId: string | null = null;
+  const vb = await db.variantBarcode.findUnique({
+    where: { tenantId_barcode: { tenantId: params.tenantId, barcode } },
+    select: { variantId: true },
+  });
+  if (vb) {
+    matchedVariantId = vb.variantId;
+  }
+
+  // 2. Fetch the variant (by matched ID or legacy barcode column fallback)
   const variant = await db.productVariant.findFirst({
-    where: { tenantId: params.tenantId, barcode },
+    where: {
+      ...(matchedVariantId
+        ? { id: matchedVariantId, tenantId: params.tenantId }
+        : { tenantId: params.tenantId, barcode }),
+      product: { isDraft: false },
+    },
     select: {
       id: true,
       sku: true,
@@ -126,13 +199,44 @@ export async function scanBarcode(params: {
       size: true,
       colour: true,
       priceMinor: true,
+      mrpMinor: true,
       taxRateBp: true,
+      taxRateMode: true,
+      taxTreatment: true,
       isActive: true,
-      product: { select: { name: true, isActive: true, imageUrl: true } },
+      product: { select: { name: true, isActive: true, isDraft: true, imageUrl: true } },
       stockLevels: { where: { storeId: params.storeId }, select: { quantity: true } },
     },
   });
   if (!variant) return null;
+
+  const totalStock = variant.stockLevels[0]?.quantity ?? 0;
+
+  // Check for pending active price changes where BOTH buckets have stock remaining:
+  // oldStockRemaining = unitsAhead
+  // newStockRemaining = max(0, totalStock - unitsAhead)
+  // If either bucket hits 0, there is no collision! Auto-bill the remaining active batch.
+  const pending = await db.pendingPriceChange.findMany({
+    where: { tenantId: params.tenantId, variantId: variant.id, status: "PENDING", unitsAhead: { gt: 0 } },
+    select: { id: true, newPriceMinor: true, newMrpMinor: true, unitsAhead: true },
+    orderBy: { createdAt: "asc" },
+  });
+
+  const validPending = pending.filter((p) => {
+    const oldStock = p.unitsAhead;
+    const newStock = Math.max(0, totalStock - oldStock);
+    // Only collide if both old stock and new stock are strictly > 0
+    return oldStock > 0 && newStock > 0;
+  });
+
+  const pendingPrices: PendingPriceOption[] = validPending.map((p) => ({
+    id: p.id,
+    priceMinor: p.newPriceMinor,
+    mrpMinor: p.newMrpMinor,
+    unitsAhead: p.unitsAhead,
+    oldStockRemaining: p.unitsAhead,
+    newStockRemaining: Math.max(0, totalStock - p.unitsAhead),
+  }));
 
   return {
     variantId: variant.id,
@@ -142,9 +246,13 @@ export async function scanBarcode(params: {
     size: variant.size,
     colour: variant.colour,
     priceMinor: variant.priceMinor,
+    mrpMinor: variant.mrpMinor,
     taxRateBp: variant.taxRateBp,
+    taxRateMode: variant.taxRateMode,
+    taxTreatment: variant.taxTreatment,
     stockQuantity: variant.stockLevels[0]?.quantity ?? null,
     imageUrl: variant.product.imageUrl ?? null,
+    pendingPrices: pendingPrices.length > 0 ? pendingPrices : undefined,
     // A withdrawn product makes its variants unsellable too, so both flags fold into one answer.
     isActive: variant.isActive && variant.product.isActive,
   };

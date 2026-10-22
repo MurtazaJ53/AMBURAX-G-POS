@@ -292,6 +292,8 @@ export async function resolveSessionForSale(params: {
   sessionId: string;
   storeId: string;
   cashierUserId: string;
+  /** Shared counter: a PIN-switched team member sells on the counter's shift (one drawer). */
+  sharedCounter?: boolean;
 }): Promise<ResolveSessionResult> {
   const session = await db.posSession.findFirst({
     where: { id: params.sessionId, tenantId: params.tenantId },
@@ -308,7 +310,7 @@ export async function resolveSessionForSale(params: {
   if (session.storeId !== params.storeId) {
     return { status: "conflict", reason: "That shift belongs to a different store." };
   }
-  if (session.cashierUserId !== params.cashierUserId) {
+  if (!params.sharedCounter && session.cashierUserId !== params.cashierUserId) {
     return { status: "conflict", reason: "That shift belongs to a different cashier." };
   }
 
