@@ -4,31 +4,25 @@ import * as React from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Package, Hash, FileText, TrendingDown, TrendingUp, Minus } from "lucide-react";
+import { Hash, FileText, TrendingDown, TrendingUp, Minus } from "lucide-react";
+import { VariantSearchPicker, type PickedVariant } from "@/components/inventory/VariantSearchPicker";
 
-interface VariantOption {
-  id: string;
-  sku: string;
-  name: string;
-  imageUrl?: string | null;
-}
-
-interface Props { stockByVariant: Record<string, number>; 
-  variants: VariantOption[];
+interface Props {
   storeId: string;
 }
 
-export function AdjustStockForm({ variants, storeId, stockByVariant }: Props) {
+export function AdjustStockForm({ storeId }: Props) {
   const router = useRouter();
   const [loading, setLoading] = React.useState(false);
   const [error, setError] = React.useState("");
   const [success, setSuccess] = React.useState(false);
   const requestKeyRef = React.useRef<string | null>(null);
 
-  const [selectedVariantId, setSelectedVariantId] = React.useState("");
+  // The chosen variant, with this store's current stock as the search returned it.
+  const [picked, setPicked] = React.useState<PickedVariant | null>(null);
   const [deltaRaw, setDeltaRaw] = React.useState("");
 
-  const currentStock = selectedVariantId ? (stockByVariant[selectedVariantId] ?? 0) : null;
+  const currentStock = picked ? (picked.stockQuantity ?? 0) : null;
 
   const deltaNum = deltaRaw ? parseInt(deltaRaw, 10) : null;
   const resultStock =
@@ -125,34 +119,7 @@ export function AdjustStockForm({ variants, storeId, stockByVariant }: Props) {
             <label htmlFor="variantId" className="block text-sm font-medium text-slate-900">
               Product / Variant
             </label>
-            <div className="relative mt-1">
-              <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
-                <Package className="h-4 w-4 text-slate-400" />
-              </div>
-              <select
-                id="variantId"
-                name="variantId"
-                required
-                value={selectedVariantId}
-                onChange={(e) => setSelectedVariantId(e.target.value)}
-                className="block w-full rounded-lg border border-slate-300 pl-10 pr-10 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 bg-white appearance-none"
-              >
-                <option value="">Select a variant...</option>
-                {variants.map((v) => (
-                  <option key={v.id} value={v.id}>
-                    {v.name} • {v.sku}
-                  </option>
-                ))}
-              </select>
-              <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-slate-400">
-                <svg className="h-4 w-4 fill-current" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20">
-                  <path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z" />
-                </svg>
-              </div>
-            </div>
-            {variants.length === 0 && (
-              <p className="text-xs text-red-500 mt-1">No active variants found in this store.</p>
-            )}
+            <VariantSearchPicker id="variantId" name="variantId" required onChange={setPicked} />
           </div>
 
           {currentStock !== null && (
@@ -179,7 +146,7 @@ export function AdjustStockForm({ variants, storeId, stockByVariant }: Props) {
                         ? "text-emerald-600"
                         : deltaIsNegative
                           ? "text-rose-600"
-                          : "text-slate-400"
+                          : "text-slate-500"
                     }`}
                   >
                     {deltaNum !== null && !isNaN(deltaNum)
@@ -209,7 +176,7 @@ export function AdjustStockForm({ variants, storeId, stockByVariant }: Props) {
             </label>
             <div className="relative mt-1">
               <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
-                <Hash className="h-4 w-4 text-slate-400" />
+                <Hash className="h-4 w-4 text-slate-500" />
               </div>
               <Input
                 type="number"
@@ -233,7 +200,7 @@ export function AdjustStockForm({ variants, storeId, stockByVariant }: Props) {
             </label>
             <div className="relative mt-1">
               <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
-                <FileText className="h-4 w-4 text-slate-400" />
+                <FileText className="h-4 w-4 text-slate-500" />
               </div>
               <Input
                 type="text"
@@ -264,7 +231,7 @@ export function AdjustStockForm({ variants, storeId, stockByVariant }: Props) {
           </Button>
           <Button
             type="submit"
-            disabled={loading || variants.length === 0}
+            disabled={loading || !picked}
             className="rounded-lg shadow-sm"
           >
             {loading ? "Adjusting..." : "Adjust Stock"}

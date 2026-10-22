@@ -27,31 +27,6 @@ export default async function NewAdjustmentPage() {
   const tenantId = resolved.context.tenantId;
   const storeId = resolved.context.storeId;
 
-  const variants = await db.productVariant.findMany({
-    where: { tenantId, isActive: true },
-    include: { product: true },
-    orderBy: [{ product: { name: "asc" } }, { sku: "asc" }],
-  });
-
-  const variantOptions = variants.map((v) => ({
-    id: v.id,
-    sku: v.sku,
-    name: `${v.product.name}${[v.size, v.colour].filter(Boolean).length > 0 ? ` (${[v.size, v.colour].filter(Boolean).join(" / ")})` : ""}`,
-    imageUrl: v.product.imageUrl,
-  }));
-
-  // Fetch current stock levels for the store so the form can show "current → result" preview.
-  // Only variants that have a level row are included; missing rows imply 0 stock.
-  const levels = await db.stockLevel.findMany({
-    where: { tenantId, storeId },
-    select: { variantId: true, quantity: true },
-  });
-
-  const stockByVariant: Record<string, number> = {};
-  for (const l of levels) {
-    stockByVariant[l.variantId] = l.quantity;
-  }
-
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-y-auto bg-background text-foreground">
       <div className="mx-auto w-full max-w-4xl p-4 sm:p-6 lg:p-8">
@@ -65,11 +40,7 @@ export default async function NewAdjustmentPage() {
           </Link>
         </div>
 
-        <AdjustStockForm
-          variants={variantOptions}
-          storeId={storeId}
-          stockByVariant={stockByVariant}
-        />
+        <AdjustStockForm storeId={storeId} />
       </div>
     </div>
   );

@@ -73,25 +73,21 @@ export async function getInventoryOverview(params: { tenantId: string; storeId: 
     where: { tenantId, storeId, occurredAt: { gte: weekAgo } },
   });
 
-  // Get category distribution for analytics (in memory aggregation)
-  const stockWithCategories = await db.stockLevel.findMany({
-    where: { tenantId, storeId, quantity: { gt: 0 } },
-    select: {
-      quantity: true,
-      variant: {
-        select: {
-          product: {
-            select: { category: true }
-          }
-        }
-      }
-    }
-  });
+  // Category distribution, grouped in the database. Loading every stock row with its product
+  // made Prisma bind one id per row, which breaks past PostgreSQL's 32,767-parameter limit
+  // (a store with ~20,000 variants did) and moved the whole table over the wire.
+  const categoryRows = await db.$queryRaw<{ category: string | null; units: bigint }[]>`
+    SELECT p."category" AS category, SUM(sl."quantity")::bigint AS units
+    FROM "stock_levels" sl
+    JOIN "product_variants" v ON v."id" = sl."variantId" AND v."tenantId" = sl."tenantId"
+    JOIN "products" p ON p."id" = v."productId" AND p."tenantId" = v."tenantId"
+    WHERE sl."tenantId" = ${tenantId} AND sl."storeId" = ${storeId} AND sl."quantity" > 0
+    GROUP BY p."category"`;
 
   const categoryMap = new Map<string, number>();
-  for (const item of stockWithCategories) {
-    const cat = item.variant.product.category || "Uncategorized";
-    categoryMap.set(cat, (categoryMap.get(cat) || 0) + item.quantity);
+  for (const row of categoryRows) {
+    const cat = row.category || "Uncategorized";
+    categoryMap.set(cat, (categoryMap.get(cat) || 0) + Number(row.units));
   }
 
   const stockByCategory = Array.from(categoryMap.entries())
@@ -228,6 +224,52 @@ export async function listStoreStockMovements(params: {
   ]);
 
   return { items, total };
+}
+
+export type InventoryFacetKind = "category" | "brand";
+
+export interface InventoryFacetCount {
+  value: string;
+  /** Stock-list rows in this store with this value: exactly what the matching filter shows. */
+  count: number;
+}
+
+/**
+ * Distinct product category or brand values for the read-only Inventory tabs, with counts.
+ *
+ * Counted over the same rows as `listStockLevels` (this tenant's stock levels in this store), so
+ * selecting a value lands on a list of exactly `count` rows. Null and empty values are left out,
+ * as `getCatalogFacets` does. Values are the free-text product fields; nothing here edits them.
+ */
+export async function getInventoryFacetCounts(params: {
+  tenantId: string;
+  storeId: string;
+  kind: InventoryFacetKind;
+}): Promise<InventoryFacetCount[]> {
+  const { tenantId, storeId, kind } = params;
+  // Two literal queries rather than an interpolated column name: nothing user-supplied reaches SQL
+  // except the bound tenant and store ids.
+  const rows =
+    kind === "category"
+      ? await db.$queryRaw<{ value: string; count: number }[]>`
+          SELECT p."category" AS value, COUNT(*)::int AS count
+          FROM "stock_levels" sl
+          JOIN "product_variants" v ON v."id" = sl."variantId" AND v."tenantId" = sl."tenantId"
+          JOIN "products" p ON p."id" = v."productId" AND p."tenantId" = v."tenantId"
+          WHERE sl."tenantId" = ${tenantId} AND sl."storeId" = ${storeId}
+            AND p."category" IS NOT NULL AND p."category" <> ''
+          GROUP BY p."category"
+          ORDER BY p."category" ASC`
+      : await db.$queryRaw<{ value: string; count: number }[]>`
+          SELECT p."brand" AS value, COUNT(*)::int AS count
+          FROM "stock_levels" sl
+          JOIN "product_variants" v ON v."id" = sl."variantId" AND v."tenantId" = sl."tenantId"
+          JOIN "products" p ON p."id" = v."productId" AND p."tenantId" = v."tenantId"
+          WHERE sl."tenantId" = ${tenantId} AND sl."storeId" = ${storeId}
+            AND p."brand" IS NOT NULL AND p."brand" <> ''
+          GROUP BY p."brand"
+          ORDER BY p."brand" ASC`;
+  return rows.map((r) => ({ value: r.value, count: Number(r.count) }));
 }
 
 export async function getInventoryFilterOptions(params: { tenantId: string; storeId: string }) {

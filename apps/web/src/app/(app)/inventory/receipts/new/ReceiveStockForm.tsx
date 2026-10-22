@@ -4,20 +4,15 @@ import * as React from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Package, Hash, FileText } from "lucide-react";
+import { Hash, FileText } from "lucide-react";
+import { VariantSearchPicker } from "@/components/inventory/VariantSearchPicker";
 
-interface VariantOption {
-  id: string;
-  sku: string;
-  name: string;
-  imageUrl?: string | null;
-}
-
-export function ReceiveStockForm({ variants, storeId }: { variants: VariantOption[], storeId: string }) {
+export function ReceiveStockForm({ storeId }: { storeId: string }) {
   const router = useRouter();
   const [loading, setLoading] = React.useState(false);
   const [error, setError] = React.useState("");
   const requestKeyRef = React.useRef<string | null>(null);
+  const [hasVariant, setHasVariant] = React.useState(false);
 
   async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -85,32 +80,7 @@ export function ReceiveStockForm({ variants, storeId }: { variants: VariantOptio
               <label htmlFor="variantId" className="block text-sm font-medium text-slate-900">
                 Product Variant
               </label>
-              <div className="relative mt-1">
-                <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
-                  <Package className="h-4 w-4 text-slate-400" />
-                </div>
-                <select
-                  id="variantId"
-                  name="variantId"
-                  required
-                  className="block w-full rounded-lg border border-slate-300 pl-10 pr-10 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 bg-white appearance-none"
-                >
-                  <option value="">Select a variant...</option>
-                  {variants.map(v => (
-                    <option key={v.id} value={v.id}>
-                      {v.name} • {v.sku}
-                    </option>
-                  ))}
-                </select>
-                <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-slate-400">
-                  <svg className="h-4 w-4 fill-current" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20">
-                    <path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z" />
-                  </svg>
-                </div>
-              </div>
-              {variants.length === 0 && (
-                <p className="text-xs text-red-500 mt-1">No active variants found in this store.</p>
-              )}
+              <VariantSearchPicker id="variantId" name="variantId" required onChange={(v) => setHasVariant(v !== null)} />
             </div>
 
             <div className="space-y-2">
@@ -119,7 +89,7 @@ export function ReceiveStockForm({ variants, storeId }: { variants: VariantOptio
               </label>
               <div className="relative mt-1">
                 <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
-                  <Hash className="h-4 w-4 text-slate-400" />
+                  <Hash className="h-4 w-4 text-slate-500" />
                 </div>
                 <Input
                   type="number"
@@ -138,11 +108,11 @@ export function ReceiveStockForm({ variants, storeId }: { variants: VariantOptio
 
             <div className="space-y-2">
               <label htmlFor="reason" className="block text-sm font-medium text-slate-900">
-                Reference / Reason <span className="text-slate-400 font-normal">(Optional)</span>
+                Reference / Reason <span className="text-slate-500 font-normal">(Optional)</span>
               </label>
               <div className="relative mt-1">
                 <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
-                  <FileText className="h-4 w-4 text-slate-400" />
+                  <FileText className="h-4 w-4 text-slate-500" />
                 </div>
                 <Input
                   type="text"
@@ -169,7 +139,7 @@ export function ReceiveStockForm({ variants, storeId }: { variants: VariantOptio
           </Button>
           <Button
             type="submit"
-            disabled={loading || variants.length === 0}
+            disabled={loading || !hasVariant}
             className="rounded-lg shadow-sm"
           >
             {loading ? "Receiving..." : "Receive Stock"}

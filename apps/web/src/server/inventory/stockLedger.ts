@@ -1,4 +1,5 @@
 import { Prisma, type StockMovementType } from "@prisma/client";
+import { consumeOlderStock } from "./priceChanges";
 
 /**
  * The one place stock changes. Everything else — receipts, adjustments, stock takes, the POS
@@ -43,11 +44,16 @@ export interface StockMovementInput {
   referenceType?: string | null;
   referenceId?: string | null;
   actorUserId?: string | null;
+  /** What one unit of a RECEIPT cost, excluding GST. Null when not recorded; never on other types. */
+  unitCostMinor?: number | null;
+  /** Explicitly marks incoming stock as a free sample piece (₹0 cost allowed) */
+  isFreeSample?: boolean;
   /**
    * Deterministic, derived from the business fact. A retried operation collides on
    * `@@unique([tenantId, idempotencyKey])` rather than counting the stock twice.
    */
   idempotencyKey: string;
+  batchChoice?: "old" | "new";
 }
 
 export interface AppliedMovement {
@@ -147,6 +153,33 @@ export async function applyStockMovement(
     throw new Error("stock ledger: balance update returned no row");
   }
 
+  // Weighted average cost (owner choice 2026-10-14). Only goods arriving with a recorded cost
+  // move it: new average = (units already on hand x their average + units arriving x their
+  // cost) / units on hand now. Units already on hand are counted only when positive, so a
+  // shelf that had drifted negative starts again at the new cost. If costed goods land on top
+  // of units that never had a cost, those units are assumed to cost the same, and the level
+  // says so (costIsEstimate) until a costed delivery arrives on an empty shelf. Computed by
+  // PostgreSQL on the row the statement above has already locked.
+  // A received transfer carries the source store's average, so it moves the destination's the same way.
+  if ((input.type === "RECEIPT" || input.type === "TRANSFER_IN" || input.type === "OPENING_BALANCE") && input.unitCostMinor != null && input.quantityDelta > 0) {
+    await tx.$executeRaw`
+      UPDATE "stock_levels"
+         SET "avgCostMinor" = CASE
+               WHEN "quantity" - ${input.quantityDelta} <= 0 OR "avgCostMinor" IS NULL THEN ${input.unitCostMinor}
+               ELSE ROUND(
+                 (("quantity" - ${input.quantityDelta})::numeric * "avgCostMinor"
+                   + ${input.quantityDelta}::numeric * ${input.unitCostMinor}) / "quantity"
+               )::int
+             END,
+             "costIsEstimate" = CASE
+               WHEN "quantity" - ${input.quantityDelta} <= 0 THEN false
+               WHEN "avgCostMinor" IS NULL THEN true
+               ELSE "costIsEstimate"
+             END
+       WHERE "storeId" = ${input.storeId} AND "variantId" = ${input.variantId}
+    `;
+  }
+
   const movement = await tx.stockMovement.create({
     data: {
       tenantId: input.tenantId,
@@ -159,10 +192,24 @@ export async function applyStockMovement(
       referenceType: input.referenceType ?? null,
       referenceId: input.referenceId ?? null,
       actorUserId: input.actorUserId ?? null,
+      unitCostMinor: input.unitCostMinor ?? null,
+      isFreeSample: input.isFreeSample ?? false,
       idempotencyKey: input.idempotencyKey,
     },
     select: { id: true },
   });
+
+  // Every unit leaving stock (sale, write-off, count-down) counts down any selling price that
+  // is queued behind older stock, in this same transaction.
+  if (input.quantityDelta < 0) {
+    await consumeOlderStock(tx, {
+      tenantId: input.tenantId,
+      variantId: input.variantId,
+      units: -input.quantityDelta,
+      causationId: movement.id,
+      batchChoice: input.batchChoice,
+    });
+  }
 
   return { movementId: movement.id, balanceAfter };
 }

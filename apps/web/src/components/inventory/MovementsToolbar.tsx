@@ -33,7 +33,7 @@ export function MovementsToolbar({
           type="text"
           defaultValue={search}
           placeholder="Search by product name, SKU..."
-          className="block w-full rounded-md border-0 py-2 pl-9 text-slate-900 shadow-sm ring-1 ring-inset ring-slate-300 placeholder:text-slate-400 focus:ring-2 focus:ring-inset focus:ring-primary sm:text-xs"
+          className="block w-full rounded-md border-0 py-2 pl-9 text-slate-900 shadow-sm ring-1 ring-inset ring-slate-300 placeholder:text-slate-500 focus:ring-2 focus:ring-inset focus:ring-primary sm:text-xs"
           onKeyDown={(e) => {
             if (e.key === "Enter") {
               e.preventDefault();
@@ -54,6 +54,9 @@ export function MovementsToolbar({
         <option value="SALE">Sale</option>
         <option value="ADJUSTMENT">Adjustment</option>
         <option value="STOCK_TAKE">Stock Take</option>
+        <option value="SUPPLIER_RETURN">Return to supplier</option>
+        <option value="TRANSFER_OUT">Transfer out</option>
+        <option value="TRANSFER_IN">Transfer in</option>
         <option value="OPENING_BALANCE">Opening Balance</option>
       </select>
       

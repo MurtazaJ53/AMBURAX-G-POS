@@ -2,11 +2,12 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { X, Package } from "lucide-react";
+import { X, Package, Barcode } from "lucide-react";
 import { type StockLevel, type ProductVariant, type Product } from "@prisma/client";
 import { StatusPill, type Status } from "./InventoryUI";
 import { formatMinor } from "@/server/sales/saleTotals";
 import { restoreInspectorFocus } from "./inspectorFocus";
+import { BarcodeLabelModal } from "./BarcodeLabelModal";
 
 type DetailStock = StockLevel & {
   variant: ProductVariant & {
@@ -36,6 +37,7 @@ export function InventoryDetailPanel({
    * identical and avoids a hydration mismatch.
    */
   const [isOverlay, setIsOverlay] = useState(false);
+  const [barcodeModalOpen, setBarcodeModalOpen] = useState(false);
   /**
    * The URL that failed to load, not a boolean. Changing rows does not remount this panel, so a
    * plain `failed` flag set by one product's broken image would wrongly hide the next product's
@@ -270,25 +272,46 @@ export function InventoryDetailPanel({
           </div>
         </div>
 
-        <div className="flex shrink-0 gap-2 border-t border-border bg-slate-50 p-4">
-          <Link
-            href={`/inventory/movements?q=${encodeURIComponent(v.sku)}`}
-            prefetch={false}
-            className="flex flex-1 items-center justify-center rounded-[6px] border border-slate-300 bg-white px-3 py-2 text-[11px] font-semibold text-primary shadow-sm transition-colors hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+        <div className="flex shrink-0 flex-col gap-2 border-t border-border bg-slate-50 p-4">
+          <button
+            type="button"
+            onClick={() => setBarcodeModalOpen(true)}
+            className="flex w-full items-center justify-center gap-1.5 rounded-[6px] border border-sky-200 bg-sky-50 px-3 py-2 text-[11px] font-semibold text-sky-800 shadow-sm transition-colors hover:bg-sky-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
           >
-            View Stock History
-          </Link>
-          {canManage && (
+            <Barcode className="h-3.5 w-3.5 text-sky-700" />
+            Print Barcode &amp; Shelf Tag
+          </button>
+
+          <div className="flex gap-2">
             <Link
-              href={`/inventory/adjustments/new?sku=${encodeURIComponent(v.sku)}`}
+              href={`/inventory/movements?q=${encodeURIComponent(v.sku)}`}
               prefetch={false}
-              className="flex flex-1 items-center justify-center rounded-[6px] border border-transparent bg-primary px-3 py-2 text-[11px] font-semibold text-white shadow-sm transition-colors hover:bg-slate-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+              className="flex flex-1 items-center justify-center rounded-[6px] border border-slate-300 bg-white px-3 py-2 text-[11px] font-semibold text-primary shadow-sm transition-colors hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
             >
-              Adjust Stock
+              View Stock History
             </Link>
-          )}
+            {canManage && (
+              <Link
+                href={`/inventory/adjustments/new?sku=${encodeURIComponent(v.sku)}`}
+                prefetch={false}
+                className="flex flex-1 items-center justify-center rounded-[6px] border border-transparent bg-primary px-3 py-2 text-[11px] font-semibold text-white shadow-sm transition-colors hover:bg-slate-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+              >
+                Adjust Stock
+              </Link>
+            )}
+          </div>
         </div>
       </aside>
+
+      <BarcodeLabelModal
+        isOpen={barcodeModalOpen}
+        onClose={() => setBarcodeModalOpen(false)}
+        productName={p.name}
+        variantName={[v.size, v.colour].filter(Boolean).join(" / ") || null}
+        sku={v.sku}
+        barcode={v.barcode}
+        priceMinor={v.priceMinor}
+      />
     </>
   );
 }

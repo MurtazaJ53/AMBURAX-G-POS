@@ -24,19 +24,6 @@ export default async function NewReceiptPage() {
 
   const tenantId = resolved.context.tenantId;
 
-  const variants = await db.productVariant.findMany({
-    where: { tenantId, isActive: true },
-    include: { product: true },
-    orderBy: [{ product: { name: "asc" } }, { sku: "asc" }]
-  });
-
-  const variantOptions = variants.map(v => ({
-    id: v.id,
-    sku: v.sku,
-    name: `${v.product.name} ${[v.size, v.colour].filter(Boolean).join(" / ") ? `(${[v.size, v.colour].filter(Boolean).join(" / ")})` : ""}`,
-    imageUrl: v.product.imageUrl
-  }));
-
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-y-auto bg-background text-foreground">
       <div className="mx-auto w-full max-w-4xl p-4 sm:p-6 lg:p-8">
@@ -47,7 +34,7 @@ export default async function NewReceiptPage() {
           </Link>
         </div>
         
-        <ReceiveStockForm variants={variantOptions} storeId={resolved.context.storeId} />
+        <ReceiveStockForm storeId={resolved.context.storeId} />
       </div>
     </div>
   );

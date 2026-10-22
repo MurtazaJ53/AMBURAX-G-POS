@@ -223,7 +223,7 @@ export function InventoryGrid({
             type="button"
             onClick={() => onSelect(isSelected ? undefined : p.variant.sku)}
             className={cn(
-              "flex flex-col text-left overflow-hidden rounded-lg border bg-background-card transition-all hover:shadow-md",
+              "flex flex-col text-left overflow-hidden rounded-lg border bg-background-card transition-shadow hover:shadow-md",
               isSelected ? "border-[color:var(--color-primary)] ring-1 ring-[color:var(--color-primary)]" : "border-border"
             )}
           >

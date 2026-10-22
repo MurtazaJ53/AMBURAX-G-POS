@@ -231,6 +231,9 @@ export const MOVEMENT_LABELS: Record<StockMovementType, string> = {
   RETURN: "Return",
   ADJUSTMENT: "Adjustment",
   STOCK_TAKE: "Stock take",
+  SUPPLIER_RETURN: "Return to supplier",
+  TRANSFER_OUT: "Transfer out",
+  TRANSFER_IN: "Transfer in",
 };
 
 export type MovementTone = "in" | "out" | "oversold" | "neutral";

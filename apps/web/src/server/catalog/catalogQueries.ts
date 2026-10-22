@@ -34,6 +34,8 @@ export interface ProductVariantRow {
   colour: string | null;
   priceMinor: number;
   mrpMinor: number | null;
+  taxTreatment: string;
+  taxRateBp: number;
   isActive: boolean;
   stockQuantity: number | null;
 }
@@ -59,10 +61,11 @@ export interface ProductRow {
 
 function buildProductWhere(tenantId: string, query: string) {
   const trimmed = query.trim();
-  if (trimmed.length === 0) return { tenantId };
+  if (trimmed.length === 0) return { tenantId, isDraft: false };
 
   return {
     tenantId,
+    isDraft: false,
     OR: [
       { name: { contains: trimmed, mode: "insensitive" as const } },
       { category: { contains: trimmed, mode: "insensitive" as const } },
@@ -245,6 +248,8 @@ export async function listProducts(params: {
           colour: true,
           priceMinor: true,
           mrpMinor: true,
+          taxTreatment: true,
+          taxRateBp: true,
           isActive: true,
           // Store-scoped, so one store's count never appears on another's screen.
           stockLevels: { where: { storeId: params.storeId }, select: { quantity: true } },
@@ -265,6 +270,8 @@ export async function listProducts(params: {
       colour: variant.colour,
       priceMinor: variant.priceMinor,
       mrpMinor: variant.mrpMinor,
+      taxTreatment: variant.taxTreatment,
+      taxRateBp: variant.taxRateBp,
       isActive: variant.isActive,
       stockQuantity: variant.stockLevels[0]?.quantity ?? null,
     }));
@@ -403,8 +410,8 @@ export async function getCatalogSummary(params: {
   storeId: string;
 }): Promise<CatalogSummary> {
   const [products, variants, counted, unitsAggregate, outOfStock, oversold] = await Promise.all([
-    db.product.count({ where: { tenantId: params.tenantId } }),
-    db.productVariant.count({ where: { tenantId: params.tenantId } }),
+    db.product.count({ where: { tenantId: params.tenantId, isDraft: false } }),
+    db.productVariant.count({ where: { tenantId: params.tenantId, product: { isDraft: false } } }),
     db.stockLevel.count({ where: { storeId: params.storeId } }),
     db.stockLevel.aggregate({ where: { storeId: params.storeId }, _sum: { quantity: true } }),
     db.stockLevel.count({ where: { storeId: params.storeId, quantity: 0 } }),
@@ -423,17 +430,36 @@ export async function getCatalogSummary(params: {
 
 
 
-export async function getProduct(params: { tenantId: string; productId: string }) {
+export async function getProduct(params: { tenantId: string; productId: string; storeId?: string }) {
   const product = await db.product.findUnique({
     where: { id_tenantId: { id: params.productId, tenantId: params.tenantId } },
     include: {
       variants: {
         orderBy: { sku: "asc" },
+        include: {
+          stockLevels: params.storeId
+            ? {
+                where: { storeId: params.storeId },
+                select: { quantity: true },
+              }
+            : {
+                select: { quantity: true },
+              },
+        },
       },
       baseUom: true,
-    }
+    },
   });
-  return product;
+
+  if (!product) return null;
+
+  return {
+    ...product,
+    variants: product.variants.map((v) => ({
+      ...v,
+      stockQuantity: v.stockLevels.reduce((sum, sl) => sum + sl.quantity, 0),
+    })),
+  };
 }
 export async function getVariant(opts: {
   tenantId: string;
@@ -489,23 +515,24 @@ export async function getCatalogFacets(params: {
         orderBy: { brand: "asc" },
       }),
       db.productVariant.findMany({
-        where: { tenantId },
+        where: { tenantId, product: { isDraft: false } },
         select: { size: true, colour: true },
         distinct: ["size", "colour"],
       }),
       db.productVariant.aggregate({
-        where: { tenantId },
+        where: { tenantId, product: { isDraft: false } },
         _min: { priceMinor: true },
         _max: { priceMinor: true },
       }),
-      db.product.count({ where: { tenantId, variants: { some: inStockHere } } }),
+      db.product.count({ where: { tenantId, isDraft: false, variants: { some: inStockHere } } }),
       db.product.count({
         where: {
           tenantId,
+          isDraft: false,
           AND: [{ variants: { some: countedHere } }, { variants: { none: inStockHere } }],
         },
       }),
-      db.product.count({ where: { tenantId, variants: { none: countedHere } } }),
+      db.product.count({ where: { tenantId, isDraft: false, variants: { none: countedHere } } }),
     ]);
 
   // Sizes sort naturally rather than alphabetically: S, M, L, XL is the order a shopkeeper
@@ -607,6 +634,8 @@ export async function getProductDetail(params: {
           colour: true,
           priceMinor: true,
           mrpMinor: true,
+          taxTreatment: true,
+          taxRateBp: true,
           isActive: true,
           stockLevels: { where: { storeId: params.storeId }, select: { quantity: true } },
         },
@@ -666,6 +695,8 @@ export async function getProductDetail(params: {
     colour: variant.colour,
     priceMinor: variant.priceMinor,
     mrpMinor: variant.mrpMinor,
+    taxTreatment: variant.taxTreatment,
+    taxRateBp: variant.taxRateBp,
     isActive: variant.isActive,
     stockQuantity: variant.stockLevels[0]?.quantity ?? null,
   }));

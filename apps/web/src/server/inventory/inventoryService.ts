@@ -4,6 +4,12 @@ import { writeAuditLog } from "@/server/identity/audit";
 import { enqueueOutboxEvent } from "@/server/events/outbox";
 import { canManageInventory } from "@/server/inventory/inventoryRoles";
 import {
+  MAX_PRICE_MINOR,
+  applyOrQueuePriceChange,
+  validatePriceChange,
+  type PriceChangeRequest,
+} from "@/server/inventory/priceChanges";
+import {
   applyStockMovement,
   movementKey,
   validateMovementQuantity,
@@ -126,6 +132,8 @@ async function applyAudited(params: {
   correlationId: string;
   auditAction: string;
   auditMetadata: Record<string, unknown>;
+  unitCostMinor?: number | null;
+  pricing?: PriceChangeRequest | null;
 }): Promise<InventoryResult> {
   const existing = await findExistingMovement(params.actor.tenantId, params.idempotencyKey);
   if (existing) {
@@ -140,6 +148,44 @@ async function applyAudited(params: {
   let applied;
   try {
     applied = await db.$transaction(async (tx) => {
+      // Step 5: If movement adds stock (quantityDelta > 0), resolve and store cost in unitCostMinor at movement creation!
+      let resolvedCost = params.unitCostMinor ?? null;
+      if (params.quantityDelta > 0 && (resolvedCost === null || resolvedCost === undefined)) {
+        // Fallback chain: 1) explicit input, 2) variant.costPriceMinor, 3) last RECEIPT cost
+        const variant = await tx.productVariant.findUnique({
+          where: { id: params.target.variantId },
+          select: { costPriceMinor: true, sku: true },
+        });
+        if (variant?.costPriceMinor != null) {
+          resolvedCost = variant.costPriceMinor;
+        } else {
+          const lastReceipt = await tx.stockMovement.findFirst({
+            where: {
+              tenantId: params.actor.tenantId,
+              variantId: params.target.variantId,
+              type: "RECEIPT",
+              unitCostMinor: { not: null },
+            },
+            orderBy: { createdAt: "desc" },
+            select: { unitCostMinor: true },
+          });
+          if (lastReceipt?.unitCostMinor != null) {
+            resolvedCost = lastReceipt.unitCostMinor;
+          }
+        }
+      }
+
+      // Units already on hand across every store, read before these goods land: the count a
+      // queued "sell older stock first" price must wait behind.
+      let olderUnits = 0;
+      if (params.pricing) {
+        const onHand = await tx.stockLevel.aggregate({
+          where: { tenantId: params.actor.tenantId, variantId: params.target.variantId },
+          _sum: { quantity: true },
+        });
+        olderUnits = Math.max(0, onHand._sum.quantity ?? 0);
+      }
+
       const movement = await applyStockMovement(tx, {
         tenantId: params.actor.tenantId,
         storeId: params.target.storeId,
@@ -148,8 +194,21 @@ async function applyAudited(params: {
         quantityDelta: params.quantityDelta,
         reason: params.reason,
         actorUserId: params.actor.userId,
+        unitCostMinor: resolvedCost,
         idempotencyKey: params.idempotencyKey,
       });
+
+      if (params.pricing) {
+        await applyOrQueuePriceChange(tx, {
+          tenantId: params.actor.tenantId,
+          variantId: params.target.variantId,
+          request: params.pricing,
+          olderUnits,
+          actorUserId: params.actor.userId,
+          sourceMovementId: movement.movementId,
+          correlationId: params.correlationId,
+        });
+      }
 
       await enqueueOutboxEvent(tx, {
         tenantId: params.actor.tenantId,
@@ -217,6 +276,10 @@ export interface ReceiveStockInput {
   /** Client-supplied request key, so a double-submit does not receive the goods twice. */
   requestKey: string;
   correlationId: string;
+  /** What one unit of this delivery cost, excluding GST (owner decision 2026-10-13). Optional. */
+  unitCostMinor?: number | null;
+  /** A new selling price that arrives with these goods, and when it applies. Optional. */
+  pricing?: PriceChangeRequest | null;
 }
 
 /** Goods arriving. The operation that makes stock able to rise at all. */
@@ -225,6 +288,14 @@ export async function receiveStock(input: ReceiveStockInput): Promise<InventoryR
   if (invalid) return { status: "invalid_quantity", reason: invalid };
   if (input.quantity < 0) {
     return { status: "validation_error", reason: "A receipt must increase stock." };
+  }
+  const cost = input.unitCostMinor ?? null;
+  if (cost !== null && (!Number.isSafeInteger(cost) || cost < 0 || cost > MAX_PRICE_MINOR)) {
+    return { status: "validation_error", reason: "Enter a valid cost per unit." };
+  }
+  if (input.pricing) {
+    const priceError = validatePriceChange(input.pricing);
+    if (priceError) return { status: "validation_error", reason: priceError };
   }
 
   const target = await resolveTarget(input.actor, input.storeId, input.variantId);
@@ -239,7 +310,13 @@ export async function receiveStock(input: ReceiveStockInput): Promise<InventoryR
     idempotencyKey: movementKey.receipt(input.requestKey),
     correlationId: input.correlationId,
     auditAction: "StockReceived",
-    auditMetadata: { requestKey: input.requestKey },
+    auditMetadata: {
+      requestKey: input.requestKey,
+      ...(cost !== null ? { unitCostMinor: cost } : {}),
+      ...(input.pricing ? { pricing: { ...input.pricing } } : {}),
+    },
+    unitCostMinor: cost,
+    pricing: input.pricing ?? null,
   });
 }
 
@@ -253,6 +330,8 @@ export interface AdjustStockInput {
   reason: string;
   requestKey: string;
   correlationId: string;
+  /** Step 5: Optional valuation cost if correcting an item that has no purchase cost on record */
+  unitCostMinor?: number | null;
 }
 
 /** A correction with a stated reason: damage, shrinkage, a data-entry error. */
@@ -278,6 +357,7 @@ export async function adjustStock(input: AdjustStockInput): Promise<InventoryRes
     correlationId: input.correlationId,
     auditAction: "StockAdjusted",
     auditMetadata: { requestKey: input.requestKey, reason },
+    unitCostMinor: input.unitCostMinor ?? null,
   });
 }
 
@@ -290,6 +370,8 @@ export interface StockTakeInput {
   reason?: string | null;
   requestKey: string;
   correlationId: string;
+  /** Step 5: Optional valuation cost if gaining units on an item that has no purchase cost on record */
+  unitCostMinor?: number | null;
 }
 
 export type StockTakeResult =
@@ -358,6 +440,7 @@ export async function recordStockTake(input: StockTakeInput): Promise<StockTakeR
       countedQuantity: input.countedQuantity,
       recordedQuantity: recorded,
     },
+    unitCostMinor: input.unitCostMinor ?? null,
   });
 
   if (applied.status !== "ok") return applied;

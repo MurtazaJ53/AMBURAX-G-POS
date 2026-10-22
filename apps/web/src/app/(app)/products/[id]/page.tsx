@@ -4,10 +4,8 @@ import { env } from "@/lib/env";
 import { resolvePosContext } from "@/server/sales/posContext";
 import { canManageCatalog } from "@/server/catalog/catalogRoles";
 import { getProduct } from "@/server/catalog/catalogQueries";
-import { formatMinor } from "@/server/sales/saleTotals";
-import { PageHeader, Card, buttonClass, BadgeTone, StatusBadge } from "../../_components/ui";
-import Link from "next/link";
-import { Image as ImageIcon } from "lucide-react";
+import { db } from "@/server/db";
+import { ProductDetailsView } from "./ProductDetailsView";
 
 export default async function ProductDetailsPage(props: { params: Promise<{ id: string }> }) {
   const { id } = await props.params;
@@ -19,124 +17,52 @@ export default async function ProductDetailsPage(props: { params: Promise<{ id: 
   
   const canManage = canManageCatalog(resolved.context.tenantRole);
   
-  const product = await getProduct({ tenantId: resolved.context.tenantId, productId: id });
+  const product = await getProduct({
+    tenantId: resolved.context.tenantId,
+    productId: id,
+    storeId: resolved.context.storeId,
+  });
   if (!product) return notFound();
+
+  // Fetch recent sales for this product using correct model name SaleItem
+  const variantIds = product.variants.map((v) => v.id);
+  const recentSaleItems = variantIds.length > 0 ? await db.saleItem.findMany({
+    where: {
+      tenantId: resolved.context.tenantId,
+      variantId: { in: variantIds },
+    },
+    take: 10,
+    orderBy: { id: "desc" },
+    include: {
+      sale: {
+        select: {
+          id: true,
+          billNumber: true,
+          completedAt: true,
+          totalMinor: true,
+          cashier: { select: { name: true } },
+        },
+      },
+    },
+  }) : [];
+
+  const recentSales = recentSaleItems.map((si) => ({
+    id: si.sale.id,
+    billNumber: si.sale.billNumber,
+    completedAt: si.sale.completedAt,
+    totalMinor: si.quantity * si.unitPriceMinor - si.lineDiscountMinor,
+    cashierName: si.sale.cashier.name,
+    quantity: si.quantity,
+  }));
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
-      <PageHeader
-        title={product.name}
-        subtitle={product.category || "Uncategorized"}
-        actions={
-          canManage && (
-            <Link href={`/products/${product.id}/edit`} className={buttonClass("secondary")}>
-              Edit Product
-            </Link>
-          )
-        }
+      <ProductDetailsView
+        product={product}
+        canManage={canManage}
+        storeName={resolved.context.storeName}
+        recentSales={recentSales}
       />
-      
-      <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-3">
-        {/* Product Details */}
-        <Card className="p-6">
-          <h2 className="text-base font-semibold leading-7 text-slate-900 mb-4">Product Info</h2>
-          
-          <div className="flex items-start gap-4 mb-6">
-            <div className="h-20 w-20 shrink-0 overflow-hidden rounded-lg bg-slate-100 border border-slate-200 flex items-center justify-center">
-              {product.imageUrl ? (
-                <img src={product.imageUrl} alt={product.name} className="h-full w-full object-cover" />
-              ) : (
-                <ImageIcon className="h-8 w-8 text-slate-300" />
-              )}
-            </div>
-            <div>
-              <p className="text-sm font-medium text-slate-900">{product.name}</p>
-              <p className="text-sm text-slate-500">{product.category || "No category"}</p>
-            </div>
-          </div>
-
-          <dl className="space-y-4 text-sm border-t border-slate-100 pt-4">
-            <div className="flex justify-between">
-              <dt className="text-slate-500">Brand</dt>
-              <dd className="font-medium text-slate-900">{product.brand || "-"}</dd>
-            </div>
-            <div className="flex justify-between">
-              <dt className="text-slate-500">Status</dt>
-              <dd>
-                <StatusBadge tone={(product.isActive ? "success" : "neutral") as BadgeTone}>
-                  {product.isActive ? "Active" : "Inactive"}
-                </StatusBadge>
-              </dd>
-            </div>
-          </dl>
-        </Card>
-
-        {/* Variants List */}
-        <Card className="lg:col-span-2 p-6">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-base font-semibold leading-7 text-slate-900">Variants</h2>
-            {canManage && (
-              <Link href={`/products/${product.id}/variants/new`} className={buttonClass("primary")}>
-                + Add Variant
-              </Link>
-            )}
-          </div>
-          
-          <div className="mt-4 flow-root">
-            <div className="-mx-4 -my-2 overflow-x-auto sm:-mx-6 lg:-mx-8">
-              <div className="inline-block min-w-full py-2 align-middle sm:px-6 lg:px-8">
-                <table className="min-w-full divide-y divide-slate-300">
-                  <thead>
-                    <tr>
-                      <th className="py-3.5 pl-4 pr-3 text-left text-sm font-semibold text-slate-900 sm:pl-0">SKU</th>
-                      <th className="px-3 py-3.5 text-left text-sm font-semibold text-slate-900">Details</th>
-                      <th className="px-3 py-3.5 text-left text-sm font-semibold text-slate-900">Price</th>
-                      <th className="px-3 py-3.5 text-left text-sm font-semibold text-slate-900">Status</th>
-                      <th className="relative py-3.5 pl-3 pr-4 sm:pr-0">
-                        <span className="sr-only">Edit</span>
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-200">
-                    {product.variants.map((v) => (
-                      <tr key={v.id}>
-                        <td className="whitespace-nowrap py-4 pl-4 pr-3 text-sm font-medium text-slate-900 sm:pl-0">
-                          {v.sku}
-                        </td>
-                        <td className="whitespace-nowrap px-3 py-4 text-sm text-slate-500">
-                          {[v.size, v.colour].filter(Boolean).join(" / ") || "-"}
-                        </td>
-                        <td className="whitespace-nowrap px-3 py-4 text-sm text-slate-500">
-                          {v.priceMinor != null ? formatMinor(v.priceMinor) : "-"}
-                        </td>
-                        <td className="whitespace-nowrap px-3 py-4 text-sm text-slate-500">
-                          <StatusBadge tone={(v.isActive ? "success" : "neutral") as BadgeTone}>
-                            {v.isActive ? "Active" : "Inactive"}
-                          </StatusBadge>
-                        </td>
-                        <td className="relative whitespace-nowrap py-4 pl-3 pr-4 text-right text-sm font-medium sm:pr-0">
-                          {canManage && (
-                            <Link href={`/products/${product.id}/variants/${v.id}/edit`} className="text-blue-600 hover:text-blue-900">
-                              Edit<span className="sr-only">, {v.sku}</span>
-                            </Link>
-                          )}
-                        </td>
-                      </tr>
-                    ))}
-                    {product.variants.length === 0 && (
-                      <tr>
-                        <td colSpan={5} className="py-8 text-center text-sm text-slate-500">
-                          No variants found. Add one to start selling this product.
-                        </td>
-                      </tr>
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          </div>
-        </Card>
-      </div>
     </div>
   );
 }

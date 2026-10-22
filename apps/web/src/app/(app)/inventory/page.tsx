@@ -4,14 +4,17 @@ import Link from "next/link";
 import { env } from "@/lib/env";
 import { resolvePosContext } from "@/server/sales/posContext";
 import { canManageInventory } from "@/server/inventory/inventoryRoles";
-import { getInventoryOverview, listStockLevels, listStoreStockMovements, getInventoryFilterOptions, stockStatusLabel } from "@/server/inventory/inventoryQueries";
-import { Package, Boxes, ArrowRightLeft, AlertTriangle, AlertOctagon, Plus } from "lucide-react";
+import { getInventoryOverview, listStockLevels, listStoreStockMovements, getInventoryFilterOptions, getInventoryFacetCounts, stockStatusLabel } from "@/server/inventory/inventoryQueries";
+import { Package, Boxes, ArrowRightLeft, AlertTriangle, AlertOctagon, Plus, Download } from "lucide-react";
 
 import { StatusPill } from "@/components/inventory/InventoryUI";
 import { KpiCard } from "@/components/dashboard/KpiGrid";
 import { InventoryDetailPanel } from "@/components/inventory/InventoryDetailPanel";
 import { InventoryToolbar } from "@/components/inventory/InventoryToolbar";
 import { InventoryAnalytics } from "@/components/inventory/InventoryAnalytics";
+import { InventoryTabs, type InventoryTab } from "@/components/inventory/InventoryTabs";
+import { InventoryFacetList } from "@/components/inventory/InventoryFacetList";
+import { InventoryVariantList } from "@/components/inventory/InventoryVariantList";
 
 export default async function InventoryPage(props: { searchParams: Promise<{ [key: string]: string | string[] | undefined }> }) {
   const searchParams = await props.searchParams;
@@ -35,11 +38,24 @@ export default async function InventoryPage(props: { searchParams: Promise<{ [ke
   const brand = typeof searchParams.brand === "string" ? searchParams.brand : undefined;
   const selectedSku = typeof searchParams.selected === "string" ? searchParams.selected : undefined;
   const view = (typeof searchParams.view === "string" ? searchParams.view : "table") as "table" | "grid";
-  
+  // Read-only Variants / Categories / Brands tabs; any other value is ignored and the stock list shows.
+  const tab: InventoryTab | undefined =
+    searchParams.tab === "variants" || searchParams.tab === "categories" || searchParams.tab === "brands"
+      ? searchParams.tab
+      : undefined;
+  const facetValues =
+    tab === "categories" || tab === "brands"
+      ? await getInventoryFacetCounts({ tenantId, storeId, kind: tab === "categories" ? "category" : "brand" })
+      : [];
+
   const pageRaw = parseInt(typeof searchParams.page === "string" ? searchParams.page : "1", 10);
   const page = isNaN(pageRaw) || pageRaw < 1 ? 1 : pageRaw;
   const limit = 50;
   const offset = (page - 1) * limit;
+
+  // Variants tab: one row per variant stocked in this store, from the same tenant/store-scoped
+  // query as the stock table, unfiltered.
+  const variantPage = tab === "variants" ? await listStockLevels({ tenantId, storeId, limit, offset }) : null;
 
   const [overview, { items, total }, { items: movements }, { categories, brands }] = await Promise.all([
     getInventoryOverview({ tenantId, storeId }),
@@ -109,12 +125,19 @@ export default async function InventoryPage(props: { searchParams: Promise<{ [ke
           <p className="mt-1 text-[11.5px] text-slate-500">Track your stock, variants and keep your store always ready.</p>
         </div>
         <div className="flex items-center gap-2">
+          <a
+            href="/api/v1/inventory/export"
+            download
+            className="amb-focus amb-press inline-flex h-8 items-center justify-center rounded border border-slate-200 bg-white px-3 text-[11px] font-semibold text-slate-700 shadow-sm hover:border-slate-300 hover:bg-slate-50 transition-colors"
+          >
+            <Download size={13} className="mr-1.5 text-slate-500" /> Export CSV
+          </a>
           {canManage ? (
-            <Link href="/products/new" className="inline-flex h-8 items-center justify-center rounded-[4px] bg-slate-900 px-3 text-[11px] font-semibold text-white shadow-sm hover:bg-slate-800 transition-colors">
+            <Link href="/products/new" className="amb-focus amb-press inline-flex h-8 items-center justify-center rounded px-3 text-[11px] font-semibold text-white shadow-sm bg-primary hover:bg-primary-hover transition-colors">
               <Plus size={13} className="mr-1.5" /> Add Product
             </Link>
           ) : (
-            <button disabled className="inline-flex h-8 items-center justify-center rounded-[4px] bg-slate-900 px-3 text-[11px] font-semibold text-white opacity-50 cursor-not-allowed shadow-sm">
+            <button disabled className="inline-flex h-8 items-center justify-center rounded px-3 text-[11px] font-semibold text-white bg-primary opacity-50 cursor-not-allowed shadow-sm">
               <Plus size={13} className="mr-1.5" /> Add Product
             </button>
           )}
@@ -122,35 +145,7 @@ export default async function InventoryPage(props: { searchParams: Promise<{ [ke
       </header>
 
       <div className="flex-none mt-6 border-b border-border">
-        <div className="flex items-center gap-1 overflow-x-auto scrollbar-hide">
-          <div className="border-b-2 border-primary px-3 py-2 text-[11px] font-semibold text-primary whitespace-nowrap">
-            Stock Overview
-          </div>
-          <Link href="/products" className="border-b-2 border-transparent px-3 py-2 text-[11px] font-semibold text-secondary hover:text-primary transition-colors whitespace-nowrap">
-            Products
-          </Link>
-          <span className="border-b-2 border-transparent px-3 py-2 text-[11px] font-semibold text-tertiary whitespace-nowrap cursor-not-allowed" title="Not available">
-            Variants
-          </span>
-          <span className="border-b-2 border-transparent px-3 py-2 text-[11px] font-semibold text-tertiary whitespace-nowrap cursor-not-allowed" title="Not available">
-            Categories
-          </span>
-          <span className="border-b-2 border-transparent px-3 py-2 text-[11px] font-semibold text-tertiary whitespace-nowrap cursor-not-allowed" title="Not available">
-            Brands
-          </span>
-          <Link href="/inventory/adjustments/new" className="border-b-2 border-transparent px-3 py-2 text-[11px] font-semibold text-secondary hover:text-primary transition-colors whitespace-nowrap">
-            Stock Adjustments
-          </Link>
-          <Link href="/inventory/receipts/new" className="border-b-2 border-transparent px-3 py-2 text-[11px] font-semibold text-secondary hover:text-primary transition-colors whitespace-nowrap">
-            Receive Stock
-          </Link>
-          <span className="border-b-2 border-transparent px-3 py-2 text-[11px] font-semibold text-tertiary whitespace-nowrap cursor-not-allowed" title="Not available">
-            Low Stock
-          </span>
-          <span className="border-b-2 border-transparent px-3 py-2 text-[11px] font-semibold text-tertiary whitespace-nowrap cursor-not-allowed" title="Not available">
-            Expiring / Aging
-          </span>
-        </div>
+        <InventoryTabs status={status} tab={tab} />
       </div>
 
       <div className="flex-none grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-5 mt-5 mb-5">
@@ -161,8 +156,14 @@ export default async function InventoryPage(props: { searchParams: Promise<{ [ke
         <KpiCard icon={AlertOctagon} label="OUT OF STOCK" value={String(overview.outOfStock)} hint="Across this store" toneClass="bg-rose-100 text-rose-700" />
       </div>
 
+      {tab === "variants" && variantPage ? (
+        <InventoryVariantList rows={variantPage.items} total={variantPage.total} page={page} pageSize={limit} />
+      ) : tab ? (
+        <InventoryFacetList kind={tab === "categories" ? "category" : "brand"} values={facetValues} />
+      ) : (
+      <>
       <div className="flex-none">
-        <InventoryToolbar 
+        <InventoryToolbar
           search={search}
           status={status}
           category={category}
@@ -201,8 +202,8 @@ export default async function InventoryPage(props: { searchParams: Promise<{ [ke
                         <td className="px-4 py-1.5 min-w-0">
                           <Link href={createSelectHref(p.variant.sku)} className="flex items-center gap-2 group">
                             <div className="h-7 w-7 shrink-0 overflow-hidden rounded-[3px] bg-background-app flex items-center justify-center">
-                              {/* eslint-disable-next-line @next/next/no-img-element */}
                               {p.variant.product.imageUrl ? (
+                                // eslint-disable-next-line @next/next/no-img-element
                                 <img src={p.variant.product.imageUrl} alt="" className="h-full w-full object-cover" />
                               ) : (
                                 <Package className="h-3.5 w-3.5 text-tertiary" />
@@ -255,8 +256,8 @@ export default async function InventoryPage(props: { searchParams: Promise<{ [ke
                     className={`rounded-lg border bg-background-card p-3 text-left shadow-sm hover:border-primary transition-colors ${selectedSku === p.variant.sku ? "border-primary ring-1 ring-primary" : "border-border"}`}
                   >
                     <div className="h-32 w-full rounded-md bg-background-app mb-3 flex items-center justify-center overflow-hidden">
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
                       {p.variant.product.imageUrl ? (
+                        // eslint-disable-next-line @next/next/no-img-element
                         <img src={p.variant.product.imageUrl} alt="" className="h-full w-full object-cover" />
                       ) : (
                         <Package className="h-8 w-8 text-tertiary" />
@@ -282,6 +283,8 @@ export default async function InventoryPage(props: { searchParams: Promise<{ [ke
           <InventoryDetailPanel item={selectedItem} closeHref={createSelectHref(undefined)} canManage={canManage} />
         )}
       </div>
+      </>
+      )}
 
       <div className="flex-none">
         <InventoryAnalytics 
