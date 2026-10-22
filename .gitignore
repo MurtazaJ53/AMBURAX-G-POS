@@ -65,3 +65,16 @@ test-results/
 playwright-report/
 blob-report/
 .playwright/
+# --- browser end-to-end test output ---
+test-results/
+playwright-report/
+blob-report/
+.playwright/
+
+# --- scratch & uploads ---
+/scratch/
+/apps/web/public/uploads/
+apps/web/prisma/seedRealShop*.ts
+apps/web/prisma/connectRealShop*.ts
+apps/web/prisma/record_migration_history.cjs
+*.tmp
