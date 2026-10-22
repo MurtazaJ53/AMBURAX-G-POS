@@ -42,7 +42,7 @@ function NavRow({ item, active }: { item: NavItem; active: boolean }) {
           aria-hidden="true"
           className={[
             "h-1.5 w-1.5 shrink-0 rounded-full",
-            active ? "bg-blue-600" : planned ? "bg-slate-200" : "bg-slate-300",
+            active ? "bg-primary" : planned ? "bg-slate-200" : "bg-slate-300",
           ].join(" ")}
         />
         <span className="truncate">{item.label}</span>
@@ -66,7 +66,7 @@ export function Sidebar(props: { storeName: string; storeCode: string }) {
       <div className="flex items-center gap-2.5 px-5 py-5">
         <span
           aria-hidden="true"
-          className="flex h-9 w-9 items-center justify-center rounded-lg bg-blue-600 text-sm font-bold text-white"
+          className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary text-sm font-bold text-white"
         >
           A
         </span>

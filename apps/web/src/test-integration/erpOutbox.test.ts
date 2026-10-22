@@ -28,7 +28,7 @@ describe("ERPNext Vertical Slice (Outbox)", () => {
     await db.tenant.update({
       where: { id: tenantId },
       data: {
-        erpnextProvisionStatus: "PROVISIONED",
+        erpnextProvisionStatus: "PROVISIONED", erpnextCompanyId: "Amburax Retail",
         erpnextSiteId: "test-site.local",
       },
     });

@@ -38,10 +38,10 @@
   --amb-line-inverse: #262e3c;
 
   /* --- action ----------------------------------------------------------- */
-  --amb-accent: #2f56e8;
-  --amb-accent-hover: #2243c2;
+  --amb-accent: #0369a1;
+  --amb-accent-hover: #075985;
   --amb-accent-ink: #ffffff;
-  --amb-accent-soft: #e8ecff;
+  --amb-accent-soft: #e0f2fe;
 
   /* --- semantics -------------------------------------------------------- */
   --amb-positive: #0c7d4b;

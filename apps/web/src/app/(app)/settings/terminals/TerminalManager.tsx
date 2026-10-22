@@ -47,8 +47,10 @@ export function TerminalManager() {
   const repairDialogRef = useRef<HTMLDialogElement>(null);
   const successDialogRef = useRef<HTMLDialogElement>(null);
 
-  const loadDevices = async () => {
-    setLoading(true);
+  // `quiet` refreshes the list without the loading screen. After a change the result dialog (the new
+  // pairing code) is open; swapping the page for "Loading…" unmounted it before anyone saw the code.
+  const loadDevices = async (quiet = false) => {
+    if (!quiet) setLoading(true);
     setError(null);
     setForbidden(false);
     const res = await apiRequest<{ devices: PosDeviceView[] }>("/api/v1/pos/devices");
@@ -91,7 +93,7 @@ export function TerminalManager() {
     
     if (res.ok) {
       setDisableTarget(null);
-      await loadDevices();
+      await loadDevices(true);
     } else {
       setMutationError(res.kind === "api" ? res.message : "Network error");
     }
@@ -107,15 +109,38 @@ export function TerminalManager() {
     if (res.ok) {
       setRepairTarget(null);
       setRepairSuccess({ code: res.data.pairingCode, device: repairTarget.name });
-      await loadDevices();
+      await loadDevices(true);
     } else {
       setMutationError(res.kind === "api" ? res.message : "Network error");
     }
   };
 
+  /**
+   * A terminal that was never paired, or whose code expired, gets a fresh code through the same two
+   * audited steps the server already allows: disable (which voids any old code), then re-pair.
+   */
+  const handleNewCode = async (device: PosDeviceView) => {
+    setMutationError(null);
+    setMutatingId(device.id);
+    const disabled = await apiRequest(`/api/v1/pos/devices/${device.id}/disable`, { method: "POST" });
+    if (!disabled.ok) {
+      setMutatingId(null);
+      setMutationError(disabled.kind === "api" ? disabled.message : "Network error");
+      return;
+    }
+    const res = await apiRequest<{ pairingCode: string }>(`/api/v1/pos/devices/${device.id}/re-pair`, { method: "POST" });
+    setMutatingId(null);
+    if (res.ok) {
+      setRepairSuccess({ code: res.data.pairingCode, device: device.name });
+    } else {
+      setMutationError(res.kind === "api" ? res.message : "Network error");
+    }
+    await loadDevices(true);
+  };
+
   if (loading) return <LoadingState label="Loading terminals..." />;
   if (forbidden) return <ErrorState title="Access Denied" description="You don't have permission to view POS terminals." />;
-  if (error) return <ErrorState title="Error" description={error} action={<button onClick={loadDevices} className={buttonClass("secondary")}>Retry</button>} />;
+  if (error) return <ErrorState title="Error" description={error} action={<button onClick={() => void loadDevices()} className={buttonClass("secondary")}>Retry</button>} />;
   if (devices.length === 0) return <EmptyState title="No Terminals" description="There are no POS terminals registered to this store." />;
 
   return (
@@ -149,6 +174,17 @@ export function TerminalManager() {
                         aria-label={`Disable ${device.name}`}
                       >
                         {mutatingId === device.id ? "Disabling..." : "Disable"}
+                      </button>
+                    )}
+                    {(device.status === "PENDING_ACTIVATION" || device.status === "PAIRING_EXPIRED") && (
+                      <button
+                        type="button"
+                        className={buttonClass("primary")}
+                        onClick={() => void handleNewCode(device)}
+                        disabled={mutatingId === device.id}
+                        aria-label={`New pairing code for ${device.name}`}
+                      >
+                        {mutatingId === device.id ? "Working..." : "New pairing code"}
                       </button>
                     )}
                     {device.status === "DISABLED" && (

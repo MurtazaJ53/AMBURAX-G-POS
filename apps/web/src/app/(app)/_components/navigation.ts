@@ -35,39 +35,52 @@ export const NAVIGATION: NavSection[] = [
   {
     items: [
       { label: "Dashboard", href: "/dashboard", status: "built" },
+      { label: "Operations", href: "/operations", status: "built" },
+      { label: "Stores", href: "/stores", status: "built" },
       { label: "POS", href: "/pos", status: "built" },
+      { label: "Till", href: "/till", status: "built" },
       { label: "Sales", href: "/sales", status: "built" },
       { label: "Inventory", href: "/inventory", status: "built" },
       { label: "Products", href: "/products", status: "built" },
       { label: "Customers", href: "/customers", status: "built" },
+      { label: "Staff", href: "/staff", status: "built" },
+      { label: "Cash & Day Close", href: "/cash", status: "built" },
       {
         label: "Customer Due (Khata)",
         href: "/khata",
-        status: "planned",
+        status: "built",
         phase: "Phase 5",
         description:
-          "Customer dues, collections and reminders. Sales can already be attributed to a customer, but no credit ledger exists yet.",
+          "What each customer owes. Collecting payments stays off until the credit policy is decided.",
       },
       {
         label: "Suppliers",
         href: "/suppliers",
-        status: "planned",
+        status: "built",
         phase: "Phase 4",
         description:
-          "Suppliers, purchase orders and goods receipts. Nothing in AMBURAX records inbound stock yet.",
+          "Who you buy stock from: contacts, GSTIN and status.",
+      },
+      {
+        label: "Purchases",
+        href: "/purchases",
+        status: "built",
+        phase: "Phase 4",
+        description:
+          "Goods received from suppliers, with cost excluding GST and input GST.",
       },
       {
         label: "Offers & Loyalty",
         href: "/offers",
-        status: "planned",
+        status: "built",
         phase: "Phase 5",
         description:
-          "Offers, promotions and loyalty programmes. The till has no offer engine behind it yet.",
+          "Loyalty rules (off until finance and GST sign-off). Offers wait on their rules.",
       },
       {
         label: "Reports",
         href: "/reports",
-        status: "planned",
+        status: "built",
         phase: "Phase 11",
         description:
           "Retail, inventory and customer analytics with defined, reconcilable KPI definitions.",
@@ -80,10 +93,10 @@ export const NAVIGATION: NavSection[] = [
       {
         label: "Commerce Overview",
         href: "/commerce",
-        status: "planned",
+        status: "built",
         phase: "Phase 6",
         description:
-          "Channel connections, listings, mappings and order sync across Shopify, Amazon, Flipkart and Meesho.",
+          "Channel connections, listings, mappings and order sync across Flipkart and marketplaces.",
       },
     ],
   },
@@ -93,7 +106,7 @@ export const NAVIGATION: NavSection[] = [
       {
         label: "Leads & Quotations",
         href: "/b2b",
-        status: "planned",
+        status: "built",
         phase: "Phase 9",
         description:
           "Lead ingestion, qualification, pipeline, quotations and conversion to sales orders.",
@@ -106,7 +119,7 @@ export const NAVIGATION: NavSection[] = [
       {
         label: "AI Command Center",
         href: "/ai",
-        status: "planned",
+        status: "built",
         phase: "Phase 12",
         description:
           "Grounded sales, inventory and customer intelligence, with every high-risk action gated by approval.",
@@ -118,11 +131,11 @@ export const NAVIGATION: NavSection[] = [
     items: [
       {
         label: "Store & Settings",
-        href: "/settings/terminals",
+        href: "/settings",
         status: "built",
         phase: "Phase 5",
         description:
-          "Store profile, staff, shifts, terminals and integration settings in one workspace.",
+          "Company credit defaults and POS terminal settings for your business.",
       },
     ],
   },

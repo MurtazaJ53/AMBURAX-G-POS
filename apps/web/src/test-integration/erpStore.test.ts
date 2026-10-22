@@ -17,7 +17,7 @@ describe("ERP Store Provisioning", () => {
     await db.tenant.update({
       where: { id: IDS.tenantA },
       data: {
-        erpnextProvisionStatus: "PROVISIONED",
+        erpnextProvisionStatus: "PROVISIONED", erpnextCompanyId: "Amburax Retail",
         erpnextSiteId: "test-site.local",
       },
     });
@@ -42,7 +42,8 @@ describe("ERP Store Provisioning", () => {
     
     // Check lookup request
     expect(transport.sent[0]!.method).toBe("GET");
-    expect(transport.sent[0]!.path).toContain(`["warehouse_name","=","Store A (SA)"]`);
+    // The filter is URL-encoded JSON now, so a name with quotes or brackets cannot alter the query.
+    expect(decodeURIComponent(transport.sent[0]!.path)).toContain(`["warehouse_name","=","Store A (SA)"]`);
 
     // Check create request
     expect(transport.sent[1]!.method).toBe("POST");

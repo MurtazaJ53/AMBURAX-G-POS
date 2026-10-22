@@ -371,6 +371,17 @@ limits, replay prevention, and session issuance are all real.
   behavior under real concurrent load. Do the full run once `DATABASE_URL`
   points at a real database.
 
+## Git History Warning & Secret Rotation
+
+> [!WARNING]
+> **CRITICAL SECURITY REQUIREMENT BEFORE PRODUCTION DEPLOYMENT**:
+> If any secret, token, database URL, API key, or credential was ever previously committed or hardcoded anywhere in the codebase (including initial commits, test fixtures, or local configs), **that old value still resides permanently in Git history**.
+> 
+> Before deploying this application to production:
+> 1. **Rotate all credentials immediately**: Change database passwords, reissue any ERP/SMS/email API keys, regenerate OAuth tokens, and update session secrets.
+> 2. **Never commit `.env`**: Confirm `.env` and `.env.*` files remain gitignored and are never staged.
+> 3. **Clean git history**: If sensitive production secrets were committed in historical commits, use `git-filter-repo` or BFG Repo-Cleaner to permanently scrub them from the repository history.
+
 ## Tests
 
 ```bash

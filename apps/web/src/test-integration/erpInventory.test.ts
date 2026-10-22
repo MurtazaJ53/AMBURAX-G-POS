@@ -16,7 +16,7 @@ async function provisionTenantForErp(tenantId: string, storeId: string) {
   await db.tenant.update({
     where: { id: tenantId },
     data: {
-      erpnextProvisionStatus: "PROVISIONED",
+      erpnextProvisionStatus: "PROVISIONED", erpnextCompanyId: "Amburax Retail",
       erpnextSiteId: "test-site.local",
     },
   });
@@ -54,7 +54,7 @@ async function seedVariantAndDrainCatalogEvents(
     baseUomId: uom.id,
     isActive: true,
     correlationId: `corr-create-${sku}`,
-    firstVariant: { sku, barcode: null, priceMinor: 2500, mrpMinor: null, size: "M", colour: "Blue", isActive: true },
+    firstVariant: { sku, barcode: null, priceMinor: 2500, mrpMinor: null, taxRateBp: 500, taxTreatment: "TAXABLE", taxExemptionRef: null, size: "M", colour: "Blue", isActive: true },
   });
 
   if (productRes.status !== "ok") {

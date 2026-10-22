@@ -208,6 +208,7 @@ export async function getSalesBreakdown(params: {
       skuSnapshot: true,
       quantity: true,
       lineTotalMinor: true,
+      lineDiscountMinor: true,
       variant: { select: { product: { select: { category: true, imageUrl: true } } } },
     },
   });
@@ -227,24 +228,26 @@ export async function getSalesBreakdown(params: {
   >();
 
   for (const line of lines) {
+    // Net of any bill discount allocated to the line.
+    const lineNetMinor = line.lineTotalMinor - line.lineDiscountMinor;
     const category = line.variant.product.category?.trim();
     if (category) {
-      byCategory.set(category, (byCategory.get(category) ?? 0) + line.lineTotalMinor);
+      byCategory.set(category, (byCategory.get(category) ?? 0) + lineNetMinor);
     } else {
-      uncategorisedMinor += line.lineTotalMinor;
+      uncategorisedMinor += lineNetMinor;
     }
 
     const existing = byVariant.get(line.variantId);
     if (existing) {
       existing.unitsSold += line.quantity;
-      existing.revenueMinor += line.lineTotalMinor;
+      existing.revenueMinor += lineNetMinor;
     } else {
       byVariant.set(line.variantId, {
         variantId: line.variantId,
         name: line.nameSnapshot,
         sku: line.skuSnapshot,
         unitsSold: line.quantity,
-        revenueMinor: line.lineTotalMinor,
+        revenueMinor: lineNetMinor,
         // The picture comes from the live product, unlike the name and SKU beside it, which
         // are the snapshots taken at the till. That asymmetry is deliberate: what the
         // customer was charged for must never change, but a shop that photographs a product
@@ -367,6 +370,15 @@ export interface DashboardStockSignal {
    * today, so the projection can drift negative (ADR-080).
    */
   oversold: number;
+  /**
+   * Units on hand x weighted average cost, excluding GST, over levels that have a cost. Null
+   * when no unit on hand has a recorded cost.
+   */
+  stockValueMinor: number | null;
+  /** Variants with units on hand but no recorded cost — left out of stockValueMinor. */
+  uncostedOnHand: number;
+  /** True when part of the value rests on the "older units cost the same" assumption. */
+  valueIncludesEstimate: boolean;
   /** The thinnest counts in the store, lowest first. */
   lowest: {
     variantId: string;
@@ -390,7 +402,7 @@ export async function getStockSignal(params: {
   storeId: string;
   lowestLimit?: number;
 }): Promise<DashboardStockSignal> {
-  const [countedVariants, totalVariants, outOfStock, oversold, lowestRows] = await Promise.all([
+  const [countedVariants, totalVariants, outOfStock, oversold, lowestRows, valueRows] = await Promise.all([
     db.stockLevel.count({ where: { storeId: params.storeId } }),
     db.productVariant.count({ where: { tenantId: params.tenantId, isActive: true } }),
     db.stockLevel.count({ where: { storeId: params.storeId, quantity: 0 } }),
@@ -405,13 +417,25 @@ export async function getStockSignal(params: {
       orderBy: { quantity: "asc" },
       take: Math.min(params.lowestLimit ?? 5, 20),
     }),
+    // One aggregate in PostgreSQL rather than every level over the wire.
+    db.$queryRaw<{ value: bigint | null; uncosted: bigint; estimated: bigint }[]>`
+      SELECT SUM(CASE WHEN "avgCostMinor" IS NOT NULL THEN "quantity"::bigint * "avgCostMinor" END) AS "value",
+             COUNT(*) FILTER (WHERE "avgCostMinor" IS NULL) AS "uncosted",
+             COUNT(*) FILTER (WHERE "avgCostMinor" IS NOT NULL AND "costIsEstimate") AS "estimated"
+        FROM "stock_levels"
+       WHERE "tenantId" = ${params.tenantId} AND "storeId" = ${params.storeId} AND "quantity" > 0
+    `,
   ]);
+  const valueRow = valueRows[0];
 
   return {
     countedVariants,
     uncountedVariants: Math.max(0, totalVariants - countedVariants),
     outOfStock,
     oversold,
+    stockValueMinor: valueRow?.value == null ? null : Number(valueRow.value),
+    uncostedOnHand: Number(valueRow?.uncosted ?? 0),
+    valueIncludesEstimate: Number(valueRow?.estimated ?? 0) > 0,
     lowest: lowestRows.map((row) => ({
       variantId: row.variantId,
       productName: row.variant.product.name,

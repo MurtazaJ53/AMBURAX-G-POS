@@ -84,8 +84,7 @@ export function OnboardingCompleteView({ readiness: initial }: Props) {
 
   return (
     <div>
-      <p className="text-xs font-medium uppercase tracking-wide text-brand-600">Step 6 of 6</p>
-      <h2 className="mt-1 text-2xl font-semibold text-slate-900">
+      <h2 className="text-3xl font-extrabold text-slate-900">
         {readiness.operationalReady ? "You're ready to sell" : "Setup complete"}
       </h2>
 

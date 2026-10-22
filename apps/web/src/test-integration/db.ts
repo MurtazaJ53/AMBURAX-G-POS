@@ -251,6 +251,8 @@ export async function seedCommerce(): Promise<void> {
       priceMinor: 100_000,
       mrpMinor: 120_000,
       taxRateBp: 500,
+      taxTreatment: "TAXABLE",
+      taxExemptionRef: null,
     },
   });
   await db.productVariant.create({
@@ -265,6 +267,8 @@ export async function seedCommerce(): Promise<void> {
       priceMinor: 200_000,
       mrpMinor: 240_000,
       taxRateBp: 500,
+      taxTreatment: "TAXABLE",
+      taxExemptionRef: null,
     },
   });
   await db.productVariant.create({
@@ -278,6 +282,8 @@ export async function seedCommerce(): Promise<void> {
       colour: "Black",
       priceMinor: 150_000,
       taxRateBp: 500,
+      taxTreatment: "TAXABLE",
+      taxExemptionRef: null,
     },
   });
 

@@ -109,6 +109,12 @@ export function BusinessRegistrationForm() {
         }
         setPhase({ kind: "success", businessName: data.businessName });
         router.push("/onboarding/owner");
+        // Fallback in case client router transitions are delayed
+        setTimeout(() => {
+          if (window.location.pathname === "/onboarding/business") {
+            window.location.href = "/onboarding/owner";
+          }
+        }, 1200);
         return;
       }
 

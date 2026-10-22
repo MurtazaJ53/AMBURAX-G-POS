@@ -3,7 +3,7 @@
 import * as React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Store, X, Cloud } from "lucide-react";
+import { Store, X } from "lucide-react";
 import { NAVIGATION } from "./navigation";
 import { cn } from "@/lib/utils";
 
@@ -13,6 +13,7 @@ export interface AppSidebarProps {
   storeName?: string;
   storeCode?: string;
   tillOpen?: boolean;
+  allowedModules?: string[] | null;
   isMobileOpen?: boolean;
   onMobileClose?: () => void;
 }
@@ -28,6 +29,7 @@ export function AppSidebar({
   storeName,
   storeCode,
   tillOpen = false,
+  allowedModules,
   isMobileOpen,
   onMobileClose,
 }: AppSidebarProps) {
@@ -37,21 +39,36 @@ export function AppSidebar({
     return NAVIGATION.map((section) => ({
       ...section,
       items: section.items.filter((item) => {
-        if (!item.capabilities || item.capabilities.length === 0) return true;
-        return item.capabilities.some((cap) => tenantCapabilities.includes(cap));
+        // 1. Check capability match
+        if (item.capabilities && item.capabilities.length > 0) {
+          const hasCap = item.capabilities.some((cap) => tenantCapabilities.includes(cap));
+          if (!hasCap) return false;
+        }
+
+        // 2. Check granular manual module access assigned by owner
+        if (allowedModules && Array.isArray(allowedModules)) {
+          // Dashboard is always visible to everyone
+          if (item.id === "dashboard") return true;
+          return allowedModules.includes(item.id);
+        }
+
+        return true;
       }),
     })).filter((section) => section.items.length > 0);
-  }, [tenantCapabilities]);
+  }, [tenantCapabilities, allowedModules]);
 
   const SidebarContent = (
-    <aside className={cn(
+    <aside
+      // While open on mobile the sidebar is a modal drawer over the page, so it says so.
+      {...(isMobileOpen ? { role: "dialog", "aria-modal": true, "aria-label": "Navigation" } : {})}
+      className={cn(
       "fixed inset-y-0 left-0 z-40 flex w-[238px] flex-col border-r border-slate-200 bg-white text-slate-700 shadow-xl shadow-slate-900/5 transition-transform duration-200 lg:translate-x-0 print:hidden",
       isMobileOpen ? "translate-x-0" : "-translate-x-full"
     )}>
       <div className="relative flex h-[68px] items-center justify-between border-b border-slate-200 px-5">
         <div>
           <div className="flex items-center gap-2 text-[15px] font-bold tracking-[.14em] text-slate-900">
-            <span className="flex size-5 items-center justify-center rounded bg-sky-600 text-[12px] font-bold text-white">A</span>
+            <span className="flex size-5 items-center justify-center rounded bg-primary text-[12px] font-bold text-white">A</span>
             AMBURAX
           </div>
           <div className="mt-1 pl-7 text-[9px] tracking-[.08em] text-slate-400">
@@ -75,9 +92,10 @@ export function AppSidebar({
         </div>
         <div className="mt-3 flex items-center justify-between border-t border-slate-200 pt-2 text-[9px]">
           <span className={cn("flex items-center gap-1.5", tillOpen ? "text-emerald-700" : "text-slate-500")}>
-            <i className={cn("size-1.5 rounded-full", tillOpen ? "bg-emerald-500" : "bg-slate-300")} /> {tillOpen ? 'Live' : 'Offline'}
+            {/* This is the till, not the network: the header's "Store Online" is the connection. */}
+            <i className={cn("size-1.5 rounded-full", tillOpen ? "bg-emerald-500" : "bg-slate-300")} /> {tillOpen ? 'Till open' : 'No till open'}
           </span>
-          <span className="text-slate-400">Asia/Kolkata</span>
+          <span className="text-slate-500">Asia/Kolkata</span>
         </div>
       </div>
 
@@ -93,6 +111,8 @@ export function AppSidebar({
                   key={item.label}
                   href={item.href}
                   onClick={onMobileClose}
+                  // The active route is announced, not only shown in colour.
+                  aria-current={active ? "page" : undefined}
                   className={cn(
                     "group mb-1 flex items-center gap-3 rounded-md px-3 py-2 text-[11px] font-medium transition-colors",
                     active ? "bg-sky-50 text-sky-700" : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
@@ -100,7 +120,7 @@ export function AppSidebar({
                 >
                   <Icon size={15} strokeWidth={1.8} />
                   <span>{item.label}</span>
-                  {active && <span className="ml-auto size-1.5 rounded-full bg-sky-600" />}
+                  {active && <span className="ml-auto size-1.5 rounded-full bg-primary" />}
                 </Link>
               );
             })}
@@ -108,23 +128,15 @@ export function AppSidebar({
         ))}
       </nav>
 
-      <div className="relative border-t border-slate-100 p-4 pb-3">
-        <div className="rounded-lg bg-sky-50/50 p-3 pb-0 relative overflow-hidden">
-          <div className="relative z-10">
-            <div className="mb-1 text-[11px] font-bold text-sky-800">
-              Grow Your Business
-            </div>
-            <p className="text-[10px] leading-snug text-slate-500">New season collection setup<br/>in 2 steps</p>
-            <Link href="/products" className="mt-2.5 mb-3 inline-block rounded border border-sky-600 bg-sky-600 px-3 py-1.5 text-[10px] font-bold text-white hover:bg-sky-700">
-              Add Products
-            </Link>
-          </div>
-          <div className="absolute right-[-10px] bottom-0 opacity-80 h-[50px] w-[60px] bg-sky-100 rounded"></div>
-        </div>
-        <div className="mt-3.5 flex items-center justify-between text-[11px] text-slate-600 font-medium">
-          <span className="flex items-center gap-1.5"><Cloud size={14} className="text-slate-400" /> Cloud Sync</span>
-          <span className="text-[9px] text-slate-400 font-normal">Just now</span>
-        </div>
+      {/* A plain shortcut. The earlier promo ("setup in 2 steps", "Cloud Sync · Just now") described
+          flows and a sync status that nothing in the product measures. */}
+      <div className="border-t border-slate-100 p-4">
+        <Link
+          href="/products"
+          className="amb-focus flex min-h-11 items-center justify-center rounded-md bg-primary px-3 text-[11px] font-bold text-white transition-colors hover:bg-primary-hover"
+        >
+          Add products
+        </Link>
       </div>
     </aside>
   );

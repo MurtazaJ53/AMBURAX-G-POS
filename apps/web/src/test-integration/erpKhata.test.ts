@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { db, IDS, resetDatabase, seedTwoTenants } from "./db";
-import { ErpKhataService } from "@/server/khata/khataService";
+import { ErpKhataService, KhataPaymentsUnavailableError } from "@/server/khata/khataService";
 import { ErpPaymentAdapter } from "@/server/erp/paymentAdapter";
 import { FakeErpTransport } from "@/server/erp/fakeTransport";
 import { ErpOutboxPublisher } from "@/server/erp/outboxPublisher";
@@ -12,11 +12,17 @@ import { ErpInventoryAdapter } from "@/server/erp/inventoryAdapter";
 import { ErpCustomerAdapter } from "@/server/erp/customerAdapter";
 import { createCustomer } from "@/server/sales/customers";
 
+/** Khata payments require the session Store to name a legal Company with a matching currency. */
+async function mapStoreToCompany(tenantId: string, storeId: string) {
+  const company = await db.company.create({ data: { tenantId, name: "Khata Co", code: "KC", currency: "INR" } });
+  await db.store.update({ where: { id: storeId }, data: { companyId: company.id, currency: "INR" } });
+}
+
 async function provisionTenantForErp(tenantId: string, storeId: string) {
   await db.tenant.update({
     where: { id: tenantId },
     data: {
-      erpnextProvisionStatus: "PROVISIONED",
+      erpnextProvisionStatus: "PROVISIONED", erpnextCompanyId: "Amburax Retail",
       erpnextSiteId: "test-site.local",
     },
   });
@@ -121,10 +127,14 @@ describe("ERPNext Khata / Receivables & Payments", () => {
     expect(receivables.invoices[0]?.status).toBe("Overdue");
   });
 
-  it("collects a payment, enqueues outbox event, and syncs Payment Entry to ERPNext", async () => {
+  // Payment collection is disabled until payment allocation is implemented and approved. These
+  // replace the former collect-and-sync tests: the service must refuse before writing anything,
+  // so no KhataPayment row, no outbox event, and no Payment Entry reaches ERPNext.
+  it("refuses to collect a payment: no KhataPayment, no outbox event, no ERP call", async () => {
     const tenantId = IDS.tenantA;
     const storeId = IDS.storeA;
     await provisionTenantForErp(tenantId, storeId);
+    await mapStoreToCompany(tenantId, storeId);
 
     const custRes = await createCustomer({
       tenantId,
@@ -134,97 +144,33 @@ describe("ERPNext Khata / Receivables & Payments", () => {
       correlationId: "corr-rohan-2",
     });
     if (custRes.status !== "ok") throw new Error("Customer creation failed");
+    const outboxBefore = await db.outboxEvent.count();
+    const sentBefore = transport.sent.length;
 
-    // Script fake transport for CustomerCreated sync & drain it
-    transport.script(
-      { kind: "respond", status: 200, body: { data: [] } },
-      { kind: "respond", status: 200, body: { data: { name: "Rohan Varma" } } }
-    );
-    await dispatchOutboxOnce({ publisher });
-    (transport.sent as any[]).length = 0;
+    await expect(
+      khataService.collectCustomerPayment({
+        tenantId,
+        customerId: custRes.customer.id,
+        actorUserId: IDS.ownerA,
+        storeId,
+        amountMinor: 8000,
+        paymentMethod: "CASH",
+        notes: "Part payment cash",
+        idempotencyKey: "idem-khata-pay-1",
+      }),
+    ).rejects.toBeInstanceOf(KhataPaymentsUnavailableError);
 
-    // Script Fake ERP transport for CustomerPaymentCollected dispatch:
-    // 1. GET /api/resource/Payment Entry?filters=remarks like amburax-payment-id:... -> [] (idempotency check)
-    // 2. GET /api/resource/Customer?filters=[["customer_pos_id",...]] -> name: "Rohan Varma"
-    // 3. GET /api/resource/Sales Invoice?filters=[["customer","=","Rohan Varma"]...] -> open invoices
-    // 4. POST /api/resource/Payment Entry -> { name: "ACC-PAY-999" }
-    transport.script(
-      { kind: "respond", status: 200, body: { data: [] } },
-      { kind: "respond", status: 200, body: { data: [{ name: "Rohan Varma" }] } },
-      {
-        kind: "respond",
-        status: 200,
-        body: {
-          data: [
-            {
-              name: "SINV-001",
-              outstanding_amount: 50.0,
-              grand_total: 100.0,
-              posting_date: "2026-09-01",
-            },
-            {
-              name: "SINV-002",
-              outstanding_amount: 150.0,
-              grand_total: 150.0,
-              posting_date: "2026-10-05",
-            },
-          ],
-        },
-      },
-      { kind: "respond", status: 200, body: { data: { name: "ACC-PAY-999" } } }
-    );
-
-    const collectRes = await khataService.collectCustomerPayment({
-      tenantId,
-      customerId: custRes.customer.id,
-      actorUserId: IDS.ownerA,
-      amountMinor: 8000, // 80.00 collected (covers SINV-001 completely + 30.00 of SINV-002)
-      paymentMethod: "CASH",
-      notes: "Part payment cash",
-      idempotencyKey: "idem-khata-pay-1",
-    });
-
-    expect(collectRes.duplicate).toBe(false);
-    expect(collectRes.payment.amountMinor).toBe(8000);
-    expect(collectRes.payment.erpSyncStatus).toBe("PENDING");
-
-    // Dispatch Outbox
-    const { published, failed } = await dispatchOutboxOnce({ publisher });
-    expect(failed).toBe(0);
-    expect(published).toBeGreaterThanOrEqual(1);
-
-    // Verify local status updated
-    const updated = await db.khataPayment.findUnique({
-      where: { id: collectRes.payment.id },
-    });
-    expect(updated?.erpSyncStatus).toBe("SYNCED");
-    expect(updated?.erpPaymentEntryId).toBe("ACC-PAY-999");
-
-    // Verify ERPNext POST payload
-    const postCalls = transport.sent.filter(
-      (r) => r.method === "POST" && r.path.includes("Payment Entry")
-    );
-    expect(postCalls).toHaveLength(1);
-    const postBody = postCalls[0]!.body as Record<string, unknown>;
-    expect(postBody["doctype"]).toBe("Payment Entry");
-    expect(postBody["party"]).toBe("Rohan Varma");
-    expect(postBody["paid_amount"]).toBe(80);
-    expect(postBody["received_amount"]).toBe(80);
-    expect(postBody["docstatus"]).toBe(1);
-
-    // Verify invoice allocations
-    const references = postBody["references"] as Array<Record<string, unknown>>;
-    expect(references).toHaveLength(2);
-    expect(references[0]?.["reference_name"]).toBe("SINV-001");
-    expect(references[0]?.["allocated_amount"]).toBe(50);
-    expect(references[1]?.["reference_name"]).toBe("SINV-002");
-    expect(references[1]?.["allocated_amount"]).toBe(30);
+    expect(await db.khataPayment.count()).toBe(0);
+    expect(await db.outboxEvent.count()).toBe(outboxBefore);
+    expect(await db.outboxEvent.count({ where: { eventType: "CustomerPaymentCollected" } })).toBe(0);
+    expect(transport.sent.length).toBe(sentBefore);
   });
 
-  it("handles payment collection idempotency and duplicate prevention", async () => {
+  it("refuses a replayed idempotency key the same way, writing nothing", async () => {
     const tenantId = IDS.tenantA;
     const storeId = IDS.storeA;
     await provisionTenantForErp(tenantId, storeId);
+    await mapStoreToCompany(tenantId, storeId);
 
     const custRes = await createCustomer({
       tenantId,
@@ -235,30 +181,19 @@ describe("ERPNext Khata / Receivables & Payments", () => {
     });
     if (custRes.status !== "ok") throw new Error("Customer creation failed");
 
-    const first = await khataService.collectCustomerPayment({
-      tenantId,
-      customerId: custRes.customer.id,
-      actorUserId: IDS.ownerA,
-      amountMinor: 5000,
-      idempotencyKey: "idem-dup-key-1",
-    });
-    expect(first.duplicate).toBe(false);
+    const attempt = () =>
+      khataService.collectCustomerPayment({
+        tenantId,
+        customerId: custRes.customer.id,
+        actorUserId: IDS.ownerA,
+        storeId,
+        amountMinor: 5000,
+        idempotencyKey: "idem-dup-key-1",
+      });
 
-    // Replay with identical idempotencyKey
-    const second = await khataService.collectCustomerPayment({
-      tenantId,
-      customerId: custRes.customer.id,
-      actorUserId: IDS.ownerA,
-      amountMinor: 5000,
-      idempotencyKey: "idem-dup-key-1",
-    });
-    expect(second.duplicate).toBe(true);
-    expect(second.payment.id).toBe(first.payment.id);
-
-    // Verify only 1 outbox event exists
-    const events = await db.outboxEvent.findMany({
-      where: { tenantId, entityId: first.payment.id },
-    });
-    expect(events).toHaveLength(1);
+    await expect(attempt()).rejects.toBeInstanceOf(KhataPaymentsUnavailableError);
+    await expect(attempt()).rejects.toBeInstanceOf(KhataPaymentsUnavailableError);
+    expect(await db.khataPayment.count()).toBe(0);
+    expect(await db.outboxEvent.count({ where: { eventType: "CustomerPaymentCollected" } })).toBe(0);
   });
 });

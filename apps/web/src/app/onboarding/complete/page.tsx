@@ -7,6 +7,7 @@ import { getOnboardingReadiness, type ReadinessResult } from "@/server/onboardin
 import { ServiceUnavailableScreen } from "@/app/ServiceUnavailableScreen";
 import { OnboardingCompleteView } from "./OnboardingCompleteView";
 import { logError } from "@/lib/safeLog";
+import { AuthFrame, ONBOARDING_STEPS } from "@/app/_components/AuthFrame";
 
 export const metadata: Metadata = {
   title: "Setup complete — AMBURAX POS",
@@ -76,27 +77,8 @@ export default async function OnboardingCompletePage() {
 
 function Shell({ children }: { children: React.ReactNode }) {
   return (
-    <div className="grid min-h-screen grid-cols-1 lg:grid-cols-2">
-      <section className="hidden flex-col justify-between bg-slate-950 p-12 text-white lg:flex">
-        <div className="text-lg font-semibold tracking-tight">AMBURAX POS</div>
-        <div className="space-y-4">
-          <h1 className="text-3xl font-semibold leading-tight text-white">That&apos;s the setup done.</h1>
-          <p className="text-sm text-slate-300">
-            Here&apos;s exactly what&apos;s working and what&apos;s still waiting — no surprises at
-            the counter.
-          </p>
-        </div>
-        <p className="text-xs text-slate-400">Step 6 of 6 — Complete</p>
-      </section>
-
-      <section className="flex items-center justify-center px-6 py-16">
-        <div className="w-full max-w-lg">
-          <div className="mb-8 lg:hidden">
-            <div className="text-lg font-semibold tracking-tight text-slate-900">AMBURAX POS</div>
-          </div>
+    <AuthFrame steps={ONBOARDING_STEPS} currentStep={6}>
           {children}
-        </div>
-      </section>
-    </div>
+    </AuthFrame>
   );
 }

@@ -8,27 +8,19 @@ export { OrderStatus };
  * ## The matrix
  *
  *     DRAFT               -> CONFIRMED, CANCELLED
- *     CONFIRMED           -> PARTIALLY_FULFILLED, FULFILLED, CANCELLED
+ *     CONFIRMED           -> RESERVED, PARTIALLY_FULFILLED, FULFILLED, CANCELLED
+ *     RESERVED            -> PARTIALLY_FULFILLED, FULFILLED, CANCELLED
  *     PARTIALLY_FULFILLED -> PARTIALLY_FULFILLED, FULFILLED
  *     FULFILLED           -> CLOSED
  *     CLOSED              -> nothing
  *     CANCELLED           -> nothing
- *     RESERVED            -> unreachable; see below
  *
- * ## RESERVED is unreachable, on purpose
+ * ## RESERVED is backed by the reservation ledger
  *
- * The approved lifecycle names RESERVED between CONFIRMED and fulfilment, so the enum carries
- * it. Nothing can reach it.
- *
- * There is no reservation accounting anywhere in this system. `StockMovementType` has no
- * RESERVATION member; `StockLevel` is a plain projection of the movement ledger's running sum;
- * no column records committed-but-unshipped quantity. An order whose status read RESERVED would
- * therefore assert that stock is set aside when nothing has set anything aside, and the next
- * person to trust it would be a picker finding an empty shelf.
- *
- * The honest options were to build reservation accounting (a ledger change, large and out of
- * scope) or to leave the state unreachable and say so. This is the second. When a reservation
- * foundation exists, CONFIRMED -> RESERVED -> fulfilment becomes reachable by adding edges here.
+ * Owner decision 36 (2026-10-14): a confirmed order may reserve its stock. RESERVED is reachable
+ * only through `reserveOrder`, which writes one `stock_reservations` row per line under the
+ * stock-level row lock, all or none (inventory/reservations.ts). Cancelling releases them;
+ * recorded deliveries consume them. A status that says RESERVED is therefore always true.
  *
  * ## Why cancellation stops at CONFIRMED
  *
@@ -41,12 +33,12 @@ export { OrderStatus };
 export const ORDER_TRANSITIONS: Readonly<Record<OrderStatus, readonly OrderStatus[]>> = {
   [OrderStatus.DRAFT]: [OrderStatus.CONFIRMED, OrderStatus.CANCELLED],
   [OrderStatus.CONFIRMED]: [
+    OrderStatus.RESERVED,
     OrderStatus.PARTIALLY_FULFILLED,
     OrderStatus.FULFILLED,
     OrderStatus.CANCELLED,
   ],
-  // Reachable only if a future phase adds the edges into it. Listed so the matrix stays total.
-  [OrderStatus.RESERVED]: [],
+  [OrderStatus.RESERVED]: [OrderStatus.PARTIALLY_FULFILLED, OrderStatus.FULFILLED, OrderStatus.CANCELLED],
   [OrderStatus.PARTIALLY_FULFILLED]: [OrderStatus.PARTIALLY_FULFILLED, OrderStatus.FULFILLED],
   [OrderStatus.FULFILLED]: [OrderStatus.CLOSED],
   [OrderStatus.CLOSED]: [],

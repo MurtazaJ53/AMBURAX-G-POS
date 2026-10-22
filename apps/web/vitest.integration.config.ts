@@ -1,6 +1,7 @@
 import { defineConfig } from "vitest/config";
 import path from "node:path";
 import fs from "node:fs";
+import { resolveIntegrationDatabaseUrl } from "./src/test-integration/databaseUrl";
 
 /**
  * Integration tests — these run against a REAL PostgreSQL.
@@ -44,7 +45,7 @@ const appEnv = readEnvFile(path.resolve(import.meta.dirname, ".env"));
 // truncate tables between cases, so aiming them at `amburax_identity` would silently wipe a
 // developer's local data.
 const baseUrl = process.env.DATABASE_URL ?? appEnv.DATABASE_URL ?? "";
-const testUrl = baseUrl.replace(/\/amburax_identity(\?|$)/, "/amburax_test$1");
+const testUrl = resolveIntegrationDatabaseUrl(baseUrl);
 
 export default defineConfig({
   resolve: {

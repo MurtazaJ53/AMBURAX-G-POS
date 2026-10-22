@@ -25,7 +25,7 @@ services:
       # Deterministic collation so index and ordering behaviour match across machines.
       POSTGRES_INITDB_ARGS: "--locale=C --encoding=UTF8"
     ports:
-      - "${POSTGRES_PORT:-55432}:5432"
+      - "${POSTGRES_PORT:-5434}:5432"
     volumes:
       - amburax_pgdata:/var/lib/postgresql/data
     healthcheck:

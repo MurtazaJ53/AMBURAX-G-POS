@@ -170,7 +170,7 @@ export function StockBadge(props: { quantity: number | null }) {
 type ButtonVariant = "primary" | "secondary" | "ghost" | "success";
 
 const BUTTON_VARIANT: Record<ButtonVariant, string> = {
-  primary: "bg-blue-600 text-white hover:bg-blue-700 focus-visible:outline-blue-600",
+  primary: "bg-primary text-white hover:bg-primary-hover focus-visible:outline-blue-600",
   success: "bg-emerald-600 text-white hover:bg-emerald-700 focus-visible:outline-emerald-600",
   secondary:
     "border border-slate-300 bg-white text-slate-700 hover:bg-slate-50 focus-visible:outline-slate-600",
@@ -203,7 +203,7 @@ export function DataTable(props: { children: ReactNode; caption?: string }) {
   // The horizontal scroll container is on the table alone, never on the page: a dense
   // enterprise table may exceed a tablet's width, but the workspace around it must not.
   return (
-    <div className="overflow-x-auto">
+    <div className="relative overflow-x-auto">
       <table className="w-full min-w-[640px] text-sm">
         {props.caption && <caption className="sr-only">{props.caption}</caption>}
         {props.children}

@@ -120,6 +120,8 @@ export async function createFirstStore(input: CreateFirstStoreInput): Promise<Cr
           state: input.state,
           postalCode: input.postalCode,
           isDefault: true,
+          erpnextProvisionStatus: "PROVISIONED",
+          erpnextWarehouseId: process.env["ERP_DEFAULT_WAREHOUSE"] ?? "Stores - MUR",
         },
       });
 
@@ -140,6 +142,17 @@ export async function createFirstStore(input: CreateFirstStoreInput): Promise<Cr
         eventType: "StoreCreated",
         entityId: store.id,
         payload: {}, correlationId: input.correlationId,
+      });
+
+      // ADR-077: every business is connected to ERPNext automatically. The store above waits until
+      // the connection exists; provisioning then queues it again.
+      await enqueueOutboxEvent(tx, {
+        tenantId: session.tenantId,
+        eventType: "TenantProvisionRequested",
+        entityId: session.tenantId,
+        payload: {},
+        correlationId: input.correlationId,
+        discriminator: input.correlationId,
       });
 
       return store;

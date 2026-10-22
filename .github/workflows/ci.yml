@@ -65,6 +65,9 @@ jobs:
       - name: Unit tests
         run: npm test -w @amburax/web
 
+      - name: License compliance & copyleft audit
+        run: npx tsx scripts/licenseAudit.ts
+
       - name: Build
         # The build reads DATABASE_URL through lib/env.ts's schema but never connects —
         # verified before this workflow was written. A syntactically valid URL pointing

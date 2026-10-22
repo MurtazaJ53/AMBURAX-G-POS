@@ -7,6 +7,7 @@ import { ErpSaleAdapter } from "@/server/erp/saleAdapter";
 import { ErpReturnAdapter } from "@/server/erp/returnAdapter";
 import { ErpOutboxPublisher } from "@/server/erp/outboxPublisher";
 import { dispatchOutboxOnce } from "@/server/events/outboxDispatcher";
+import { openTestTill } from "./till";
 import { randomUUID } from "crypto";
 
 describe("ERPNext Vertical Slice (Returns)", () => {
@@ -36,7 +37,7 @@ describe("ERPNext Vertical Slice (Returns)", () => {
 
     await db.tenant.update({
       where: { id: tenantId },
-      data: { erpnextProvisionStatus: "PROVISIONED", erpnextSiteId: "test-site.local" },
+      data: { erpnextProvisionStatus: "PROVISIONED", erpnextCompanyId: "Amburax Retail", erpnextSiteId: "test-site.local" },
     });
     process.env["ERP_SITE_TEST_SITE_LOCAL_URL"] = "http://test-site.local";
     process.env["ERP_SITE_TEST_SITE_LOCAL_KEY"] = "test-key";
@@ -75,7 +76,8 @@ describe("ERPNext Vertical Slice (Returns)", () => {
     );
 
     const returnResult = await createReturn({
-      tenantId, storeId, originalSaleId: saleId, idempotencyKey: randomUUID(),
+      posSessionId: await openTestTill({ tenantId, storeId, cashierUserId: userId, code: randomUUID().slice(0, 6) }),
+      tenantId, storeId, actor: { userId, tenantRole: "STAFF", membershipRole: "STORE_MANAGER" }, originalSaleId: saleId, idempotencyKey: randomUUID(),
       items: [{ originalSaleItemId: originalItemId, quantity: 1 }],
       refundPayments: [{ method: "CASH", amountMinor: 100_000 }]
     });
@@ -120,7 +122,8 @@ describe("ERPNext Vertical Slice (Returns)", () => {
     // Boilerplate setup
     const tenantId = IDS.tenantA;
     const storeId = IDS.storeA;
-    await db.tenant.update({ where: { id: tenantId }, data: { erpnextProvisionStatus: "PROVISIONED", erpnextSiteId: "test-site.local" }});
+    const userId = IDS.ownerA;
+    await db.tenant.update({ where: { id: tenantId }, data: { erpnextProvisionStatus: "PROVISIONED", erpnextCompanyId: "Amburax Retail", erpnextSiteId: "test-site.local" }});
     process.env["ERP_SITE_TEST_SITE_LOCAL_URL"] = "http://test-site.local";
     process.env["ERP_SITE_TEST_SITE_LOCAL_KEY"] = "test-key";
     process.env["ERP_SITE_TEST_SITE_LOCAL_SECRET"] = "test-secret";
@@ -143,7 +146,8 @@ describe("ERPNext Vertical Slice (Returns)", () => {
     const originalItemId = originalSale.items[0]!.id;
 
     const returnResult = await createReturn({
-      tenantId, storeId, originalSaleId: saleId, idempotencyKey: randomUUID(),
+      posSessionId: await openTestTill({ tenantId, storeId, cashierUserId: userId, code: randomUUID().slice(0, 6) }),
+      tenantId, storeId, actor: { userId, tenantRole: "STAFF", membershipRole: "STORE_MANAGER" }, originalSaleId: saleId, idempotencyKey: randomUUID(),
       items: [{ originalSaleItemId: originalItemId, quantity: 1 }],
       refundPayments: [{ method: "CASH", amountMinor: 100_000 }]
     });

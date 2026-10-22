@@ -98,7 +98,7 @@ export function TopBar(props: {
       <div className="ml-auto flex items-center gap-3">
         {/* A true statement about system state, not a decorative "all systems operational". */}
         <span
-          title="No ERPNext adapter is connected. Sales are recorded in AMBURAX and not yet posted to accounting."
+          title="No Backend adapter is connected. Sales are recorded in AMBURAX and not yet posted to accounting."
           className="hidden items-center gap-1.5 rounded-lg bg-amber-50 px-2.5 py-1.5 text-xs font-medium text-amber-700 ring-1 ring-inset ring-amber-600/20 xl:inline-flex"
         >
           <span aria-hidden="true" className="h-1.5 w-1.5 rounded-full bg-amber-500" />
@@ -108,11 +108,11 @@ export function TopBar(props: {
         {props.canSell && (
           <Link
             href="/pos"
-            className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-3.5 py-2 text-sm font-semibold text-white transition-colors hover:bg-blue-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600"
+            className="inline-flex items-center gap-2 rounded-lg bg-primary px-3.5 py-2 text-sm font-semibold text-white transition-colors hover:bg-primary-hover focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600"
           >
             <span aria-hidden="true">+</span>
             New Sale
-            <kbd className="hidden rounded bg-blue-500 px-1 text-[10px] font-medium sm:inline">
+            <kbd className="hidden rounded bg-white/20 px-1 text-[10px] font-medium sm:inline">
               F2
             </kbd>
           </Link>

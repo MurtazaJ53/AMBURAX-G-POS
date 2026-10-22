@@ -53,7 +53,7 @@ export function AcceptInvitationForm({ token, email, accountExists, signedInAs }
       if (res.ok && data.status === "ok") {
         // Navigating away is also how the token leaves the address bar and history entry —
         // it's consumed and useless by now, and no /invite route exists to scrub to.
-        router.push("/dashboard");
+        router.push("/select-store");
         router.refresh();
         return;
       }

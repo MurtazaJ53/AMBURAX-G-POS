@@ -1,5 +1,6 @@
 import { OrderAddressType, OrderStatus, Prisma } from "@prisma/client";
 import { db } from "@/server/db";
+import { consumeForOrder, releaseSource, reserveLines, ReservationShortError } from "@/server/inventory/reservations";
 import { writeAuditLog } from "@/server/identity/audit";
 import { canSell } from "@/server/sales/saleService";
 import { resolvePrice } from "@/server/pricing/pricingService";
@@ -79,7 +80,7 @@ export type OrderFailure =
   /** The requested status exists, but nothing may reach it from here. */
   | { status: "invalid_transition"; from: OrderStatus; to: OrderStatus }
   /** RESERVED specifically: refused because no reservation accounting exists. */
-  | { status: "reservation_unavailable" };
+  | { status: "reservation_unavailable"; variantId?: string; available?: number };
 
 function authorised(actor: OrderActor): boolean {
   return canSell({ tenantRole: actor.tenantRole, membershipRole: actor.membershipRole });
@@ -700,14 +701,19 @@ export async function cancelOrder(params: {
     return { status: "conflict", reason: "This order changed while you were working on it." };
   }
 
-  const claimed = await db.order.updateMany({
-    where: { id: order.id, tenantId, version: order.version, status: order.status },
-    data: {
-      status: OrderStatus.CANCELLED,
-      cancelledAt: new Date(),
-      cancellationReason: reason,
-      version: { increment: 1 },
-    },
+  // Cancelling releases any stock the order had reserved, in the same transaction.
+  const claimed = await db.$transaction(async (tx) => {
+    const c = await tx.order.updateMany({
+      where: { id: order.id, tenantId, version: order.version, status: order.status },
+      data: {
+        status: OrderStatus.CANCELLED,
+        cancelledAt: new Date(),
+        cancellationReason: reason,
+        version: { increment: 1 },
+      },
+    });
+    if (c.count === 1) await releaseSource(tx, { tenantId, source: "ORDER", sourceId: order.id, reason: `Order cancelled: ${reason}` });
+    return c;
   });
   if (claimed.count === 0) {
     return { status: "conflict", reason: "This order changed while you were working on it." };
@@ -766,14 +772,16 @@ export async function recordFulfilment(params: {
       id: true,
       status: true,
       version: true,
-      items: { select: { id: true, quantity: true, fulfilledQuantity: true } },
+      items: { select: { id: true, quantity: true, fulfilledQuantity: true, variantId: true } },
     },
   });
   if (!order) return { status: "not_found", what: "order" };
 
   if (
     isTerminal(order.status) ||
-    (order.status !== OrderStatus.CONFIRMED && order.status !== OrderStatus.PARTIALLY_FULFILLED)
+    (order.status !== OrderStatus.CONFIRMED &&
+      order.status !== OrderStatus.RESERVED &&
+      order.status !== OrderStatus.PARTIALLY_FULFILLED)
   ) {
     return {
       status: "invalid_transition",
@@ -833,6 +841,12 @@ export async function recordFulfilment(params: {
         where: { id: itemId, tenantId, orderId: order.id },
         data: { fulfilledQuantity },
       });
+      // Delivered units no longer need holding: the order's reservation shrinks by the same amount.
+      const item = byId.get(itemId)!;
+      const delivered = fulfilledQuantity - item.fulfilledQuantity;
+      if (delivered > 0) {
+        await consumeForOrder(tx, { tenantId, orderId: order.id, variantId: item.variantId, quantity: delivered });
+      }
     }
 
     return tx.order.findUniqueOrThrow({ where: { id: order.id }, select: ORDER_SELECT });
@@ -1020,7 +1034,14 @@ export async function transitionOrder(params: {
   expectedVersion?: number;
   correlationId: string;
 }): Promise<TransitionOrderResult> {
-  if (params.to === OrderStatus.RESERVED) return { status: "reservation_unavailable" };
+  if (params.to === OrderStatus.RESERVED) {
+    return reserveOrder({
+      actor: params.actor,
+      orderId: params.orderId,
+      expectedVersion: params.expectedVersion,
+      correlationId: params.correlationId,
+    });
+  }
 
   switch (params.to) {
     case OrderStatus.CONFIRMED:
@@ -1063,3 +1084,72 @@ export async function transitionOrder(params: {
       return { status: "invalid_transition", from: OrderStatus.DRAFT, to: params.to };
   }
 }
+
+/**
+ * CONFIRMED -> RESERVED (decision 36, owner 2026-10-14). Reserves every line's undelivered quantity
+ * in the order's store, all or none, atomically per variant; the reservation is reviewed after 7
+ * days rather than silently released. Refused with the short variant when stock isn't there.
+ */
+export async function reserveOrder(params: {
+  actor: OrderActor;
+  orderId: string;
+  expectedVersion?: number;
+  correlationId: string;
+}): Promise<TransitionOrderResult> {
+  if (!authorised(params.actor)) return { status: "forbidden" };
+  const { tenantId } = params.actor;
+  const order = await db.order.findFirst({
+    where: { id: params.orderId, tenantId },
+    select: {
+      id: true,
+      status: true,
+      version: true,
+      storeId: true,
+      items: { select: { variantId: true, quantity: true, fulfilledQuantity: true } },
+    },
+  });
+  if (!order) return { status: "not_found", what: "order" };
+  if (!canTransition(order.status, OrderStatus.RESERVED)) {
+    return { status: "invalid_transition", from: order.status, to: OrderStatus.RESERVED };
+  }
+  if (params.expectedVersion !== undefined && params.expectedVersion !== order.version) {
+    return { status: "conflict", reason: "This order changed while you were working on it." };
+  }
+  const need = new Map<string, number>();
+  for (const i of order.items) need.set(i.variantId, (need.get(i.variantId) ?? 0) + Math.max(0, i.quantity - i.fulfilledQuantity));
+
+  try {
+    const updated = await db.$transaction(async (tx) => {
+      const claimed = await tx.order.updateMany({
+        where: { id: order.id, tenantId, version: order.version, status: order.status },
+        data: { status: OrderStatus.RESERVED, version: { increment: 1 } },
+      });
+      if (claimed.count === 0) return null;
+      await reserveLines(tx, {
+        tenantId,
+        storeId: order.storeId,
+        source: "ORDER",
+        sourceId: order.id,
+        lines: [...need].map(([variantId, quantity]) => ({ variantId, quantity })),
+        actorUserId: params.actor.userId,
+        keyPrefix: `order:${order.id}:v${order.version}`,
+      });
+      return tx.order.findUniqueOrThrow({ where: { id: order.id }, select: ORDER_SELECT });
+    });
+    if (!updated) return { status: "conflict", reason: "This order changed while you were working on it." };
+    await writeAuditLog({
+      tenantId,
+      userId: params.actor.userId,
+      action: "OrderReserved",
+      correlationId: params.correlationId,
+      metadata: { orderId: order.id, lines: need.size },
+    });
+    return { status: "ok", order: updated };
+  } catch (err) {
+    if (err instanceof ReservationShortError) {
+      return { status: "reservation_unavailable", variantId: err.variantId, available: err.available };
+    }
+    throw err;
+  }
+}
+

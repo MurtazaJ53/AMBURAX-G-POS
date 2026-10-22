@@ -77,7 +77,7 @@ const TONES: Record<LoginError["kind"], { title: string; className: string }> = 
 /** The design's field chrome, in one place so the two inputs cannot drift apart. */
 const FIELD_CLASS =
   "w-full rounded-xl border border-slate-200 bg-white py-3 text-sm text-slate-800 " +
-  "placeholder:text-slate-400 transition-all focus:border-transparent focus:outline-none " +
+  "placeholder:text-slate-500 transition-colors focus:border-transparent focus:outline-none " +
   "focus:ring-2 focus:ring-blue-500 disabled:cursor-not-allowed disabled:bg-slate-50";
 
 export function LoginForm() {
@@ -132,7 +132,7 @@ export function LoginForm() {
       const data = await res.json();
 
       if (res.ok && data.status === "ok") {
-        router.push("/dashboard");
+        router.push("/select-store");
         router.refresh();
         return;
       }
@@ -189,7 +189,7 @@ export function LoginForm() {
         <div
           role="alert"
           aria-live="assertive"
-          className={`flex items-start gap-3 rounded-xl border px-4 py-3 text-sm ${TONES[error.kind].className}`}
+          className={`amb-pop-in flex items-start gap-3 rounded-xl border px-4 py-3 text-sm ${TONES[error.kind].className}`}
         >
           <IconAlert />
           <div>
@@ -289,7 +289,7 @@ export function LoginForm() {
           />
           <span
             aria-hidden="true"
-            className="flex h-4 w-4 items-center justify-center rounded border-2 border-slate-300 bg-white transition-colors peer-checked:border-blue-600 peer-checked:bg-blue-600 peer-focus-visible:ring-2 peer-focus-visible:ring-blue-500 peer-focus-visible:ring-offset-2"
+            className="flex h-4 w-4 items-center justify-center rounded border-2 border-slate-300 bg-white transition-colors peer-checked:border-blue-600 peer-checked:bg-primary peer-focus-visible:ring-2 peer-focus-visible:ring-blue-500 peer-focus-visible:ring-offset-2"
           >
             <svg width="10" height="10" viewBox="0 0 12 12" fill="none" aria-hidden="true">
               <path
@@ -322,7 +322,7 @@ export function LoginForm() {
         type="submit"
         disabled={submitting}
         aria-busy={submitting}
-        className="flex min-h-[44px] w-full items-center justify-center gap-2 rounded-xl bg-blue-600 py-3.5 text-sm font-semibold text-white transition-colors hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 active:bg-blue-800 disabled:cursor-not-allowed disabled:opacity-60"
+        className="flex min-h-[44px] w-full items-center justify-center gap-2 rounded-xl bg-primary py-3.5 text-sm font-semibold text-white transition-colors hover:bg-primary-hover focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 active:bg-primary-active disabled:cursor-not-allowed disabled:opacity-60"
       >
         {submitting ? (
           <>

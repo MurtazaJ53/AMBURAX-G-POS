@@ -3,15 +3,17 @@
 import * as React from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Bell, Clock3, Menu, Plus } from "lucide-react";
-import { StoreSwitcher } from "./StoreSwitcher";
+import { Bell, Menu, Plus } from "lucide-react";
+import { StoreSwitcher, type StoreOption } from "./StoreSwitcher";
 import { GlobalSearch } from "./GlobalSearch";
 import { UserMenu } from "./UserMenu";
-import { cn } from "@/lib/utils";
+import { OfflineIndicatorPill } from "@/client/pos/OfflineIndicatorPill";
 
 export interface AppHeaderProps {
   storeName: string;
   storeCode: string;
+  storeId?: string;
+  availableStores?: StoreOption[];
   userName: string;
   roleLabel: string;
   canSell: boolean;
@@ -19,26 +21,11 @@ export interface AppHeaderProps {
   onMobileMenuToggle: () => void;
 }
 
-function useOnlineStatus(): boolean {
-  const [online, setOnline] = React.useState(true);
-
-  React.useEffect(() => {
-    const update = () => setOnline(navigator.onLine);
-    update();
-    window.addEventListener("online", update);
-    window.addEventListener("offline", update);
-    return () => {
-      window.removeEventListener("online", update);
-      window.removeEventListener("offline", update);
-    };
-  }, []);
-
-  return online;
-}
-
 export function AppHeader({
   storeName,
   storeCode,
+  storeId,
+  availableStores = [],
   userName,
   roleLabel,
   canSell,
@@ -46,7 +33,6 @@ export function AppHeader({
   onMobileMenuToggle,
 }: AppHeaderProps) {
   const router = useRouter();
-  const online = useOnlineStatus();
 
   React.useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
@@ -76,36 +62,48 @@ export function AppHeader({
         <Menu size={19} />
       </button>
 
-      <StoreSwitcher storeName={storeName} storeCode={storeCode} />
+      <StoreSwitcher
+        storeName={storeName}
+        storeCode={storeCode}
+        currentStoreId={storeId}
+        availableStores={availableStores}
+      />
 
       <GlobalSearch />
 
       <div className="relative ml-auto flex items-center gap-2">
-        
-
-        <span className="hidden items-center gap-1.5 rounded-md bg-emerald-50 px-2.5 py-2 text-[10px] font-semibold text-emerald-700 sm:flex">
-          <i className={cn("size-1.5 rounded-full", online ? "bg-emerald-500" : "bg-slate-400")} /> {online ? "Store Online" : "Store Offline"}
-        </span>
+        {/* Offline Queue & Connectivity Visualizer */}
+        <div className="hidden sm:flex items-center">
+          <OfflineIndicatorPill />
+        </div>
 
         <div className="hidden h-9 items-center gap-2 rounded-md border border-slate-200 bg-slate-50 px-3 text-[10px] lg:flex">
           <span className="text-left leading-tight">
-            <b className="block font-bold text-slate-700">{tillOpen ? 'Shift Active' : 'Shift'}</b>
-            <small className="text-slate-400 font-semibold text-[9px] leading-none">{tillOpen ? 'Live' : 'No shift'}</small>
+            <b className="block font-bold text-slate-700">{tillOpen ? "Shift Active" : "Shift"}</b>
+            <small className="text-slate-400 font-semibold text-[9px] leading-none">
+              {tillOpen ? "Live" : "No shift"}
+            </small>
           </span>
         </div>
 
         {canSell && (
           <Link
             href="/pos"
-            className="flex h-9 items-center gap-1.5 rounded-md bg-sky-600 px-3 text-[11px] font-semibold text-white shadow-sm shadow-sky-700/20 transition hover:bg-sky-700"
+            className="flex h-9 items-center gap-1.5 rounded-md bg-primary px-3 text-[11px] font-semibold text-white shadow-sm shadow-sky-700/20 transition hover:bg-primary-hover"
           >
-            <Plus size={14} /> 
+            <Plus size={14} />
             <span className="hidden sm:inline">New Sale (F2)</span>
             <span className="sm:hidden">Sale</span>
           </Link>
         )}
 
-        <button type="button" disabled className="relative rounded-md p-2 text-slate-300 opacity-60 cursor-not-allowed" aria-label="Notifications" title="Notifications coming soon">
+        <button
+          type="button"
+          disabled
+          className="relative rounded-md p-2 text-slate-300 opacity-60 cursor-not-allowed"
+          aria-label="Notifications"
+          title="Notifications coming soon"
+        >
           <Bell size={17} />
         </button>
 

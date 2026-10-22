@@ -143,30 +143,38 @@ describe("shift states", () => {
     expect((await screen.findByRole("alert")).textContent).toMatch(/terminal busy/i);
   });
 
-  it("offers no cash, float or drawer control", async () => {
-    stubApi([
+  it("pre-fills the opening cash from the last close and records it when the shift opens", async () => {
+    const user = userEvent.setup();
+    const stub = stubApi([
+      { path: "/api/v1/pos/devices/dev-1/opening-cash", replies: [{ kind: "ok", body: { suggestedMinor: 250000, fromClosedAt: "2026-09-14T17:00:00.000Z", sessionFloatMinor: null } }] },
       { path: "/api/v1/pos/devices", replies: [{ kind: "ok", body: { devices: [DEVICE] } }] },
-      { path: "/api/v1/pos/sessions", replies: [{ kind: "ok", body: { session: SESSION } }] },
+      { path: "/api/v1/pos/sessions?", replies: [{ kind: "ok", body: { session: null } }] },
+      {
+        path: "/api/v1/pos/sessions/sess-1/opening-cash",
+        method: "POST",
+        replies: [{ kind: "ok", body: { status: "ok" } }],
+      },
+      {
+        path: "/api/v1/pos/sessions",
+        method: "POST",
+        replies: [{ kind: "ok", status: 201, body: { session: SESSION, resumed: false } }],
+      },
     ]);
     renderTill();
-    await screen.findByText(/was resumed/i);
 
-    // The backend does not model cash balancing. A field here would produce a figure nobody
-    // reconciles, which is worse than no figure at all.
-    expect(screen.queryByLabelText(/opening float/i)).toBeNull();
-    expect(screen.queryByLabelText(/cash counted/i)).toBeNull();
-    expect(screen.queryByLabelText(/drawer amount/i)).toBeNull();
-    expect(screen.queryByLabelText(/variance/i)).toBeNull();
+    const cash = (await screen.findByLabelText(/opening cash in drawer/i)) as HTMLInputElement;
+    await waitFor(() => expect(cash.value).toBe("2500"));
+    expect(screen.getByText(/last close/i)).toBeTruthy();
+    await user.clear(cash);
+    await user.type(cash, "1800");
+    await user.click(screen.getByRole("button", { name: /open shift on POS-01/i }));
 
-    // Nothing in the shift area takes a number, which is the structural version of the same
-    // claim: there is no money input to mistake for a counted one.
-    const shiftInputs = Array.from(
-      document.querySelectorAll<HTMLInputElement>("input"),
-    ).filter((input) => input.type === "number");
-    expect(shiftInputs).toHaveLength(0);
-
-    // And the one free-text field says what it is not.
-    expect(screen.getByText(/not a cash count/i)).toBeTruthy();
+    expect(await screen.findByText(/your shift is open on this terminal/i)).toBeTruthy();
+    await waitFor(() =>
+      expect(stub.calls.find((c) => c.url.endsWith("/sess-1/opening-cash"))?.body).toEqual({ amountMinor: 180000 }),
+    );
+    // The count itself is done in Cash & Day Close, one click away.
+    expect(screen.getAllByRole("link", { name: /count cash/i })[0]!.getAttribute("href")).toBe("/cash/sess-1");
   });
 
   it("closes a shift and stops selling", async () => {

@@ -15,6 +15,13 @@ import { expect, test, vi } from "vitest";
 vi.mock("lucide-react", () => {
   const Icon = () => <svg data-testid="lucide-icon" />;
   return {
+    Activity: Icon,
+    ScanLine: Icon,
+    RefreshCw: Icon,
+    CheckCircle2: Icon,
+    AlertTriangle: Icon,
+    WifiOff: Icon,
+    Wifi: Icon,
     LayoutDashboard: Icon,
     MonitorSmartphone: Icon,
     Tag: Icon,
@@ -28,6 +35,10 @@ vi.mock("lucide-react", () => {
     Settings: Icon,
     BrainCircuit: Icon,
     Building2: Icon,
+    Truck: Icon,
+    ArrowLeftRight: Icon,
+    UserCog: Icon,
+    Wallet: Icon,
     X: Icon,
     Menu: Icon,
     Plus: Icon,
@@ -36,6 +47,9 @@ vi.mock("lucide-react", () => {
     Search: Icon,
     LogOut: Icon,
     User: Icon,
+    Cloud: Icon,
+    Bell: Icon,
+    Clock3: Icon,
   };
 });
 
@@ -78,7 +92,8 @@ test("AppShell renders its children inside the sidebar and header", () => {
 test("the sidebar shows the tenant's own name, never the reference's branding", () => {
   renderShell();
 
-  expect(screen.getByText("Northline Traders")).toBeTruthy();
+  // The sidebar prints the tenant name with the version: "Northline Traders · V1.0".
+  expect(screen.getByText(/Northline Traders/)).toBeTruthy();
   expect(screen.getByText("AMBURAX")).toBeTruthy();
   expect(screen.queryByText("ATELIER RETAIL")).toBeNull();
   expect(screen.queryByText(/Garment POS/)).toBeNull();
@@ -87,30 +102,34 @@ test("the sidebar shows the tenant's own name, never the reference's branding", 
 test("the till indicator says no till is open when none is", () => {
   renderShell({ tillOpen: false });
 
-  expect(screen.getByText("No till open")).toBeTruthy();
-  expect(screen.queryByText("Till open")).toBeNull();
+  // Header wording since the 2026-10-04 shell pass: "Shift" / "No shift" when closed.
+  expect(screen.getByText("No shift")).toBeTruthy();
+  expect(screen.queryByText("Shift Active")).toBeNull();
 });
 
 test("the till indicator reports an open till when one is open", () => {
   renderShell({ tillOpen: true });
 
-  expect(screen.getByText("Till open")).toBeTruthy();
-  expect(screen.queryByText("No till open")).toBeNull();
+  expect(screen.getByText("Shift Active")).toBeTruthy();
+  expect(screen.queryByText("No shift")).toBeNull();
 });
 
 test("the primary action is shown to someone who may sell", () => {
   renderShell({ canSell: true });
-  expect(screen.getAllByRole("link", { name: /New sale/ }).length).toBeGreaterThan(0);
+  expect(screen.getAllByRole("link", { name: /New sale/i }).length).toBeGreaterThan(0);
 });
 
 test("the primary action is absent for someone who may not sell", () => {
   renderShell({ canSell: false });
-  expect(screen.queryByRole("link", { name: /New sale/ })).toBeNull();
+  expect(screen.queryByRole("link", { name: /New sale/i })).toBeNull();
 });
 
-test("no notification bell is rendered, because nothing counts notifications yet", () => {
+test("the notification bell is disabled and shows no count, because nothing counts notifications yet", () => {
   renderShell();
-  expect(screen.queryByRole("button", { name: /notification/i })).toBeNull();
+  const bell = screen.getByRole("button", { name: /notification/i }) as HTMLButtonElement;
+  expect(bell.disabled).toBe(true);
+  // No fabricated unread badge.
+  expect(bell.textContent?.trim()).toBe("");
 });
 
 // ── Navigation ───────────────────────────────────────────────────────────────
@@ -161,7 +180,7 @@ test("the mobile drawer is a labelled modal and closes on request", () => {
   const dialog = screen.getByRole("dialog");
   expect(dialog.getAttribute("aria-modal")).toBe("true");
 
-  within(dialog).getByRole("button", { name: "Close sidebar" }).click();
+  within(dialog).getByRole("button", { name: "Close navigation" }).click();
   expect(onMobileClose).toHaveBeenCalled();
 });
 

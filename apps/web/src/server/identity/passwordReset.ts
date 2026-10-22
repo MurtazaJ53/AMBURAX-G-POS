@@ -36,8 +36,8 @@ export async function requestPasswordReset(params: {
 
   if (
     await isIpRateLimited(params.ip, "password_reset_request", {
-      windowMs: 15 * 60 * 1000,
-      threshold: env.RESET_REQUEST_MAX_PER_WINDOW,
+      windowMs: 60 * 60 * 1000, // 1 hour window
+      threshold: 3, // max 3 requests per hour per IP
     })
   ) {
     await writeAuditLog({

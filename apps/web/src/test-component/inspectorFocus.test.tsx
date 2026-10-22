@@ -11,7 +11,7 @@ import { InventoryDetailPanel } from "@/components/inventory/InventoryDetailPane
 
 vi.mock("lucide-react", () => {
   const Icon = () => <svg data-testid="icon" />;
-  return { X: Icon, Package: Icon };
+  return { X: Icon, Package: Icon, Barcode: Icon };
 });
 
 const href = (sku: string) => `/inventory?${new URLSearchParams({ status: "in_stock", selected: sku })}`;

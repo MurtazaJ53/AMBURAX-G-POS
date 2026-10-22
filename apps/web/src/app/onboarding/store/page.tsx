@@ -7,6 +7,7 @@ import { db } from "@/server/db";
 import { StoreSetupForm } from "./StoreSetupForm";
 import { ServiceUnavailableScreen } from "@/app/ServiceUnavailableScreen";
 import { logError } from "@/lib/safeLog";
+import { AuthFrame, ONBOARDING_STEPS } from "@/app/_components/AuthFrame";
 
 export const metadata: Metadata = {
   title: "Set up your first store — AMBURAX POS",
@@ -44,30 +45,10 @@ export default async function StoreSetupPage() {
   }
 
   return (
-    <div className="grid min-h-screen grid-cols-1 lg:grid-cols-2">
-      <section className="hidden flex-col justify-between bg-slate-950 p-12 text-white lg:flex">
-        <div className="text-lg font-semibold tracking-tight">AMBURAX POS</div>
-        <div className="space-y-4">
-          <h1 className="text-3xl font-semibold leading-tight text-white">Set up your first store.</h1>
-          <p className="text-sm text-slate-300">
-            Your business can add more stores later — this just gets the first one
-            running.
-          </p>
-        </div>
-        <p className="text-xs text-slate-400">Step 3 of 6 — Store setup</p>
-      </section>
-
-      <section className="flex items-center justify-center px-6 py-16">
-        <div className="w-full max-w-md">
-          <div className="mb-8 lg:hidden">
-            <div className="text-lg font-semibold tracking-tight text-slate-900">AMBURAX POS</div>
-          </div>
-          <p className="text-xs font-medium uppercase tracking-wide text-brand-600">Step 3 of 6</p>
-          <h2 className="mt-1 text-2xl font-semibold text-slate-900">Set up your first store</h2>
-          <p className="mt-1 text-sm text-slate-500">You can add more stores later.</p>
+    <AuthFrame steps={ONBOARDING_STEPS} currentStep={3}>
+          <h2 className="text-3xl font-extrabold text-slate-900">Set up your first store</h2>
+          <p className="mt-1 text-sm text-slate-600">You can add more stores later.</p>
           <StoreSetupForm />
-        </div>
-      </section>
-    </div>
+    </AuthFrame>
   );
 }

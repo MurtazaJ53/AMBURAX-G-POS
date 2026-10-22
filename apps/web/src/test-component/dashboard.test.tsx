@@ -1,4 +1,5 @@
 import { render, screen, waitFor } from "./render";
+import { act } from "react";
 import { beforeEach, expect, test, vi } from "vitest";
 
 /**
@@ -29,6 +30,10 @@ vi.mock("lucide-react", () => {
     "Users",
     "CheckCircle2",
     "CircleDot",
+    "Activity",
+    "ChevronRight",
+    "ArrowUpRight",
+    "ArrowDownRight",
   ];
   return Object.fromEntries(names.map((name) => [name, Icon]));
 });
@@ -49,6 +54,7 @@ import {
   ShiftStatusCard,
   SystemStatusCard,
   TargetsCard,
+  NextStepBanner,
 } from "@/components/dashboard/BusinessCards";
 import { SalesTrendCard } from "@/components/dashboard/SalesTrendCard";
 import { DashboardHeader } from "@/components/dashboard/DashboardHeader";
@@ -83,6 +89,9 @@ const stock: DashboardStockSignal = {
   uncountedVariants: 3,
   outOfStock: 2,
   oversold: 1,
+  stockValueMinor: 1_234_500,
+  uncostedOnHand: 2,
+  valueIncludesEstimate: false,
   lowest: [
     {
       variantId: "v1",
@@ -101,6 +110,9 @@ const emptyStock: DashboardStockSignal = {
   uncountedVariants: 0,
   outOfStock: 0,
   oversold: 0,
+  stockValueMinor: null,
+  uncostedOnHand: 0,
+  valueIncludesEstimate: false,
   lowest: [],
 };
 
@@ -141,12 +153,19 @@ test("a day with no trade yesterday shows no comparison rather than a percentage
   expect(screen.queryByText("+100%")).toBeNull();
 });
 
-test("the fifth KPI reports counted stock and says why there is no valuation", () => {
+test("the fifth KPI values stock at weighted average cost and names what has no cost", () => {
   render(<KpiGrid metrics={metrics} stock={stock} />);
 
-  expect(screen.getByText("Stock counted")).toBeTruthy();
-  expect(screen.getByText("40")).toBeTruthy();
-  expect(screen.getByText("No valuation — variants carry no cost price")).toBeTruthy();
+  expect(screen.getByText("Stock value")).toBeTruthy();
+  expect(screen.getByText("₹12,345.00")).toBeTruthy();
+  expect(screen.getByText("At cost · 2 items without a cost")).toBeTruthy();
+});
+
+test("with no purchase costs the stock value is a dash, not zero", () => {
+  render(<KpiGrid metrics={emptyMetrics} stock={emptyStock} />);
+
+  expect(screen.getByText("No purchase costs recorded yet")).toBeTruthy();
+  expect(screen.queryByText("₹0.00", { selector: "p" })).toBeNull();
 });
 
 // ── Category and payment shares ──────────────────────────────────────────────
@@ -196,7 +215,9 @@ test("payment mix renders each tender with its real share", () => {
 
   expect(screen.getByText("UPI")).toBeTruthy();
   expect(screen.getByText("70%")).toBeTruthy();
-  expect(container.querySelector("svg[role='img']")).toBeTruthy();
+  // The donut is a CSS conic gradient now; what matters is a labelled image carrying the shares.
+  const chart = container.querySelector("[role='img']");
+  expect(chart?.getAttribute("aria-label")).toBe("Payment method breakdown: UPI 70%, Cash 30%");
 });
 
 test("payment mix shows an empty state when nothing has been settled", () => {
@@ -306,6 +327,7 @@ test("recent sales link to the bill and report accounting state per row", () => 
   expect(screen.getByText("POS-0001")).toBeTruthy();
   expect(screen.getByText("Walk-in")).toBeTruthy();
   expect(screen.getByText("Not posted")).toBeTruthy();
+  expect(screen.getByRole("link", { name: "View all" }).getAttribute("class")).toContain("min-h-11");
 });
 
 test("recent sales shows an empty state rather than an empty table", () => {
@@ -336,8 +358,16 @@ test("shift card says no till is open rather than showing an empty avatar row", 
 test("system status reports observable facts, including that accounting is not connected", () => {
   render(<SystemStatusCard activity={shift} stock={stock} />);
   expect(screen.getByText("Not connected")).toBeTruthy();
-  expect(screen.getByText("3 never counted")).toBeTruthy();
+  expect(screen.getByText("3 without a count")).toBeTruthy();
   expect(screen.queryByText("All Systems Operational")).toBeNull();
+});
+
+test("uncounted stock banner names the real count and links to inventory", () => {
+  render(<NextStepBanner uncountedVariants={3} />);
+  expect(screen.getByText("Stock counts to review")).toBeTruthy();
+  expect(screen.getByText("3 active variants have no stock count.")).toBeTruthy();
+  expect(screen.getByRole("link", { name: "Open inventory" }).getAttribute("href")).toBe("/inventory");
+  expect(screen.queryByText(/Grow Your Business|New season collection/)).toBeNull();
 });
 
 // ── Page header ──────────────────────────────────────────────────────────────
@@ -391,6 +421,18 @@ test("the trend card renders its server-supplied range without fetching", () => 
 
   expect(screen.getByText("Hourly sales")).toBeTruthy();
   expect(fetchMock).not.toHaveBeenCalled();
+  const table = screen.getByRole("table", { name: "Sales and completed bills for today" });
+  expect(table.textContent).toContain("09:00");
+  expect(table.textContent).toContain("₹50.00");
+  const point = screen.getByRole("img", { name: /09:00: sales ₹50.00, 2 bills/ });
+  expect(point.getAttribute("tabindex")).toBe("0");
+  expect(point.getAttribute("class")).toContain("focus-visible:stroke-slate-900");
+  act(() => point.focus());
+  expect(screen.getByText("Sales:")).toBeTruthy();
+  expect(screen.getByText("Bills:")).toBeTruthy();
+  expect(table.id).toBe("sales-trend-data");
+  expect(screen.getByRole("graphics-document", { name: "Sales and bills trend chart" }).getAttribute("aria-describedby")).toBe(table.id);
+  expect(screen.getByRole("tab", { name: "Today" }).getAttribute("class")).toContain("min-h-11");
 });
 
 test("changing range requests that range and renders what comes back", async () => {

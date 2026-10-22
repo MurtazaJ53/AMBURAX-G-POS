@@ -24,6 +24,7 @@ import {
 } from "@/server/dashboard/dashboardAccess";
 import { formatTradingDay, greetingFor } from "@/server/dashboard/dashboardTransforms";
 import { listSales } from "@/server/sales/saleQueries";
+import { db } from "@/server/db";
 import { KpiGrid } from "@/components/dashboard/KpiGrid";
 import { SalesTrendCard } from "@/components/dashboard/SalesTrendCard";
 import { CategorySalesCard, PaymentMethodsCard } from "@/components/dashboard/AnalyticsCards";
@@ -107,6 +108,8 @@ export default async function DashboardPage() {
   let context: PosContext;
   let capabilities: string[] = [];
   let metrics: Awaited<ReturnType<typeof getTodayMetrics>>;
+  let averageDayMinor: number | null = null;
+  let erpConnected = false;
   let stock: Awaited<ReturnType<typeof getStockSignal>>;
   let breakdown: Awaited<ReturnType<typeof getSalesBreakdown>>;
   let payments: Awaited<ReturnType<typeof getPaymentMix>>;
@@ -124,6 +127,8 @@ export default async function DashboardPage() {
 
     // Every load is independent, so they run together rather than in a waterfall. Each is a
     // narrow aggregate — no widget on this page pulls a full table to count it.
+    ({ averageDayMinor, erpConnected } = await getPaceAndErp(scope));
+
     [capabilities, metrics, stock, breakdown, payments, shift, trend, recent] = await Promise.all([
       getTenantCapabilities(context.tenantId),
       getTodayMetrics(scope),
@@ -216,8 +221,8 @@ export default async function DashboardPage() {
             </div>
           </div>
         )}
-        <TargetsCard />
-        <SystemStatusCard activity={shift} stock={stock} />
+        <TargetsCard metrics={metrics} averageDayMinor={averageDayMinor} />
+        <SystemStatusCard activity={shift} stock={stock} erpConnected={erpConnected} />
       </section>
 
       <p className="text-xs text-tertiary">
@@ -226,4 +231,22 @@ export default async function DashboardPage() {
       </p>
     </main>
   );
+}
+
+/** The store's own average day over the last 30 trading days (today excluded), and whether ERPNext is connected. */
+async function getPaceAndErp(scope: { tenantId: string; storeId: string }) {
+  const dayMs = 864e5;
+  const istOffset = 330 * 60_000;
+  const todayStart = new Date(Math.floor((Date.now() + istOffset) / dayMs) * dayMs - istOffset);
+  const [past30, tenantRow] = await Promise.all([
+    db.sale.aggregate({
+      where: { ...scope, status: "COMPLETED", createdAt: { gte: new Date(todayStart.getTime() - 30 * dayMs), lt: todayStart } },
+      _sum: { totalMinor: true },
+    }),
+    db.tenant.findUnique({ where: { id: scope.tenantId }, select: { erpnextProvisionStatus: true } }),
+  ]);
+  return {
+    averageDayMinor: past30._sum.totalMinor ? Math.round(past30._sum.totalMinor / 30) : null,
+    erpConnected: tenantRow?.erpnextProvisionStatus === "PROVISIONED",
+  };
 }

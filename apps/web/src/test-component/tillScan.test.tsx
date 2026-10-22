@@ -51,6 +51,27 @@ describe("scanning", () => {
     expect(stub.calls.at(-1)?.url).toContain("barcode=8901234567890");
   });
 
+  it("finds an item by name and adds it only when the cashier picks it", async () => {
+    const user = userEvent.setup();
+    const stub = stubApi(
+      readyTillRoutes([
+        { path: "/api/v1/catalog/search", replies: [{ kind: "ok", body: { results: [SHIRT] } }] },
+      ]),
+    );
+    renderTill();
+    await readyToScan(stub);
+
+    await user.type(scanField(), "cotton");
+    const option = await screen.findByRole("option", { name: /Cotton Shirt/i });
+    // Suggestions alone never touch the bill.
+    expect(screen.getByText(/nothing on this bill yet/i)).toBeTruthy();
+    await user.click(option);
+
+    expect(await screen.findByLabelText(/^quantity of Cotton Shirt$/i)).toBeTruthy();
+    expect(scanField().value).toBe("");
+    expect(stub.countFor("/api/v1/pos/scan")).toBe(0);
+  });
+
   it("puts a scanned item on the bill and clears the field for the next scan", async () => {
     const user = userEvent.setup();
     const stub = stubApi(

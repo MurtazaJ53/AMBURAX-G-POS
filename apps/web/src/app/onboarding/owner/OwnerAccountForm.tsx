@@ -118,6 +118,11 @@ export function OwnerAccountForm() {
         }
         router.push("/onboarding/store");
         router.refresh();
+        setTimeout(() => {
+          if (window.location.pathname === "/onboarding/owner") {
+            window.location.href = "/onboarding/store";
+          }
+        }, 1200);
         return;
       }
 

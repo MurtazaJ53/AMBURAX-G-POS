@@ -2,6 +2,12 @@
 @tailwind components;
 @tailwind utilities;
 
+html {
+  zoom: 1.03;
+  -moz-transform: scale(1.03);
+  -moz-transform-origin: 0 0;
+}
+
 html,
 body {
   height: 100%;
@@ -32,10 +38,10 @@ body {
   --color-border-focus: #1d4ed8;
 
   /* Brand */
-  --color-primary: #1d4ed8;
-  --color-primary-hover: #1e40af;
-  --color-primary-active: #1e3a8a;
-  --color-primary-subtle: #eff6ff;
+  --color-primary: #0369a1;
+  --color-primary-hover: #075985;
+  --color-primary-active: #0c4a6e;
+  --color-primary-subtle: #f0f9ff;
 
   /* Semantic */
   --color-success: #10b981;
@@ -235,5 +241,45 @@ body {
     animation: none !important;
     transition: none !important;
     transform: none !important;
+  }
+}
+
+/* -----------------------------------------------------------------------------
+ * GARMENT THERMAL BARCODE LABEL PRINT STYLES
+ * Formatted for standard 50x25mm / 38x25mm thermal printer sticker rolls (TSC, Zebra, Xprinter)
+ * ----------------------------------------------------------------------------- */
+@media print {
+  @page {
+    margin: 0;
+    size: auto;
+  }
+
+  body {
+    background: #ffffff !important;
+    color: #000000 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  /* Hide app navigation, chrome, headers, inputs during sticker printing */
+  nav,
+  header,
+  aside,
+  footer,
+  button,
+  .print\:hidden {
+    display: none !important;
+  }
+
+  /* Thermal sticker card print precision */
+  .garment-barcode-sticker {
+    box-sizing: border-box !important;
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+    border: 1px dashed #000000 !important;
+    background: #ffffff !important;
+    color: #000000 !important;
   }
 }

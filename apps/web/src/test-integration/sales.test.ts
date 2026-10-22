@@ -75,6 +75,44 @@ beforeEach(async () => {
  * unchanged below. Only their position is.
  */
 describe("Split Payments", () => {
+  it("refuses to complete a sale containing an unresolved tax treatment", async () => {
+    await db.productVariant.update({
+      where: { id_tenantId: { id: COMMERCE_IDS.variantA1, tenantId: IDS.tenantA } },
+      data: { taxTreatment: "UNSPECIFIED" },
+    });
+
+    const result = await createSale(saleInput());
+    expect(result).toEqual({ status: "unresolved_tax_treatment", variantId: COMMERCE_IDS.variantA1 });
+    expect(await db.sale.count({ where: { tenantId: IDS.tenantA } })).toBe(0);
+  });
+
+  it.each(["EXEMPT", "ZERO_RATED", "NON_GST"] as const)("a GST-registered business sells %s with no GST (owner B3)", async (taxTreatment) => {
+    await db.tenant.update({ where: { id: IDS.tenantA }, data: { taxId: "29AAAAA0000A1Z5" } });
+    await db.productVariant.update({
+      where: { id_tenantId: { id: COMMERCE_IDS.variantA1, tenantId: IDS.tenantA } },
+      // The stored rate is left as it was: a non-taxable line must not charge it.
+      data: { taxTreatment },
+    });
+
+    const result = await createSale(saleInput());
+    expect(result.status).toBe("ok");
+    if (result.status !== "ok") return;
+    expect(result.sale.taxMinor).toBe(0);
+  });
+
+  it("a business with no GSTIN sells NON_GST items with no tax at all", async () => {
+    await db.tenant.update({ where: { id: IDS.tenantA }, data: { taxId: null } });
+    await db.productVariant.update({
+      where: { id_tenantId: { id: COMMERCE_IDS.variantA1, tenantId: IDS.tenantA } },
+      data: { taxTreatment: "NON_GST", taxRateBp: 0 },
+    });
+    const result = await createSale(saleInput());
+    expect(result.status).toBe("ok");
+    if (result.status !== "ok") return;
+    expect(result.sale.taxMinor).toBe(0);
+    expect(result.sale.totalMinor).toBe(result.sale.subtotalMinor - result.sale.discountMinor);
+  });
+
   it("Exactly matches total", async () => {
     // Create a sale to find total
     const trial = await createSale({

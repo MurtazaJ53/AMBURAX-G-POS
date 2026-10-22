@@ -160,7 +160,7 @@ export function VerifyForm() {
 
       if (res.ok && data.status === "ok") {
         clearChallenge();
-        router.push("/dashboard");
+        router.push("/select-store");
         router.refresh();
         return;
       }

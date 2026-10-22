@@ -35,8 +35,22 @@ export async function resolveSession(token: string) {
     include: { user: true },
   });
 
-  if (!session || session.revokedAt || session.expiresAt.getTime() < Date.now()) {
+  const now = Date.now();
+  if (!session || session.revokedAt || session.expiresAt.getTime() < now) {
     return null;
+  }
+
+  // A13 "Sign out when idle": a session unused for longer than the user's chosen limit ends here,
+  // on the server, whatever the browser does.
+  const idleMinutes = session.user.idleTimeoutMinutes;
+  const lastSeen = (session.lastSeenAt ?? session.createdAt).getTime();
+  if (idleMinutes && now - lastSeen > idleMinutes * 60_000) {
+    await db.session.updateMany({ where: { id: session.id, revokedAt: null }, data: { revokedAt: new Date(now) } });
+    return null;
+  }
+  // Refreshed at most once a minute, so ordinary browsing is not a write per request.
+  if (now - lastSeen > 60_000) {
+    await db.session.updateMany({ where: { id: session.id }, data: { lastSeenAt: new Date(now) } });
   }
 
   return session;

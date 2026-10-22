@@ -50,7 +50,7 @@ export default async function LoginPage() {
       {/* Top nav */}
       <header className="flex items-center justify-between border-b border-slate-100 bg-white px-4 py-4 sm:px-8">
         <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-blue-600 text-lg font-extrabold text-white">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary text-lg font-extrabold text-white">
             A
           </div>
           {/*
@@ -68,7 +68,7 @@ export default async function LoginPage() {
               language label together overrun the viewport, and a horizontal scrollbar on a
               sign-in screen is worse than a missing strapline.
             */}
-            <p className="mt-1 hidden text-xs text-slate-400 sm:block">
+            <p className="mt-1 hidden text-xs text-slate-500 sm:block">
               Business Operating Platform
             </p>
           </div>
@@ -130,7 +130,7 @@ export default async function LoginPage() {
               */}
               <Link
                 href="/onboarding/business"
-                className="inline-flex min-h-[44px] shrink-0 items-center whitespace-nowrap rounded-xl border-2 border-blue-600 px-4 text-sm font-semibold text-blue-600 transition-all hover:bg-blue-600 hover:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+                className="inline-flex min-h-[44px] shrink-0 items-center whitespace-nowrap rounded-xl border-2 border-blue-600 px-4 text-sm font-semibold text-blue-600 transition-colors hover:bg-primary hover:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
               >
                 Create Account
               </Link>
@@ -143,7 +143,7 @@ export default async function LoginPage() {
                 { icon: <IconCloud />, label: "Cloud Based" },
                 { icon: <IconMonitor />, label: "Access Anywhere" },
               ].map((b) => (
-                <div key={b.label} className="flex items-center gap-1.5 text-xs text-slate-400">
+                <div key={b.label} className="flex items-center gap-1.5 text-xs text-slate-600">
                   {b.icon}
                   {b.label}
                 </div>

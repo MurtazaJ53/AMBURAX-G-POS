@@ -2,6 +2,7 @@ import { PrismaClient } from "@prisma/client";
 import { hashPassword } from "../src/server/identity/password";
 import { logError } from "../src/lib/safeLog";
 import { seedCatalogue } from "./seedCatalogue";
+import { seedGarmentMasters } from "./seedGarmentMasters";
 
 const db = new PrismaClient();
 
@@ -100,12 +101,18 @@ async function main() {
     create: { id: crypto.randomUUID(), tenantId: tenant.id, userId: cashierUser.id, storeId: store.id, role: "CASHIER" },
   });
 
+  // Seed default Garment Masters (Size & Colour definitions, presets, and size groups)
+  const masterCounts = await seedGarmentMasters(db, tenant.id);
+
   const counts = await seedCatalogue(db, { tenantId: tenant.id, storeId: store.id });
 
   console.log("Seeded demo tenant.");
   console.log("  owner@demo.amburax.test / Passw0rd!123 (no MFA)");
   console.log("  manager.mfa@demo.amburax.test / Passw0rd!123 (MFA — set DEV_OTP_ECHO=true to see the code)");
   console.log("  cashier@demo.amburax.test / Passw0rd!123 (no MFA)");
+  console.log(
+    `  garment masters: ${masterCounts.definitions} definitions, ${masterCounts.values} values, ${masterCounts.sizeGroups} size groups`,
+  );
   console.log(
     `  catalogue: ${counts.products} products, ${counts.variants} variants, ${counts.customers} customers`,
   );

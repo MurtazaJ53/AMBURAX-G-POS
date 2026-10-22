@@ -32,6 +32,11 @@ const LEGAL: ReadonlyArray<[OrderStatus, OrderStatus]> = [
   [OrderStatus.CONFIRMED, OrderStatus.PARTIALLY_FULFILLED],
   [OrderStatus.CONFIRMED, OrderStatus.FULFILLED],
   [OrderStatus.CONFIRMED, OrderStatus.CANCELLED],
+  // Decision 36 (2026-10-14): a confirmed order may reserve its stock through the ledger.
+  [OrderStatus.CONFIRMED, OrderStatus.RESERVED],
+  [OrderStatus.RESERVED, OrderStatus.PARTIALLY_FULFILLED],
+  [OrderStatus.RESERVED, OrderStatus.FULFILLED],
+  [OrderStatus.RESERVED, OrderStatus.CANCELLED],
   [OrderStatus.PARTIALLY_FULFILLED, OrderStatus.PARTIALLY_FULFILLED],
   [OrderStatus.PARTIALLY_FULFILLED, OrderStatus.FULFILLED],
   [OrderStatus.FULFILLED, OrderStatus.CLOSED],
@@ -58,20 +63,12 @@ describe("the order transition matrix", () => {
   });
 });
 
-describe("RESERVED is unreachable", () => {
-  /**
-   * The single most important assertion in this phase. Nothing in this system accounts for
-   * reserved stock — no reservation movement type, no reserved-quantity column — so an order
-   * that could reach RESERVED would be asserting something untrue about a warehouse shelf.
-   */
-  it("cannot be reached from any status", () => {
+describe("RESERVED", () => {
+  // Backed by the reservation ledger (inventory/reservations.ts): only a confirmed order reaches it.
+  it("is reachable only from CONFIRMED", () => {
     for (const from of ALL) {
-      expect(canTransition(from, OrderStatus.RESERVED)).toBe(false);
+      expect(canTransition(from, OrderStatus.RESERVED)).toBe(from === OrderStatus.CONFIRMED);
     }
-  });
-
-  it("leads nowhere either, since nothing can be in it", () => {
-    expect(ORDER_TRANSITIONS[OrderStatus.RESERVED]).toHaveLength(0);
   });
 });
 

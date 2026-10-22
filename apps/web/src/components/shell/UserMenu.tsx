@@ -55,9 +55,9 @@ export function UserMenu({ userName, roleLabel }: UserMenuProps) {
           <User className="mr-2 h-4 w-4" />
           <span>Profile</span>
         </DropdownMenuItem>
-        <DropdownMenuItem disabled>
+        <DropdownMenuItem onClick={() => router.push("/settings/security")}>
           <SettingsIcon className="mr-2 h-4 w-4" />
-          <span>Account Settings</span>
+          <span>Security &amp; sign-in</span>
         </DropdownMenuItem>
         <DropdownMenuSeparator />
         <DropdownMenuItem onClick={handleSignOut} disabled={signingOut} className="text-rose-600 focus:bg-rose-50 focus:text-rose-700">

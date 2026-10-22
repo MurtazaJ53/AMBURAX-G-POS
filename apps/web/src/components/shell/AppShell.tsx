@@ -3,7 +3,7 @@
 import * as React from "react";
 import { AppSidebar } from "./AppSidebar";
 import { AppHeader } from "./AppHeader";
-import { cn } from "@/lib/utils";
+import type { StoreOption } from "./StoreSwitcher";
 
 export interface AppShellProps {
   children: React.ReactNode;
@@ -12,11 +12,15 @@ export interface AppShellProps {
   tenantName?: string;
   storeName: string;
   storeCode: string;
+  storeId?: string;
+  availableStores?: StoreOption[];
   userName: string;
   roleLabel: string;
   canSell: boolean;
   /** Whether a POS session is open in this store right now. */
   tillOpen?: boolean;
+  /** Custom allowed modules for this staff member (null = unrestricted / role default). */
+  allowedModules?: string[] | null;
 }
 
 export function AppShell({
@@ -25,10 +29,13 @@ export function AppShell({
   tenantName,
   storeName,
   storeCode,
+  storeId,
+  availableStores,
   userName,
   roleLabel,
   canSell,
   tillOpen,
+  allowedModules,
 }: AppShellProps) {
   const [isMobileOpen, setIsMobileOpen] = React.useState(false);
 
@@ -40,6 +47,7 @@ export function AppShell({
         storeName={storeName}
         storeCode={storeCode}
         tillOpen={tillOpen}
+        allowedModules={allowedModules}
         isMobileOpen={isMobileOpen}
         onMobileClose={() => setIsMobileOpen(false)}
       />
@@ -49,6 +57,8 @@ export function AppShell({
         <AppHeader
           storeName={storeName}
           storeCode={storeCode}
+          storeId={storeId}
+          availableStores={availableStores}
           userName={userName}
           roleLabel={roleLabel}
           canSell={canSell}
@@ -56,7 +66,7 @@ export function AppShell({
           onMobileMenuToggle={() => setIsMobileOpen(true)}
         />
         
-        <main className="flex-1 min-w-0 flex flex-col">
+        <main className="flex-1 min-w-0 flex flex-col [&>*]:w-full [&>*]:min-w-0">
           {children}
         </main>
       </div>

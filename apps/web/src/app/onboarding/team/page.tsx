@@ -8,6 +8,7 @@ import { deriveInvitationStatus } from "@/server/tenant/invitation";
 import { TeamInvitationForm } from "./TeamInvitationForm";
 import { ServiceUnavailableScreen } from "@/app/ServiceUnavailableScreen";
 import { logError } from "@/lib/safeLog";
+import { AuthFrame, ONBOARDING_STEPS } from "@/app/_components/AuthFrame";
 
 export const metadata: Metadata = {
   title: "Invite your team — AMBURAX POS",
@@ -52,27 +53,9 @@ export default async function TeamInvitationPage() {
   // without asking the owner to pick from a list of one. Loaded above with everything else.
 
   return (
-    <div className="grid min-h-screen grid-cols-1 lg:grid-cols-2">
-      <section className="hidden flex-col justify-between bg-slate-950 p-12 text-white lg:flex">
-        <div className="text-lg font-semibold tracking-tight">AMBURAX POS</div>
-        <div className="space-y-4">
-          <h1 className="text-3xl font-semibold leading-tight text-white">Bring your team in.</h1>
-          <p className="text-sm text-slate-300">
-            Invite cashiers, managers, and staff now — or skip and do it later from Team
-            Settings.
-          </p>
-        </div>
-        <p className="text-xs text-slate-400">Step 4 of 6 — Team</p>
-      </section>
-
-      <section className="flex items-center justify-center px-6 py-16">
-        <div className="w-full max-w-lg">
-          <div className="mb-8 lg:hidden">
-            <div className="text-lg font-semibold tracking-tight text-slate-900">AMBURAX POS</div>
-          </div>
-          <p className="text-xs font-medium uppercase tracking-wide text-brand-600">Step 4 of 6</p>
-          <h2 className="mt-1 text-2xl font-semibold text-slate-900">Invite your team</h2>
-          <p className="mt-1 text-sm text-slate-500">
+    <AuthFrame steps={ONBOARDING_STEPS} currentStep={4} wide>
+          <h2 className="text-3xl font-extrabold text-slate-900">Invite your team</h2>
+          <p className="mt-1 text-sm text-slate-600">
             Optional — you can always invite people later.
           </p>
           <TeamInvitationForm
@@ -86,8 +69,6 @@ export default async function TeamInvitationPage() {
               expiresAt: inv.expiresAt.toISOString(),
             }))}
           />
-        </div>
-      </section>
-    </div>
+    </AuthFrame>
   );
 }

@@ -20,6 +20,7 @@ import {
   type OrderActor,
 } from "@/server/orders/orderService";
 import { createSale } from "@/server/sales/saleService";
+import { holdForCheckout } from "@/server/inventory/reservations";
 
 /**
  * Orders against real PostgreSQL.
@@ -448,42 +449,64 @@ describe("the status machine", () => {
 // RESERVED
 // ---------------------------------------------------------------------------------------------
 
-describe("RESERVED is refused, honestly", () => {
-  /**
-   * The phase's most important behaviour. Nothing in this system reserves stock, so an order
-   * must not be able to claim that it has.
-   */
-  it("refuses a transition to RESERVED with its own distinct reason", async () => {
-    const order = await draftOrThrow();
+describe("RESERVED is backed by the reservation ledger (decision 36)", () => {
+  async function confirmedOrder(quantity = 2) {
+    const order = await draftOrThrow({ lines: [{ variantId: COMMERCE_IDS.variantA1, uomId: pcsA, quantity }] });
     await confirmOrder({ actor: ownerA, orderId: order.id, correlationId: CORR });
-
-    const result = await transitionOrder({
-      actor: ownerA,
-      orderId: order.id,
-      to: OrderStatus.RESERVED,
-      correlationId: CORR,
-    });
-    expect(result).toEqual({ status: "reservation_unavailable" });
-
-    const unchanged = await db.order.findUniqueOrThrow({ where: { id: order.id } });
-    expect(unchanged.status).toBe(OrderStatus.CONFIRMED);
-  });
-
-  it("leaves no order in RESERVED anywhere, ever", async () => {
-    const order = await draftOrThrow();
-    await confirmOrder({ actor: ownerA, orderId: order.id, correlationId: CORR });
-    await transitionOrder({
-      actor: ownerA,
-      orderId: order.id,
-      to: OrderStatus.RESERVED,
+    return order;
+  }
+  const sellA1 = (quantity: number) =>
+    createSale({
+      tenantId: IDS.tenantA,
+      storeId: IDS.storeA,
+      cashierUserId: IDS.ownerA,
+      idempotencyKey: `sale-${Math.random().toString(36).slice(2)}`,
+      lines: [{ variantId: COMMERCE_IDS.variantA1, quantity }],
+      payment: { method: "CASH" },
       correlationId: CORR,
     });
 
-    const reserved = await db.order.count({ where: { status: OrderStatus.RESERVED } });
-    expect(reserved).toBe(0);
+  it("reserves a confirmed order's stock, which the till then can't sell; cancelling frees it", async () => {
+    const order = await confirmedOrder(2);
+    const result = await transitionOrder({ actor: ownerA, orderId: order.id, to: OrderStatus.RESERVED, correlationId: CORR });
+    expect(result.status).toBe("ok");
+    expect(await db.stockReservation.count({ where: { sourceId: order.id, status: "ACTIVE" } })).toBe(1);
+
+    const onHand = (await db.stockLevel.findFirstOrThrow({ where: { storeId: IDS.storeA, variantId: COMMERCE_IDS.variantA1 } })).quantity;
+    // Everything but the 2 held units may be sold; one more is refused.
+    expect((await sellA1(onHand - 1)).status).toBe("validation_error");
+    expect((await sellA1(onHand - 2)).status).toBe("ok");
+
+    await transitionOrder({ actor: ownerA, orderId: order.id, to: OrderStatus.CANCELLED, reason: "Customer withdrew", correlationId: CORR });
+    expect(await db.stockReservation.count({ where: { sourceId: order.id, status: "ACTIVE" } })).toBe(0);
   });
 
-  /** And the reason it is refused: there is no reservation accounting to back it. */
+  it("refuses to reserve more than is free, and leaves the order and stock untouched", async () => {
+    const onHand = (await db.stockLevel.findFirstOrThrow({ where: { storeId: IDS.storeA, variantId: COMMERCE_IDS.variantA1 } })).quantity;
+    const order = await confirmedOrder(onHand + 1);
+    const result = await transitionOrder({ actor: ownerA, orderId: order.id, to: OrderStatus.RESERVED, correlationId: CORR });
+    expect(result).toMatchObject({ status: "reservation_unavailable", variantId: COMMERCE_IDS.variantA1, available: onHand });
+    expect((await db.order.findUniqueOrThrow({ where: { id: order.id } })).status).toBe(OrderStatus.CONFIRMED);
+    expect(await db.stockReservation.count()).toBe(0);
+  });
+
+  it("an online checkout holds stock for 15 minutes, then the hold stops counting", async () => {
+    const onHand = (await db.stockLevel.findFirstOrThrow({ where: { storeId: IDS.storeA, variantId: COMMERCE_IDS.variantA1 } })).quantity;
+    const live = await holdForCheckout({ tenantId: IDS.tenantA, storeId: IDS.storeA, checkoutId: "chk-1", lines: [{ variantId: COMMERCE_IDS.variantA1, quantity: 1 }], actorUserId: IDS.ownerA });
+    expect(live.status).toBe("ok");
+    expect((await sellA1(onHand)).status).toBe("validation_error");
+    // A hold placed 16 minutes ago has lapsed: it no longer blocks anything.
+    await db.stockReservation.updateMany({ where: { sourceId: "chk-1" }, data: { expiresAt: new Date(Date.now() - 60_000) } });
+    expect((await sellA1(onHand)).status).toBe("ok");
+  });
+
+  it("only a confirmed order can be reserved", async () => {
+    const order = await draftOrThrow();
+    const result = await transitionOrder({ actor: ownerA, orderId: order.id, to: OrderStatus.RESERVED, correlationId: CORR });
+    expect(result).toMatchObject({ status: "invalid_transition" });
+  });
+
+  /** Reservations live in their own ledger; stock movements still have no reservation type. */
   it("has no reservation movement type in the inventory ledger", async () => {
     const values = await db.$queryRaw<{ enumlabel: string }[]>`
       SELECT e.enumlabel FROM pg_enum e

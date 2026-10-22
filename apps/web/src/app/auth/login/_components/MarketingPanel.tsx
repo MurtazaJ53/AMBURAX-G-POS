@@ -400,11 +400,7 @@ export function MarketingPanel() {
       />
 
       <div className="max-w-xl">
-        <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-blue-100 bg-blue-50 px-4 py-1.5">
-          <span className="text-sm font-medium text-blue-700">All Businesses. One Platform.</span>
-        </div>
-
-        <h1 className="mb-4 text-4xl font-extrabold leading-tight text-slate-900 xl:text-5xl">
+        <h1 className="amb-fade-in mb-4 text-4xl font-extrabold leading-tight text-slate-900 xl:text-5xl">
           Run Your Business
           <br />
           Smarter, <span className="text-blue-600">Every Day</span>
@@ -415,7 +411,7 @@ export function MarketingPanel() {
           till with extras. The header says Business Operating Platform; this now says the same
           thing, and names the four models the tenant model actually serves.
         */}
-        <p className="mb-8 max-w-md text-base leading-relaxed text-slate-500">
+        <p className="mb-8 max-w-md text-base leading-relaxed text-slate-600">
           A modern, all-in-one business operating platform for retail, B2B, manufacturing and
           commerce. Manage sales, inventory, customers and growth — effortlessly.
         </p>
@@ -434,7 +430,7 @@ export function MarketingPanel() {
               </div>
               <div>
                 <p className="text-sm font-semibold leading-tight text-slate-800">{f.title}</p>
-                <p className="mt-0.5 text-xs text-slate-400">{f.desc}</p>
+                <p className="mt-0.5 text-xs text-slate-600">{f.desc}</p>
               </div>
             </div>
           ))}
@@ -450,7 +446,7 @@ export function MarketingPanel() {
           {capabilities.map((c) => (
             <div key={c.label}>
               <p className="text-xl font-extrabold text-slate-800">{c.val}</p>
-              <p className="text-sm text-slate-400">{c.label}</p>
+              <p className="text-sm text-slate-600">{c.label}</p>
             </div>
           ))}
         </div>
@@ -460,7 +456,9 @@ export function MarketingPanel() {
           customer who does not exist. The words are the product's own strapline, so they stay;
           the quotation marks do not, because the only thing they added was an attribution.
         */}
-        <p className="text-sm italic text-slate-400">
+        {/* The product line, kept as a closing statement rather than a pill above the headline. */}
+        <p className="text-sm font-semibold text-blue-700">All Businesses. One Platform.</p>
+        <p className="mt-1 text-sm text-slate-600">
           More Sales. Happier Customers. A Smarter Tomorrow.
         </p>
       </div>

@@ -19,7 +19,7 @@ const schema = z.object({
     .optional()
     .transform((v) => v === "true"),
   APP_BASE_URL: z.string().url().default("http://localhost:3000"),
-  RESET_TOKEN_TTL_MINUTES: z.coerce.number().int().positive().default(30),
+  RESET_TOKEN_TTL_MINUTES: z.coerce.number().int().positive().default(15),
   // Silent, per-account throttle: a repeated request inside this window does not
   // create a new token or send a new email, but still returns the same generic
   // success response — the throttle itself must not be observable by an attacker.

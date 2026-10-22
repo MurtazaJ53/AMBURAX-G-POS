@@ -26,6 +26,40 @@ describe("ERPNext Catalog Sync (Outbox)", () => {
     process.env["ERP_SITE_TEST_SITE_LOCAL_SECRET"] = "test-secret";
   });
 
+  it("does not contact ERPNext for an unresolved zero-rate variant", async () => {
+    const tenantId = IDS.tenantA;
+    await db.tenant.update({
+      where: { id: tenantId },
+      data: { erpnextProvisionStatus: "PROVISIONED", erpnextCompanyId: "Amburax Retail", erpnextSiteId: "test-site.local" },
+    });
+    const uom = await db.uom.findFirst({ where: { tenantId } });
+    const created = await createProduct({
+      actor: { tenantId, userId: IDS.ownerA, tenantRole: "OWNER" },
+      name: "Unresolved item",
+      category: "Products",
+      brand: null,
+      baseUomId: uom?.id ?? "",
+      isActive: true,
+      correlationId: "unresolved-tax",
+      firstVariant: {
+        sku: "UNRESOLVED-TAX",
+        barcode: null,
+        size: null,
+        colour: null,
+        priceMinor: 1000,
+        mrpMinor: null,
+        isActive: true,
+      },
+    });
+    if (created.status !== "ok") throw new Error("Failed to seed unresolved item");
+
+    await expect(new ErpCatalogAdapter(transport).syncVariant(tenantId, created.variantId, "unresolved-tax"))
+      .rejects.toMatchObject({ kind: "validation_failed" });
+    expect(transport.sent).toHaveLength(0);
+    const variant = await db.productVariant.findUnique({ where: { id: created.variantId, tenantId } });
+    expect(variant?.erpSyncStatus).toBe("FAILED");
+  });
+
   it("syncs variant creation to ERPNext item", async () => {
     const tenantId = IDS.tenantA;
     const userId = IDS.ownerA;
@@ -33,7 +67,7 @@ describe("ERPNext Catalog Sync (Outbox)", () => {
     await db.tenant.update({
       where: { id: tenantId },
       data: {
-        erpnextProvisionStatus: "PROVISIONED",
+        erpnextProvisionStatus: "PROVISIONED", erpnextCompanyId: "Amburax Retail",
         erpnextSiteId: "test-site.local",
       },
     });
@@ -54,6 +88,9 @@ describe("ERPNext Catalog Sync (Outbox)", () => {
         colour: "Black",
         priceMinor: 1500,
         mrpMinor: null,
+        taxRateBp: 500,
+        taxTreatment: "TAXABLE",
+        taxExemptionRef: null,
         isActive: true,
       }
     });
@@ -62,6 +99,7 @@ describe("ERPNext Catalog Sync (Outbox)", () => {
 
     transport.script(
       { kind: "respond", status: 200, body: { data: {} } }, // Initial lookup
+      { kind: "respond", status: 200, body: { data: { name: "Apparel" } } }, // Item Group exists
       { kind: "respond", status: 200, body: { data: { name: "test-variant-id" } } } // Create
     );
 
@@ -92,17 +130,19 @@ describe("ERPNext Catalog Sync (Outbox)", () => {
 
     // Verify transport saw the correct requests
     const requests = transport.sent;
-    expect(requests.length).toBe(2);
+    expect(requests.length).toBe(3);
 
     expect(requests[0]?.method).toBe("GET");
     expect(requests[0]?.path).toBe(`/api/resource/Item/${encodeURIComponent(variantId)}`);
 
-    expect(requests[1]?.method).toBe("POST");
-    expect(requests[1]?.path).toBe("/api/resource/Item");
-    
-    const body = requests[1]?.body as Record<string, any>;
+    expect(requests[1]?.path).toBe(`/api/resource/Item Group/${encodeURIComponent("Apparel")}`);
+
+    expect(requests[2]?.method).toBe("POST");
+    expect(requests[2]?.path).toBe("/api/resource/Item");
+
+    const body = requests[2]?.body as Record<string, any>;
     expect(body.item_code).toBe(variantId);
-    expect(body.item_name).toBe("T-Shirt - S - Blue");
+    expect(body.item_name).toBe("T-Shirt - M - Black");
     expect(body.item_group).toBe("Apparel");
     expect(body.stock_uom).toBe("Nos");
     expect(body.standard_rate).toBe(15);

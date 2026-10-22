@@ -20,11 +20,25 @@ type LoadState = "idle" | "loading" | "error";
 
 import { formatMinor } from "@/server/sales/saleTotals";
 
-function SalesChart({ data }: { data: TrendPointDto[] }) {
+/** How the empty state names each period. */
+const PERIOD_LABEL: Record<TrendRange, string> = {
+  today: "today",
+  yesterday: "yesterday",
+  "7d": "the last 7 days",
+  "30d": "the last 30 days",
+};
+
+function SalesChart({ data, periodLabel }: { data: TrendPointDto[]; periodLabel: string }) {
   const [hoverIndex, setHoverIndex] = React.useState<number | null>(null);
 
+  // No trade is a fact about the store, not missing data: say so rather than drawing a flat line.
   if (!data.length || data.every(d => d.salesMinor === 0 && d.billCount === 0)) {
-    return <div className="flex h-[205px] items-center justify-center px-4 pb-3 text-center text-xs text-slate-400">Sales trend data is unavailable for this period.</div>;
+    return (
+      <div className="flex h-[205px] flex-col items-center justify-center px-4 pb-3 text-center">
+        <p className="text-[12px] font-semibold text-slate-700">No sales recorded for {periodLabel}</p>
+        <p className="mt-0.5 text-[11px] text-slate-500">Completed bills will plot here.</p>
+      </div>
+    );
   }
 
   let filteredData = data;
@@ -66,8 +80,23 @@ function SalesChart({ data }: { data: TrendPointDto[] }) {
   
   return (
     <div className="px-4 pb-3 relative">
+      <table id="sales-trend-data" className="sr-only">
+        <caption>Sales and completed bills for {periodLabel}</caption>
+        <thead>
+          <tr><th scope="col">Time</th><th scope="col">Sales</th><th scope="col">Bills</th></tr>
+        </thead>
+        <tbody>
+          {filteredData.map((point) => (
+            <tr key={`data-${point.label}`}>
+              <th scope="row">{point.label}</th>
+              <td>{formatMinor(point.salesMinor)}</td>
+              <td>{point.billCount}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
       <div className="relative h-[205px] w-full motion-safe:animate-in motion-safe:fade-in motion-safe:duration-500">
-        <div className="absolute inset-x-0 top-2 bottom-6 flex flex-col justify-between text-[9px] text-slate-400" aria-hidden="true">
+        <div className="absolute inset-x-0 top-2 bottom-6 flex flex-col justify-between text-[9px] text-slate-600" aria-hidden="true">
           {[tickMax, tickMax*0.75, tickMax*0.5, tickMax*0.25, 0].map((tick, i) => (
             <div key={i} className="flex items-center gap-2">
               <span className="w-9 text-right font-mono">{formatAxisMoney(Math.round(tick * 100))}</span>
@@ -81,6 +110,7 @@ function SalesChart({ data }: { data: TrendPointDto[] }) {
           className="absolute left-8 right-4 top-2 h-[177px] w-[calc(100%-48px)] overflow-visible"
           role="graphics-document"
           aria-label="Sales and bills trend chart"
+          aria-describedby="sales-trend-data"
         >
           <title>Sales and bills over time</title>
           <defs>
@@ -103,8 +133,16 @@ function SalesChart({ data }: { data: TrendPointDto[] }) {
              
              return (
                <React.Fragment key={`dots-${index}`}>
-                 <circle cx={x} cy={ySales} r="4" fill="#fff" stroke="#38bdf8" strokeWidth="2" className="transition-all" opacity={isHovered ? 1 : 0.4} />
-                 <circle cx={x} cy={yBills} r="3" fill="#fff" stroke="#a78bfa" strokeWidth="1.5" className="transition-all" opacity={isHovered ? 1 : 0.4} />
+                 <circle
+                   cx={x} cy={ySales} r="5" fill="#fff" stroke="#0284c7" strokeWidth="2"
+                   className="cursor-pointer transition-opacity duration-150 focus:outline-none focus-visible:stroke-slate-900 focus-visible:stroke-[3]"
+                   opacity={isHovered ? 1 : 0.4}
+                   role="img" tabIndex={0}
+                   aria-label={`${point.label}: sales ${formatMinor(point.salesMinor)}, ${point.billCount} bills`}
+                   onFocus={() => setHoverIndex(index)}
+                   onBlur={() => setHoverIndex(null)}
+                 />
+                 <circle cx={x} cy={yBills} r="3" fill="#fff" stroke="#a78bfa" strokeWidth="1.5" className="transition-opacity duration-150" opacity={isHovered ? 1 : 0.4} aria-hidden="true" />
                </React.Fragment>
              );
           })}
@@ -157,7 +195,7 @@ function SalesChart({ data }: { data: TrendPointDto[] }) {
       {hoverIndex !== null && filteredData[hoverIndex] && (
         <div 
           className={cn(
-            "absolute z-20 bg-slate-800 text-white text-[10px] p-2.5 rounded-lg shadow-xl pointer-events-none transition-all",
+            "absolute z-20 bg-slate-800 text-white text-[10px] p-2.5 rounded-lg shadow-xl pointer-events-none transition-opacity duration-150",
             "-translate-y-full",
             hoverIndex === 0 ? "translate-x-0" : 
             hoverIndex === count ? "-translate-x-full" : 
@@ -222,20 +260,25 @@ export function SalesTrendCard({ initialPoints, initialRange }: SalesTrendCardPr
     <div className="surface-card overflow-hidden rounded-lg">
       <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 px-4 py-3">
         <div>
-          <h2 className="text-[13px] font-bold text-slate-800">Sales trend</h2>
-          <p className="mt-0.5 text-[10px] text-slate-400">Live movement across the selected period</p>
+          {/* The heading follows the range: hours for a single day, days for a span. */}
+          <h2 className="text-[13px] font-bold text-slate-800">
+            {range === "today" || range === "yesterday" ? "Hourly sales" : "Daily sales"}
+          </h2>
+          <p className="mt-0.5 text-[10px] text-slate-500">Sales and bills across the selected period</p>
         </div>
-        <div className="flex items-center rounded-md bg-slate-100 p-0.5">
+        <div role="tablist" aria-label="Trend period" className="flex items-center rounded-md bg-slate-100 p-0.5">
           {TREND_RANGES.map((option) => {
             const active = option.id === range;
             return (
               <button
                 key={option.id}
                 type="button"
+                role="tab"
+                aria-selected={active}
                 onClick={() => void selectRange(option.id)}
                 className={cn(
-                  "rounded px-2 py-1.5 text-[10px] font-semibold transition",
-                  active ? "bg-white text-sky-700 shadow-sm" : "text-slate-500 hover:text-slate-700"
+                  "amb-focus min-h-11 min-w-11 cursor-pointer rounded px-2 py-1.5 text-[10px] font-semibold transition-colors duration-150",
+                  active ? "bg-white text-sky-700 shadow-sm" : "text-slate-600 hover:text-slate-900"
                 )}
               >
                 {option.label}
@@ -247,7 +290,7 @@ export function SalesTrendCard({ initialPoints, initialRange }: SalesTrendCardPr
       
       {state === "error" ? (
         <div className="flex h-[205px] flex-col items-center justify-center px-4 py-8 text-center bg-rose-50/50">
-          <p className="text-sm font-medium text-rose-600">The trend didn&apos;t load</p>
+          <p role="alert" className="text-sm font-medium text-rose-700">The trend didn&apos;t load</p>
           <button
             type="button"
             onClick={() => void selectRange(range)}
@@ -257,9 +300,10 @@ export function SalesTrendCard({ initialPoints, initialRange }: SalesTrendCardPr
           </button>
         </div>
       ) : state === "loading" ? (
-        <div className="flex h-[245px] items-center justify-center animate-pulse bg-slate-50/50" />
+        // amb-skeleton is the project's loading shimmer, disabled under reduced motion.
+        <div className="amb-skeleton flex h-[245px] items-center justify-center bg-slate-50/50" aria-busy="true" aria-label="Loading trend" />
       ) : (
-        <SalesChart data={points} />
+        <SalesChart data={points} periodLabel={PERIOD_LABEL[range]} />
       )}
     </div>
   );

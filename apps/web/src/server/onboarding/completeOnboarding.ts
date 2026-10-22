@@ -4,6 +4,8 @@ import { resolveSession } from "@/server/identity/session";
 import { isIpRateLimited } from "@/server/identity/loginGuard";
 import { writeAuditLog } from "@/server/identity/audit";
 import { getOnboardingReadiness, type OnboardingReadiness } from "@/server/onboarding/readiness";
+import { requestErpConnection } from "@/server/erp/tenantProvisioning";
+import { logError } from "@/lib/safeLog";
 
 /**
  * A10 owns exactly one onboarding transition: POS_CONFIGURED -> COMPLETE.
@@ -106,6 +108,18 @@ export async function completeOnboarding(params: {
       operationalReady: readiness.status === "ok" ? readiness.readiness.operationalReady : null,
     },
   });
+
+  // Every business is connected to the backend automatically (owner decision 2026-10-20): the
+  // connection is queued here, once, by the winner. A failure to queue never undoes onboarding;
+  // the owner can still connect from Settings → Company, and the queue retries on its own.
+  try {
+    await requestErpConnection({
+      actor: { tenantId: session.tenantId, userId: session.userId, tenantRole: session.user.tenantRole },
+      correlationId: params.correlationId,
+    });
+  } catch (err) {
+    logError("onboarding: auto-connect to backend could not be queued", err, { correlationId: params.correlationId });
+  }
 
   if (readiness.status !== "ok") {
     // The transition committed; only the follow-up read failed. Reporting failure here

@@ -38,7 +38,8 @@ export async function login(params: {
 }): Promise<LoginResult> {
   const email = params.email.trim().toLowerCase();
 
-  if (await isIpRateLimited(params.ip)) {
+  // Enforce minimum rate limiting: max 5 failed attempts per minute per IP
+  if (await isIpRateLimited(params.ip, "password", { windowMs: 60 * 1000, threshold: 5 })) {
     await writeAuditLog({
       action: "LoginRateLimited",
       correlationId: params.correlationId,

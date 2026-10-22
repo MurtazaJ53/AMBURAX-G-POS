@@ -16,7 +16,7 @@ async function provisionTenantForErp(tenantId: string, storeId: string) {
   await db.tenant.update({
     where: { id: tenantId },
     data: {
-      erpnextProvisionStatus: "PROVISIONED",
+      erpnextProvisionStatus: "PROVISIONED", erpnextCompanyId: "Amburax Retail",
       erpnextSiteId: "test-site.local",
     },
   });
@@ -92,7 +92,8 @@ describe("ERPNext Customer Sync (Outbox)", () => {
     const body = posts[0]!.body as Record<string, unknown>;
     expect(body["customer_name"]).toBe("Ananya Sharma");
     expect(body["customer_pos_id"]).toBe(customer.id);
-    expect(body["mobile_no"]).toBe("9876543210");
+    // Phones are stored in international format (customerFields.normalizePhone), and ERP gets the stored value.
+    expect(body["mobile_no"]).toBe("+919876543210");
   });
 
   // ── Test 2: Customer Update ───────────────────────────────────────────────

@@ -8,6 +8,7 @@ import { canConfigurePos } from "@/server/pos/posRoles";
 import { PosSetupForm } from "./PosSetupForm";
 import { ServiceUnavailableScreen } from "@/app/ServiceUnavailableScreen";
 import { logError } from "@/lib/safeLog";
+import { AuthFrame, ONBOARDING_STEPS } from "@/app/_components/AuthFrame";
 
 export const metadata: Metadata = {
   title: "Set up your POS — AMBURAX POS",
@@ -86,27 +87,9 @@ export default async function PosSetupPage() {
   }
 
   return (
-    <div className="grid min-h-screen grid-cols-1 lg:grid-cols-2">
-      <section className="hidden flex-col justify-between bg-slate-950 p-12 text-white lg:flex">
-        <div className="text-lg font-semibold tracking-tight">AMBURAX POS</div>
-        <div className="space-y-4">
-          <h1 className="text-3xl font-semibold leading-tight text-white">Set up your counter.</h1>
-          <p className="text-sm text-slate-300">
-            Name the terminal, choose how receipts print, then pair the device that will
-            run it.
-          </p>
-        </div>
-        <p className="text-xs text-slate-400">Step 5 of 6 — POS</p>
-      </section>
-
-      <section className="flex items-center justify-center px-6 py-16">
-        <div className="w-full max-w-lg">
-          <div className="mb-8 lg:hidden">
-            <div className="text-lg font-semibold tracking-tight text-slate-900">AMBURAX POS</div>
-          </div>
-          <p className="text-xs font-medium uppercase tracking-wide text-brand-600">Step 5 of 6</p>
-          <h2 className="mt-1 text-2xl font-semibold text-slate-900">Set up your POS</h2>
-          <p className="mt-1 text-sm text-slate-500">
+    <AuthFrame steps={ONBOARDING_STEPS} currentStep={5} wide>
+          <h2 className="text-3xl font-extrabold text-slate-900">Set up your POS</h2>
+          <p className="mt-1 text-sm text-slate-600">
             Optional — you can add terminals later from POS Configuration.
           </p>
           <PosSetupForm
@@ -115,8 +98,6 @@ export default async function PosSetupPage() {
             isWarehouse={store.storeType === "WAREHOUSE"}
             suggestedCode={suggested}
           />
-        </div>
-      </section>
-    </div>
+    </AuthFrame>
   );
 }
