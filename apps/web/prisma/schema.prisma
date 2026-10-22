@@ -16,6 +16,15 @@ enum UserStatus {
   DISABLED
 }
 
+enum GstTaxTreatment {
+  TAXABLE
+  EXEMPT
+  NIL_RATED
+  ZERO_RATED
+  NON_GST
+  UNSPECIFIED
+}
+
 // Tenant-level role, distinct from StoreMembership.role (which is store-scoped, e.g.
 // "MANAGER"). Not a separate join table: User.tenantId is already a hard 1:1 FK (one
 // user belongs to exactly one tenant), so a "tenant membership" table would just
@@ -87,31 +96,85 @@ model Tenant {
   onboardingStep        OnboardingStep @default(BUSINESS_CREATED)
   onboardingCompletedAt DateTime?
 
+  // Pause flag to prevent broken/demo tenants from consuming outbox resources
+  isSyncPaused          Boolean        @default(false)
+  syncPausedReason      String?
+
   erpnextProvisionStatus ErpnextProvisionStatus @default(NOT_PROVISIONED)
   erpnextSiteId          String?
+  /// The ERPNext Company this business posts to (ADR-077: Tenant 1:1 Company). Set by provisioning,
+  /// never guessed: documents that need a company refuse to sync while it is null (ADR-078).
+  // Partial unique index created by migration 20261022165000_unique_tenant_erpnext_company
+  // (WHERE "erpnextCompanyId" IS NOT NULL)
+  erpnextCompanyId       String?
+  /// Why the last provisioning attempt failed, in words for the owner. Never ERPNext's raw response.
+  erpnextProvisionError  String?
+  erpnextProvisionedAt   DateTime?
+  /// The owner's own AI (Anthropic) API key for bill reading and smart import, AES-256-GCM
+  /// encrypted with AI_KEY_ENCRYPTION_KEY. Never returned to a browser; only the last 4 are shown.
+  aiKeyCipher            String?
+  aiKeyLast4             String?
+  /// The owner's Google Gemini API key, AES-256-GCM encrypted.
+  geminiKeyCipher        String?
+  geminiKeyLast4         String?
+  /// The owner's OpenAI ChatGPT API key, AES-256-GCM encrypted.
+  openaiKeyCipher        String?
+  openaiKeyLast4         String?
 
   createdAt DateTime @default(now())
 
-  users              User[]
-  stores             Store[]
-  posDevices         PosDevice[]
-  posSessions        PosSession[]
-  outboxEvents       OutboxEvent[]
-  products           Product[]
-  customers          Customer[]
-  sales              Sale[]
-  onboardingSessions OnboardingSession[]
-  invitations        Invitation[]
-  stockMovements     StockMovement[]
-  uoms               Uom[]
-  uomConversions     UomConversion[]
-  addresses          Address[]
-  customerAddresses  CustomerAddress[]
-  priceLists         PriceList[]
-  khataPayments      KhataPayment[]
-  priceListItems     PriceListItem[]
-  capabilities       TenantCapability[]
-  orders             Order[]
+  users                   User[]
+  stores                  Store[]
+  posDevices              PosDevice[]
+  posSessions             PosSession[]
+  outboxEvents            OutboxEvent[]
+  products                Product[]
+  customers               Customer[]
+  suppliers               Supplier[]
+  taxSetting              TenantTaxSetting?
+  leads                   Lead[]
+  purchaseReceipts        PurchaseReceipt[]
+  purchaseReturns         PurchaseReturn[]
+  stockTransfers          StockTransfer[]
+  cashMovements           CashMovement[]
+  sessionCounts           SessionCount[]
+  staffCheckins           StaffCheckin[]
+  purchaseOrders          PurchaseOrder[]
+  reorderRules            ReorderRule[]
+  replenishmentRequests   ReplenishmentRequest[]
+  sales                   Sale[]
+  onboardingSessions      OnboardingSession[]
+  invitations             Invitation[]
+  stockMovements          StockMovement[]
+  uoms                    Uom[]
+  uomConversions          UomConversion[]
+  addresses               Address[]
+  customerAddresses       CustomerAddress[]
+  priceLists              PriceList[]
+  khataPayments           KhataPayment[]
+  priceListItems          PriceListItem[]
+  capabilities            TenantCapability[]
+  orders                  Order[]
+  companies               Company[]
+  customerCreditAccounts  CustomerCreditAccount[]
+  khataReceivableEntries  KhataReceivableEntry[]
+  khataAdvanceEntries     KhataAdvanceEntry[]
+  khataPaymentAllocations KhataPaymentAllocation[]
+  khataAdvanceAllocations KhataAdvanceAllocation[]
+  commerceChannels        CommerceChannel[]
+  userSecurityPreferences UserSecurityPreferences[]
+  knownDevices            KnownDevice[]
+  attributeDefinitions    AttributeDefinition[]
+  attributeValues         AttributeValue[]
+  sizeGroups              SizeGroup[]
+  sizeGroupItems          SizeGroupItem[]
+  variantAttributeValues  VariantAttributeValue[]
+  variantBarcodes         VariantBarcode[]
+  tenantLoginPolicy       TenantLoginPolicy?
+  trustedNetworks         TrustedNetwork[]
+  breakGlassSessionGrants BreakGlassSessionGrant[]
+  signInEvents            SignInEvent[]
+  securityOutboxEvents    SecurityNotificationOutbox[]
 
   // The tenant's fallback price list, tried after the customer's and the store's. A pointer
   // rather than an `isDefault` flag on PriceList for the same reason customer addresses use
@@ -157,22 +220,27 @@ enum StoreType {
 }
 
 model Store {
-  id          String    @id @default(cuid())
-  tenantId    String
-  name        String
-  code        String
-  storeType   StoreType @default(RETAIL)
-  currency    String
-  phone       String?
-  addressLine String
-  city        String
-  state       String
-  postalCode  String?
-  timezone    String    @default("Asia/Kolkata")
+  /// E5 (owner 2026-10-14): attendance rules, configurable per store and jurisdiction.
+  lateGraceMinutes Int       @default(10)
+  halfDayPercent   Int       @default(50)
+  /// Decision 36: held POS bills expire after this many hours (1-24; the owner capped it at 24).
+  heldBillHours    Int       @default(24)
+  id               String    @id @default(cuid())
+  tenantId         String
+  name             String
+  code             String
+  storeType        StoreType @default(RETAIL)
+  currency         String
+  phone            String?
+  addressLine      String
+  city             String
+  state            String
+  postalCode       String?
+  timezone         String    @default("Asia/Kolkata")
   // True for exactly one store per tenant. Not exposed as a user toggle at A7 (there is
   // nothing to toggle against yet — the first store is trivially the default); future
   // multi-store screens are what make this field meaningful.
-  isDefault   Boolean   @default(false)
+  isDefault        Boolean   @default(false)
 
   erpnextProvisionStatus ErpnextProvisionStatus @default(NOT_PROVISIONED)
   erpnextWarehouseId     String?
@@ -196,18 +264,34 @@ model Store {
   // which is exactly how every store behaves today.
   priceListId String?
 
-  tenant         Tenant            @relation(fields: [tenantId], references: [id])
-  memberships    StoreMembership[]
-  invitations    Invitation[]
-  posDevices     PosDevice[]
-  posSessions    PosSession[]
-  sales          Sale[]
-  stockLevels    StockLevel[]
-  stockMovements StockMovement[]
-  priceList      PriceList?        @relation("StorePriceList", fields: [priceListId, tenantId], references: [id, tenantId])
-  orders         Order[]
-  OutboxEvent    OutboxEvent[]
-  heldBills      HeldBill[]
+  // Staged multi-company legal entity scope. Nullable until an explicit, authorized
+  // mapping is assigned. Unresolved stores cannot participate in Khata credit granting.
+  companyId String?
+
+  tenant           Tenant            @relation(fields: [tenantId], references: [id])
+  company          Company?          @relation(fields: [companyId, tenantId], references: [id, tenantId], map: "fk_stores_company")
+  memberships      StoreMembership[]
+  invitations      Invitation[]
+  posDevices       PosDevice[]
+  posSessions      PosSession[]
+  sales            Sale[]
+  stockLevels      StockLevel[]
+  stockMovements   StockMovement[]
+  priceList        PriceList?        @relation("StorePriceList", fields: [priceListId, tenantId], references: [id, tenantId])
+  orders           Order[]
+  OutboxEvent      OutboxEvent[]
+  heldBills        HeldBill[]
+  purchaseReceipts PurchaseReceipt[]
+
+  activeSessions Session[]
+
+  transfersOut          StockTransfer[]        @relation("TransferFrom")
+  transfersIn           StockTransfer[]        @relation("TransferTo")
+  staffCheckins         StaffCheckin[]
+  purchaseOrders        PurchaseOrder[]
+  reorderRules          ReorderRule[]
+  replenishmentRequests ReplenishmentRequest[]
+  trustedNetworks       TrustedNetwork[]
 
   @@unique([tenantId, code])
   // Same purpose as User's: the referencable half of StoreMembership's composite foreign
@@ -313,18 +397,25 @@ model PosDevice {
 }
 
 model User {
-  id               String     @id @default(cuid())
-  tenantId         String
-  email            String     @unique
-  passwordHash     String
-  name             String
-  status           UserStatus @default(ACTIVE)
-  tenantRole       TenantRole @default(STAFF)
-  mfaEnabled       Boolean    @default(false)
-  failedLoginCount Int        @default(0)
-  lockedUntil      DateTime?
-  lastLoginAt      DateTime?
-  createdAt        DateTime   @default(now())
+  id                     String     @id @default(cuid())
+  tenantId               String
+  email                  String     @unique
+  passwordHash           String
+  /// bcrypt hash of the 4-6 digit PIN an owner or store manager uses to approve a cashier's
+  /// discount above the cashier limit. Never the password; never stored in plain text.
+  approvalPinHash        String?
+  approvalPinFailures    Int        @default(0)
+  approvalPinLockedUntil DateTime?
+  /// Sign out after this many minutes without activity (A13). Null = only the session lifetime applies.
+  idleTimeoutMinutes     Int?
+  name                   String
+  status                 UserStatus @default(ACTIVE)
+  tenantRole             TenantRole @default(STAFF)
+  mfaEnabled             Boolean    @default(false)
+  failedLoginCount       Int        @default(0)
+  lockedUntil            DateTime?
+  lastLoginAt            DateTime?
+  createdAt              DateTime   @default(now())
 
   tenant              Tenant               @relation(fields: [tenantId], references: [id])
   sessions            Session[]
@@ -340,6 +431,13 @@ model User {
   heldBills           HeldBill[]           @relation("HeldBillsByUser")
   resumedBills        HeldBill[]           @relation("HeldBillsResumedByUser")
   discardedBills      HeldBill[]           @relation("HeldBillsDiscardedByUser")
+  securityPreferences UserSecurityPreferences?
+  knownDevices        KnownDevice[]
+  policiesUpdated     TenantLoginPolicy[]  @relation("PolicyUpdatedBy")
+  trustedNetworks     TrustedNetwork[]     @relation("TrustedNetworksCreated")
+  breakGlassGrants    BreakGlassSessionGrant[]
+  signInEvents        SignInEvent[]
+  securityOutbox      SecurityNotificationOutbox[]
 
   // Target for StoreMembership's composite foreign key. `id` alone is already the primary
   // key, so this adds no new integrity rule about users — it exists solely so PostgreSQL
@@ -441,18 +539,29 @@ model Invitation {
 }
 
 model Session {
-  id        String    @id @default(cuid())
-  userId    String
-  tenantId  String
-  tokenHash String    @unique
-  ip        String?
-  userAgent String?
-  createdAt DateTime  @default(now())
-  expiresAt DateTime
-  revokedAt DateTime?
+  id            String    @id @default(cuid())
+  userId        String
+  tenantId      String
+  tokenHash     String    @unique
+  ip            String?
+  userAgent     String?
+  createdAt     DateTime  @default(now())
+  expiresAt     DateTime
+  revokedAt     DateTime?
+  /// The store this signed-in session works in (A12). Chosen on /select-store, re-checked
+  /// against the user's access on every request, and null until chosen.
+  activeStoreId String?
+  /// Last request seen on this session, refreshed at most once a minute; drives idle sign-out.
+  lastSeenAt    DateTime?
+  /// Shared counter (owner 2026-10-15): the staff member currently selling on this signed-in till,
+  /// chosen by their own PIN. Bills are recorded under them until `tillOperatorUntil` (sliding) or
+  /// until the till locks. Null = bills go to the signed-in user, as before.
+  tillOperatorUserId String?
+  tillOperatorUntil  DateTime?
 
   // Composite: a session for a user of another tenant is not a state PostgreSQL will hold.
-  user User @relation(fields: [userId, tenantId], references: [id, tenantId])
+  user        User   @relation(fields: [userId, tenantId], references: [id, tenantId])
+  activeStore Store? @relation(fields: [activeStoreId, tenantId], references: [id, tenantId], onDelete: Restrict, map: "fk_session_active_store")
 
   @@index([userId])
   @@map("sessions")
@@ -617,12 +726,17 @@ model OutboxEvent {
 // -----------------------------------------------------------------------------
 
 model Product {
-  id       String  @id @default(cuid())
-  tenantId String
-  name     String
-  category String?
-  brand    String?
-  isActive Boolean @default(true)
+  id              String   @id @default(cuid())
+  tenantId        String
+  name            String
+  category        String?
+  brand           String?
+  isActive        Boolean  @default(true)
+  isDraft         Boolean  @default(false)
+  draftExpiresAt  DateTime?
+
+  // HSN code for Indian GST (follows the product/garment category)
+  hsnCode  String?
 
   // Where this product's picture lives. Nullable, and expected to be null for most of a
   // catalogue's life: a shop photographs its best sellers and never gets to the rest.
@@ -755,9 +869,18 @@ model ProductVariant {
 
   // Selling price and MRP in minor units. `taxRateBp` is the rate configured on the
   // variant; the rate actually charged is snapshotted onto the sale line.
-  priceMinor Int
-  mrpMinor   Int?
-  taxRateBp  Int  @default(0)
+  costPriceMinor  Int?
+  priceMinor      Int
+  mrpMinor        Int?
+  minPriceMinor   Int?
+  taxRateBp       Int             @default(0)
+  // Tax rate and statutory treatment are distinct. Existing zero-rate variants migrate to
+  // UNSPECIFIED so no legal classification is inferred from their rate or product text.
+  taxTreatment    GstTaxTreatment @default(UNSPECIFIED)
+  taxExemptionRef String?
+  /// FIXED uses taxRateBp as stored. APPAREL_SLAB picks the rate per piece at sale time from
+  /// the tenant's garment slab (TenantTaxSetting), after any discount.
+  taxRateMode     TaxRateMode     @default(FIXED)
 
   isActive Boolean @default(true)
 
@@ -768,14 +891,24 @@ model ProductVariant {
 
   // Composite. A variant of one tenant hanging off another tenant's product would put a
   // foreign product's name and unit on this tenant's sale lines.
-  product             Product              @relation(fields: [productId, tenantId], references: [id, tenantId])
-  saleItems           SaleItem[]
-  orderItems          OrderItem[]
-  stockLevels         StockLevel[]
-  stockMovements      StockMovement[]
-  priceListItems      PriceListItem[]
-  heldBillItems       HeldBillItem[]
-  pendingPriceChanges PendingPriceChange[]
+  product              Product               @relation(fields: [productId, tenantId], references: [id, tenantId])
+  saleItems            SaleItem[]
+  orderItems           OrderItem[]
+  stockLevels          StockLevel[]
+  stockMovements       StockMovement[]
+  priceListItems       PriceListItem[]
+  heldBillItems        HeldBillItem[]
+  pendingPriceChanges  PendingPriceChange[]
+  purchaseReceiptLines PurchaseReceiptLine[]
+
+  transferLines      StockTransferLine[]
+  purchaseOrderLines PurchaseOrderLine[]
+  reorderRules       ReorderRule[]
+  replenishmentLines ReplenishmentRequestLine[]
+  channelListings    ChannelListing[]
+
+  attributeLinks     VariantAttributeValue[]
+  barcodes           VariantBarcode[]
 
   // SKU and barcode are unique per tenant, not globally: two businesses may legitimately
   // use the same SKU string, and a global constraint would leak one tenant's namespace
@@ -843,14 +976,29 @@ model Customer {
   /// which this system cannot see. Enforcement is W-7 and requires ERP integration first.
   creditLimitMinor Int?
 
-  tenant          Tenant            @relation(fields: [tenantId], references: [id])
-  sales           Sale[]
-  orders          Order[]
-  addressLinks    CustomerAddress[]
-  priceList       PriceList?        @relation("CustomerPriceList", fields: [priceListId, tenantId], references: [id, tenantId])
-  defaultBilling  Address?          @relation("CustomerDefaultBilling", fields: [defaultBillingAddressId, tenantId], references: [id, tenantId])
-  defaultShipping Address?          @relation("CustomerDefaultShipping", fields: [defaultShippingAddressId, tenantId], references: [id, tenantId])
-  khataPayments   KhataPayment[]
+  /// Explicit enablement flag for counter credit / udhar. Defaults to false.
+  creditEnabled Boolean @default(false)
+
+  /// Administrative hold / suspension on credit privileges. Defaults to false.
+  creditHold Boolean @default(false)
+
+  /// Timestamp when the customer's phone number was verified via an authorized verification mechanism.
+  /// Null indicates unverified. Cleared whenever phone is updated.
+  phoneVerifiedAt DateTime?
+
+  tenant                  Tenant                   @relation(fields: [tenantId], references: [id])
+  sales                   Sale[]
+  orders                  Order[]
+  addressLinks            CustomerAddress[]
+  priceList               PriceList?               @relation("CustomerPriceList", fields: [priceListId, tenantId], references: [id, tenantId])
+  defaultBilling          Address?                 @relation("CustomerDefaultBilling", fields: [defaultBillingAddressId, tenantId], references: [id, tenantId])
+  defaultShipping         Address?                 @relation("CustomerDefaultShipping", fields: [defaultShippingAddressId, tenantId], references: [id, tenantId])
+  khataPayments           KhataPayment[]
+  customerCreditAccounts  CustomerCreditAccount[]
+  khataReceivableEntries  KhataReceivableEntry[]
+  khataAdvanceEntries     KhataAdvanceEntry[]
+  khataPaymentAllocations KhataPaymentAllocation[]
+  khataAdvanceAllocations KhataAdvanceAllocation[]
 
   // Phone is the retail identity key in this market. Unique per tenant so selecting an
   // existing customer can never silently create a duplicate.
@@ -1076,9 +1224,13 @@ enum PaymentStatus {
 }
 
 model Sale {
-  id       String @id @default(cuid())
-  tenantId String
-  storeId  String
+  id                         String    @id @default(cuid())
+  tenantId                   String
+  storeId                    String
+  companyId                  String?
+  currencySnapshot           String?
+  effectiveTermsDaysSnapshot Int?
+  dueDateSnapshot            DateTime?
 
   // Human-facing retail reference, unique per store, allocated from Store.nextBillSeq
   // inside the sale transaction. NOT an ERPNext invoice number (ADR-063 / ADR-079).
@@ -1091,11 +1243,20 @@ model Sale {
 
   // Every amount is server-calculated from the variant's stored price. Nothing here is
   // ever taken from the browser - see saleService.ts.
-  subtotalMinor Int
-  discountMinor Int @default(0)
-  taxMinor      Int
-  totalMinor    Int
-  paidMinor     Int
+  subtotalMinor              Int
+  discountMinor              Int     @default(0)
+  /// Why the bill was discounted. Required whenever discountMinor > 0 (owner rule 2026-10-13).
+  discountReason             String?
+  /// The user whose role authorised the discount: the cashier when within their limit, else
+  /// the store manager or owner who rang the bill. Null when there is no discount.
+  discountAuthorisedByUserId String?
+  taxMinor                   Int
+  totalMinor                 Int
+  paidMinor                  Int
+
+  /// Immutable snapshot of the initial on-account allocation at the time of sale.
+  /// Unaffected by subsequent returns or repayment collections. Defaults to 0.
+  initialOnAccountMinor Int @default(0)
 
   // Client-supplied request identity. Unique per tenant, so a double-click, a browser
   // retry or a network retry returns the original sale instead of ringing it twice.
@@ -1111,6 +1272,7 @@ model Sale {
 
   tenant   Tenant        @relation(fields: [tenantId], references: [id])
   store    Store         @relation(fields: [storeId, tenantId], references: [id, tenantId])
+  company  Company?      @relation(fields: [companyId, tenantId], references: [id, tenantId], map: "fk_sales_company")
   cashier  User          @relation("SalesRung", fields: [cashierUserId, tenantId], references: [id, tenantId])
   // Nullable — a walk-in sale has no customer — and composite, so a customer that IS named must
   // belong to this tenant. The delete action moves from SetNull to Restrict: a composite key
@@ -1127,7 +1289,10 @@ model Sale {
   posSessionId String?
   posSession   PosSession? @relation(fields: [posSessionId, tenantId], references: [id, tenantId])
 
-  returns SaleReturn[]
+  returns            SaleReturn[]
+  receivableEntries  KhataReceivableEntry[]
+  paymentAllocations KhataPaymentAllocation[]
+  advanceAllocations KhataAdvanceAllocation[]
 
   @@unique([tenantId, idempotencyKey])
   @@unique([storeId, billNumber])
@@ -1158,10 +1323,17 @@ model SaleItem {
 
   quantity          Int
   unitPriceMinor    Int
-  lineDiscountMinor Int @default(0)
+  lineDiscountMinor Int  @default(0)
   taxRateBp         Int
   taxMinor          Int
   lineTotalMinor    Int
+  /// The line's GST type when it sold (owner B3, 2026-10-16), so receipts and ERPNext show
+  /// "Exempt" / "Nil-rated" / "Non-GST" even if the product is re-classified later. Null on
+  /// lines sold before this was recorded.
+  taxTreatment      GstTaxTreatment?
+  /// The store's weighted average cost per unit when this line sold (excl. GST). Null when the
+  /// item had no recorded cost then; such lines are left out of profit, never guessed.
+  unitCostMinor     Int?
 
   sale    Sale           @relation(fields: [saleId, tenantId], references: [id, tenantId], onDelete: Cascade)
   variant ProductVariant @relation(fields: [variantId, tenantId], references: [id, tenantId])
@@ -1210,12 +1382,25 @@ model KhataPayment {
   idempotencyKey    String        @unique
   erpSyncStatus     ErpSyncStatus @default(PENDING)
   erpPaymentEntryId String?
-  createdAt         DateTime      @default(now())
-  updatedAt         DateTime      @updatedAt
 
-  tenant   Tenant   @relation(fields: [tenantId], references: [id])
-  customer Customer @relation(fields: [customerId, tenantId], references: [id, tenantId])
+  // Staged multi-company & credit account scope. Nullable for legacy unmapped payments.
+  companyId       String?
+  creditAccountId String?
+  currency        String?
 
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  tenant             Tenant                   @relation(fields: [tenantId], references: [id], map: "fk_kp_tenant")
+  customer           Customer                 @relation(fields: [customerId, tenantId], references: [id, tenantId], map: "fk_kp_customer")
+  company            Company?                 @relation(fields: [companyId, tenantId], references: [id, tenantId], map: "fk_kp_company")
+  creditAccount      CustomerCreditAccount?   @relation(fields: [creditAccountId, tenantId, companyId, customerId, currency], references: [id, tenantId, companyId, customerId, currency], map: "fk_kp_credit_account")
+  paymentAllocations KhataPaymentAllocation[] @relation("KhataPaymentAllocations")
+  scopedAllocations  KhataPaymentAllocation[] @relation("KhataPaymentAllocationScope")
+  advanceEntries     KhataAdvanceEntry[]
+
+  @@unique([id, tenantId, companyId, customerId, creditAccountId, currency], map: "uq_kp_full_scope")
+  @@unique([id, tenantId], map: "uq_kp_id_tenant")
   @@index([tenantId, customerId])
   @@index([tenantId, createdAt])
   @@map("khata_payments")
@@ -1239,6 +1424,15 @@ model StockLevel {
   // Signed on purpose: a projection that has drifted negative is information, and clamping
   // it at zero would hide the drift a reconciliation sweep needs to find.
   quantity Int @default(0)
+
+  /// Weighted average cost of one unit on hand, excluding GST (owner choice 2026-10-14). Moves
+  /// only when goods arrive with a recorded cost; sales, returns and adjustments leave it as is.
+  /// Null until the first costed receipt.
+  avgCostMinor   Int?
+  /// True when stock with no recorded cost was already on hand as costed goods arrived, so the
+  /// average assumes those older units cost the same. Cleared once a costed delivery lands on
+  /// an empty shelf.
+  costIsEstimate Boolean @default(false)
 
   updatedAt DateTime @updatedAt
 
@@ -1279,6 +1473,12 @@ enum StockMovementType {
   // The delta between a physical count and the recorded balance. Distinct from ADJUSTMENT
   // because a count is evidence about reality, while an adjustment is an assertion about it.
   STOCK_TAKE
+  // Goods sent back to the supplier they were bought from, against a purchase receipt.
+  SUPPLIER_RETURN
+  // Stock leaving one store for another of the same business (a stock transfer is dispatched).
+  TRANSFER_OUT
+  // Stock arriving from another store of the same business (a stock transfer is received).
+  TRANSFER_IN
 }
 
 // The authoritative inventory ledger. `StockLevel` is its projection.
@@ -1324,6 +1524,8 @@ model StockMovement {
   // Informational here. Valuation (FIFO / moving average) belongs to the ledger owner, which
   // receives this as the Material Receipt's basic rate; nothing in AMBURAX values stock.
   unitCostMinor Int?
+  /// Step 5b: Explicitly marks goods arriving as a free sample piece (₹0 cost allowed)
+  isFreeSample  Boolean @default(false)
 
   // Free text for ADJUSTMENT and STOCK_TAKE. An unexplained correction is indistinguishable
   // from a mistake.
@@ -1672,16 +1874,35 @@ model PosSession {
   // Free text from whoever closed it. Optional, and deliberately not a money figure.
   closingNote String?
 
+  // Cash management (screens 53-54), shaped like ERPNext's POS Opening / Closing Entry: an opening
+  // float in the drawer, cash paid in or out during the shift, and at close a count per payment
+  // method against what was expected. Null float = none was recorded, never assumed to be zero.
+  openingFloatMinor        Int?
+  countedAt                DateTime?
+  countedByUserId          String?
+  /// E4 (owner 2026-10-14): a counted difference needs a manager's approval (never the person who
+  /// counted). Then its accounting effect goes to ERPNext's cash over/short account, once finance has
+  /// mapped that account and the Journal Entry write is approved; until then it waits, visibly.
+  varianceStatus           String?
+  varianceApprovedByUserId String?
+  varianceApprovedAt       DateTime?
+  varianceApprovalNote     String?
+  variancePostingStatus    String?
+  varianceErpRef           String?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  tenant    Tenant      @relation(fields: [tenantId], references: [id])
-  store     Store       @relation(fields: [storeId, tenantId], references: [id, tenantId])
-  posDevice PosDevice   @relation(fields: [posDeviceId, tenantId], references: [id, tenantId])
-  cashier   User        @relation("PosSessionsRun", fields: [cashierUserId, tenantId], references: [id, tenantId])
-  sales     Sale[]
-  activeOn  PosDevice[] @relation("PosDeviceActiveSession")
-  heldBills HeldBill[]
+  tenant        Tenant         @relation(fields: [tenantId], references: [id])
+  store         Store          @relation(fields: [storeId, tenantId], references: [id, tenantId])
+  posDevice     PosDevice      @relation(fields: [posDeviceId, tenantId], references: [id, tenantId])
+  cashier       User           @relation("PosSessionsRun", fields: [cashierUserId, tenantId], references: [id, tenantId])
+  sales         Sale[]
+  activeOn      PosDevice[]    @relation("PosDeviceActiveSession")
+  heldBills     HeldBill[]
+  cashMovements CashMovement[]
+  counts        SessionCount[]
+  returnPayouts SaleReturn[]   @relation("ReturnPayouts")
 
   // Referencable half for Sale's and PosDevice's composite foreign keys (invariant I-4).
   @@unique([id, tenantId])
@@ -1824,17 +2045,25 @@ model SaleReturn {
   erpSyncStatus     ErpSyncStatus @default(PENDING)
   erpInvoiceId      String?
   amburaxExchangeId String?
+  /// E7 (owner 2026-10-14): the person who processed the return and the till session that actually paid
+  /// it. Never inferred from the original sale. Null on returns made before this was recorded.
+  processedByUserId String?
+  posSessionId      String?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  originalSale Sale                @relation(fields: [tenantId, originalSaleId], references: [tenantId, id])
-  items        SaleReturnItem[]
-  payments     SaleReturnPayment[]
+  originalSale      Sale                   @relation(fields: [tenantId, originalSaleId], references: [tenantId, id], map: "fk_sr_original_sale")
+  payoutSession     PosSession?            @relation("ReturnPayouts", fields: [posSessionId, tenantId], references: [id, tenantId], onDelete: Restrict, map: "fk_sr_payout_session")
+  items             SaleReturnItem[]
+  payments          SaleReturnPayment[]
+  receivableEntries KhataReceivableEntry[]
 
   @@unique([tenantId, idempotencyKey])
+  @@unique([id, tenantId], map: "uq_sr_id_tenant")
   @@index([tenantId, storeId])
   @@index([originalSaleId])
+  @@index([tenantId, posSessionId])
   @@map("sale_returns")
 }
 
@@ -1846,8 +2075,8 @@ model SaleReturnItem {
   quantity    Int
   refundMinor Int
 
-  saleReturn       SaleReturn @relation(fields: [saleReturnId], references: [id], onDelete: Cascade)
-  originalSaleItem SaleItem   @relation(fields: [originalSaleItemId], references: [id])
+  saleReturn       SaleReturn @relation(fields: [saleReturnId], references: [id], onDelete: Cascade, map: "fk_sri_sale_return")
+  originalSaleItem SaleItem   @relation(fields: [originalSaleItemId], references: [id], map: "fk_sri_original_item")
 
   @@index([saleReturnId])
   @@index([originalSaleItemId])
@@ -1866,8 +2095,1359 @@ model SaleReturnPayment {
 
   createdAt DateTime @default(now())
 
-  saleReturn SaleReturn @relation(fields: [saleReturnId], references: [id], onDelete: Cascade)
+  saleReturn SaleReturn @relation(fields: [saleReturnId], references: [id], onDelete: Cascade, map: "fk_srp_sale_return")
 
   @@index([saleReturnId])
   @@map("sale_return_payments")
+}
+
+// =========================================================================================
+// MULTI-COMPANY & KHATA LEDGER FOUNDATION
+// =========================================================================================
+
+enum KhataReceivableEntryType {
+  DEBIT_CREDIT_SALE
+  CREDIT_REPAYMENT
+  CREDIT_SALE_RETURN
+  CREDIT_ADVANCE_APPLY
+  DEBIT_REVERSAL
+  CREDIT_REVERSAL
+}
+
+enum KhataAdvanceEntryType {
+  CREDIT_ADVANCE_DEPOSIT
+  DEBIT_APPLICATION
+  DEBIT_REFUND
+  DEBIT_REVERSAL
+  CREDIT_REVERSAL
+}
+
+/// Udhar (counter credit) mode. There is no "unset": a missing or invalid mode is BLOCKED, and
+/// UNLIMITED is explicit, never inferred from a null limit.
+enum CreditMode {
+  BLOCKED
+  UNLIMITED
+  LIMITED
+}
+
+/// How a credit account's mode was set. MIGRATED: the account predates credit modes.
+enum CreditModeSource {
+  COMPANY_DEFAULT
+  OWNER_OVERRIDE
+  MIGRATED
+}
+
+model Company {
+  id                      String     @id @default(cuid())
+  tenantId                String
+  name                    String
+  code                    String
+  currency                String
+  defaultPaymentTermsDays Int        @default(0)
+  /// Udhar mode copied onto a customer's credit account when that account is created. Changing
+  /// it never rewrites existing accounts. Limit: positive when LIMITED, otherwise null (CHECK).
+  defaultCreditMode       CreditMode @default(BLOCKED)
+  defaultCreditLimitMinor Int?
+  /// E4 (owner 2026-10-14): finance-supplied ERPNext accounts for till differences. Both must be set
+  /// before any cash over/short Journal Entry is posted; AMBURAX never guesses them.
+  erpCashAccount          String?
+  erpCashOverShortAccount String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  tenant                 Tenant                   @relation(fields: [tenantId], references: [id], map: "fk_companies_tenant")
+  stores                 Store[]
+  sales                  Sale[]
+  customerCreditAccounts CustomerCreditAccount[]
+  receivableEntries      KhataReceivableEntry[]
+  advanceEntries         KhataAdvanceEntry[]
+  paymentAllocations     KhataPaymentAllocation[]
+  advanceAllocations     KhataAdvanceAllocation[]
+  khataPayments          KhataPayment[]
+
+  @@unique([tenantId, code])
+  @@unique([id, tenantId])
+  @@unique([id, tenantId, currency])
+  @@map("companies")
+}
+
+model CustomerCreditAccount {
+  id                   String           @id @default(cuid())
+  tenantId             String
+  companyId            String
+  customerId           String
+  currency             String
+  creditLimitMinor     Int?
+  creditEnabled        Boolean          @default(false)
+  creditHold           Boolean          @default(false)
+  /// This account's own Udhar mode, frozen from the Company default at creation. Separate from
+  /// the legacy `creditLimitMinor`. Limit: positive when LIMITED, otherwise null (CHECK).
+  creditMode           CreditMode       @default(BLOCKED)
+  creditModeLimitMinor Int?
+  creditModeSource     CreditModeSource @default(MIGRATED)
+  creditModeSetAt      DateTime         @default(now())
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  tenant             Tenant                   @relation(fields: [tenantId], references: [id], map: "fk_cca_tenant")
+  company            Company                  @relation(fields: [companyId, tenantId], references: [id, tenantId], map: "fk_cca_company")
+  customer           Customer                 @relation(fields: [customerId, tenantId], references: [id, tenantId], map: "fk_cca_customer")
+  receivableEntries  KhataReceivableEntry[]
+  advanceEntries     KhataAdvanceEntry[]
+  paymentAllocations KhataPaymentAllocation[]
+  advanceAllocations KhataAdvanceAllocation[]
+  khataPayments      KhataPayment[]
+
+  @@unique([tenantId, companyId, customerId])
+  @@unique([id, tenantId, companyId, customerId, currency], map: "customer_credit_accounts_id_tenantId_companyId_customerId_curre")
+  @@map("customer_credit_accounts")
+}
+
+model KhataReceivableEntry {
+  id              String @id @default(cuid())
+  tenantId        String
+  companyId       String
+  customerId      String
+  creditAccountId String
+  currency        String
+
+  entryType   KhataReceivableEntryType
+  amountMinor Int
+
+  // Source Lineage Links
+  saleId              String?
+  paymentAllocationId String?
+  allocationId        String?
+  saleReturnId        String?
+
+  // Reversal Pointers (Full 6-tuple parent pointer)
+  reversalOfId         String?
+  reversalOfTenantId   String?
+  reversalOfCompanyId  String?
+  reversalOfCustomerId String?
+  reversalOfAccountId  String?
+  reversalOfCurrency   String?
+
+  actorUserId    String
+  notes          String?
+  idempotencyKey String
+  createdAt      DateTime @default(now())
+
+  tenant            Tenant                  @relation(fields: [tenantId], references: [id], map: "fk_rec_tenant")
+  company           Company                 @relation(fields: [companyId, tenantId], references: [id, tenantId], map: "fk_rec_company")
+  customer          Customer                @relation(fields: [customerId, tenantId], references: [id, tenantId], map: "fk_rec_customer")
+  creditAccount     CustomerCreditAccount   @relation(fields: [creditAccountId, tenantId, companyId, customerId, currency], references: [id, tenantId, companyId, customerId, currency], map: "fk_rec_credit_account")
+  sale              Sale?                   @relation(fields: [saleId, tenantId], references: [id, tenantId], map: "fk_rec_sale")
+  paymentAllocation KhataPaymentAllocation? @relation(fields: [paymentAllocationId, tenantId], references: [id, tenantId], onDelete: Restrict, map: "fk_rec_payment_allocation")
+  advanceAllocation KhataAdvanceAllocation? @relation(fields: [allocationId, tenantId], references: [id, tenantId], onDelete: Restrict, map: "fk_rec_advance_allocation")
+  saleReturn        SaleReturn?             @relation(fields: [saleReturnId, tenantId], references: [id, tenantId], onDelete: Restrict, map: "fk_rec_sale_return")
+
+  reversalOf KhataReceivableEntry?  @relation("ReceivableReversal", fields: [reversalOfId, reversalOfTenantId, reversalOfCompanyId, reversalOfCustomerId, reversalOfAccountId, reversalOfCurrency], references: [id, tenantId, companyId, customerId, creditAccountId, currency], onDelete: Restrict, map: "fk_rec_reversal_parent")
+  reversedBy KhataReceivableEntry[] @relation("ReceivableReversal")
+
+  @@unique([tenantId, idempotencyKey])
+  @@unique([id, tenantId, companyId, customerId, creditAccountId, currency], map: "uq_rec_full_scope_entry")
+  @@index([tenantId, companyId, customerId, createdAt], map: "khata_receivable_entries_tenantId_companyId_customerId_createdA")
+  @@index([saleId])
+  @@map("khata_receivable_entries")
+}
+
+model KhataAdvanceEntry {
+  id              String @id @default(cuid())
+  tenantId        String
+  companyId       String
+  customerId      String
+  creditAccountId String
+  currency        String
+
+  entryType   KhataAdvanceEntryType
+  amountMinor Int
+
+  // Source Lineage Links
+  khataPaymentId String?
+  allocationId   String?
+
+  // Reversal Pointers (Full 6-tuple parent pointer)
+  reversalOfId         String?
+  reversalOfTenantId   String?
+  reversalOfCompanyId  String?
+  reversalOfCustomerId String?
+  reversalOfAccountId  String?
+  reversalOfCurrency   String?
+
+  actorUserId    String
+  notes          String?
+  idempotencyKey String
+  createdAt      DateTime @default(now())
+
+  tenant            Tenant                  @relation(fields: [tenantId], references: [id], map: "fk_adv_tenant")
+  company           Company                 @relation(fields: [companyId, tenantId], references: [id, tenantId], map: "fk_adv_company")
+  customer          Customer                @relation(fields: [customerId, tenantId], references: [id, tenantId], map: "fk_adv_customer")
+  creditAccount     CustomerCreditAccount   @relation(fields: [creditAccountId, tenantId, companyId, customerId, currency], references: [id, tenantId, companyId, customerId, currency], map: "fk_adv_credit_account")
+  khataPayment      KhataPayment?           @relation(fields: [khataPaymentId, tenantId], references: [id, tenantId], onDelete: Restrict, map: "fk_adv_khata_payment")
+  advanceAllocation KhataAdvanceAllocation? @relation(fields: [allocationId, tenantId], references: [id, tenantId], onDelete: Restrict, map: "fk_adv_advance_allocation")
+
+  reversalOf KhataAdvanceEntry?  @relation("AdvanceReversal", fields: [reversalOfId, reversalOfTenantId, reversalOfCompanyId, reversalOfCustomerId, reversalOfAccountId, reversalOfCurrency], references: [id, tenantId, companyId, customerId, creditAccountId, currency], onDelete: Restrict, map: "fk_adv_reversal_parent")
+  reversedBy KhataAdvanceEntry[] @relation("AdvanceReversal")
+
+  @@unique([tenantId, idempotencyKey])
+  @@unique([id, tenantId, companyId, customerId, creditAccountId, currency], map: "uq_adv_full_scope_entry")
+  @@index([tenantId, companyId, customerId, createdAt], map: "khata_advance_entries_tenantId_companyId_customerId_createdAt_i")
+  @@index([khataPaymentId])
+  @@map("khata_advance_entries")
+}
+
+model KhataPaymentAllocation {
+  id              String @id @default(cuid())
+  tenantId        String
+  companyId       String
+  customerId      String
+  creditAccountId String
+  currency        String
+  khataPaymentId  String
+  saleId          String
+  amountMinor     Int
+
+  createdAt DateTime @default(now())
+
+  tenant            Tenant                 @relation(fields: [tenantId], references: [id], map: "fk_kpa_tenant")
+  company           Company                @relation(fields: [companyId, tenantId], references: [id, tenantId], map: "fk_kpa_company")
+  customer          Customer               @relation(fields: [customerId, tenantId], references: [id, tenantId], map: "fk_kpa_customer")
+  creditAccount     CustomerCreditAccount  @relation(fields: [creditAccountId, tenantId, companyId, customerId, currency], references: [id, tenantId, companyId, customerId, currency], map: "fk_kpa_credit_account")
+  khataPayment      KhataPayment           @relation("KhataPaymentAllocations", fields: [khataPaymentId, tenantId], references: [id, tenantId], map: "fk_kpa_payment")
+  // The allocation must share its payment's full ledger scope (tenant, company, customer, credit
+  // account, currency), not only its id. Overlaps the plain id relation on purpose.
+  khataPaymentScope KhataPayment           @relation("KhataPaymentAllocationScope", fields: [khataPaymentId, tenantId, companyId, customerId, creditAccountId, currency], references: [id, tenantId, companyId, customerId, creditAccountId, currency], onDelete: Restrict, map: "fk_kpa_payment_full_scope")
+  sale              Sale                   @relation(fields: [saleId, tenantId], references: [id, tenantId], map: "fk_kpa_sale")
+  receivableEntries KhataReceivableEntry[]
+
+  @@unique([id, tenantId, companyId, customerId, creditAccountId, currency], map: "uq_kpa_full_scope")
+  @@unique([id, tenantId], map: "uq_kpa_id_tenant")
+  @@index([tenantId, khataPaymentId])
+  @@index([tenantId, saleId])
+  @@map("khata_payment_allocations")
+}
+
+model KhataAdvanceAllocation {
+  id              String @id @default(cuid())
+  tenantId        String
+  companyId       String
+  customerId      String
+  creditAccountId String
+  currency        String
+  saleId          String
+  amountMinor     Int
+
+  createdAt DateTime @default(now())
+
+  tenant            Tenant                 @relation(fields: [tenantId], references: [id], map: "fk_kaa_tenant")
+  company           Company                @relation(fields: [companyId, tenantId], references: [id, tenantId], map: "fk_kaa_company")
+  customer          Customer               @relation(fields: [customerId, tenantId], references: [id, tenantId], map: "fk_kaa_customer")
+  creditAccount     CustomerCreditAccount  @relation(fields: [creditAccountId, tenantId, companyId, customerId, currency], references: [id, tenantId, companyId, customerId, currency], map: "fk_kaa_credit_account")
+  sale              Sale                   @relation(fields: [saleId, tenantId], references: [id, tenantId], map: "fk_kaa_sale")
+  receivableEntries KhataReceivableEntry[]
+  advanceEntries    KhataAdvanceEntry[]
+
+  @@unique([id, tenantId, companyId, customerId, creditAccountId, currency], map: "uq_kaa_full_scope")
+  @@unique([id, tenantId], map: "uq_kaa_id_tenant")
+  @@index([tenantId, saleId])
+  @@map("khata_advance_allocations")
+}
+
+/// A business this tenant buys stock from. A directory record only: no purchase, cost, payable
+/// or tax logic reads it yet. GSTIN is stored uppercase as entered after a shape check; nothing
+/// verifies it with the GST network.
+model Supplier {
+  id            String        @id @default(cuid())
+  tenantId      String
+  name          String
+  contactName   String?
+  phone         String?
+  email         String?
+  gstin         String?
+  city          String?
+  notes         String?
+  isActive      Boolean       @default(true)
+  /// ERPNext-first (owner rule 2026-10-14): the ERPNext document this row is mirrored to, and
+  /// whether it got there. ERPNext is the master once connected; this row is the working copy.
+  erpnextName   String?
+  erpSyncStatus ErpSyncStatus @default(PENDING)
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Restrict, map: "fk_supplier_tenant")
+
+  purchaseReceipts PurchaseReceipt[]
+  purchaseOrders   PurchaseOrder[]
+
+  @@unique([tenantId, name])
+  @@unique([id, tenantId], map: "uq_supplier_id_tenant")
+  @@index([tenantId, isActive])
+  @@map("suppliers")
+}
+
+enum LeadStage {
+  NEW
+  CONTACTED
+  QUALIFIED
+  WON
+  LOST
+}
+
+/// A prospective trade buyer (B2B pipeline). No quotation, pricing or order logic reads it yet;
+/// "won" records an outcome and does not create a customer or a sale.
+model Lead {
+  id          String    @id @default(cuid())
+  tenantId    String
+  company     String
+  contactName String?
+  phone       String?
+  email       String?
+  city        String?
+  source      String?
+  notes       String?
+  stage       LeadStage @default(NEW)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Restrict, map: "fk_lead_tenant")
+
+  @@index([tenantId, stage])
+  @@map("leads")
+}
+
+enum TaxRateMode {
+  FIXED
+  APPAREL_SLAB
+}
+
+/// Per-tenant GST settings for the garment price slab (owner decision 2026-10-13: 5% when the
+/// value per piece is at or below Rs 2,500, 18% above). Stored as data so a change in the law
+/// or the CA's reading is a settings edit, not a code change.
+model TenantTaxSetting {
+  tenantId              String   @id
+  /// Per-piece value limit for the low rate, in minor units, compared against the value
+  /// excluding GST at the low rate.
+  apparelThresholdMinor Int      @default(250000)
+  apparelLowRateBp      Int      @default(500)
+  apparelHighRateBp     Int      @default(1800)
+  updatedAt             DateTime @updatedAt
+  updatedByUserId       String?
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Restrict, map: "fk_tax_setting_tenant")
+
+  @@map("tenant_tax_settings")
+}
+
+/// Goods received from a supplier against their invoice (Sprint 5).
+///
+/// Owner decision 2026-10-13: cost is recorded EXCLUDING GST and the input GST is stored
+/// separately. Each line adds stock through the ledger as a RECEIPT carrying that cost. No
+/// payable or payment is modelled here; settling the supplier is ERPNext's.
+model PurchaseReceipt {
+  id                  String        @id @default(cuid())
+  tenantId            String
+  storeId             String
+  supplierId          String
+  supplierInvoiceNo   String
+  supplierInvoiceDate DateTime?
+  notes               String?
+  /// Sum of line quantity x unit cost, excluding GST.
+  taxableMinor        Int
+  /// Sum of line input GST.
+  inputTaxMinor       Int
+  totalMinor          Int
+  createdByUserId     String
+  idempotencyKey      String
+  /// ERPNext-first (owner rule 2026-10-14): the ERPNext document this row is mirrored to, and
+  /// whether it got there. ERPNext is the master once connected; this row is the working copy.
+  erpnextName         String?
+  /// The draft ERPNext Purchase Invoice made from this receipt; the accountant checks it against
+  /// the supplier's invoice and GSTR-2B before submitting (ITC conditions, CGST Act s.16).
+  erpnextInvoiceName  String?
+  erpSyncStatus       ErpSyncStatus @default(PENDING)
+  createdAt           DateTime      @default(now())
+
+  tenant          Tenant                @relation(fields: [tenantId], references: [id], onDelete: Restrict, map: "fk_pr_tenant")
+  store           Store                 @relation(fields: [storeId, tenantId], references: [id, tenantId], onDelete: Restrict, map: "fk_pr_store")
+  supplier        Supplier              @relation(fields: [supplierId, tenantId], references: [id, tenantId], onDelete: Restrict, map: "fk_pr_supplier")
+  lines           PurchaseReceiptLine[]
+  returns         PurchaseReturn[]
+  /// Set when the goods were received against a purchase order (screens 47-48).
+  purchaseOrderId String?
+  purchaseOrder   PurchaseOrder?        @relation(fields: [purchaseOrderId, tenantId], references: [id, tenantId], onDelete: Restrict, map: "fk_pr_po")
+
+  @@unique([tenantId, idempotencyKey])
+  @@unique([id, tenantId], map: "uq_pr_id_tenant")
+  @@index([tenantId, createdAt])
+  @@map("purchase_receipts")
+}
+
+model PurchaseReceiptLine {
+  id                  String  @id @default(cuid())
+  tenantId            String
+  receiptId           String
+  variantId           String
+  quantity            Int
+  /// Cost of one unit excluding GST, in minor units.
+  unitCostMinor       Int
+  /// GST rate on the purchase, in basis points.
+  gstRateBp           Int
+  taxableMinor        Int
+  inputTaxMinor       Int
+  stockMovementId     String
+  purchaseOrderLineId String?
+
+  receipt           PurchaseReceipt    @relation(fields: [receiptId, tenantId], references: [id, tenantId], onDelete: Cascade, map: "fk_prl_receipt")
+  variant           ProductVariant     @relation(fields: [variantId, tenantId], references: [id, tenantId], onDelete: Restrict, map: "fk_prl_variant")
+  purchaseOrderLine PurchaseOrderLine? @relation(fields: [purchaseOrderLineId, tenantId], references: [id, tenantId], onDelete: Restrict, map: "fk_prl_pol")
+
+  returnLines PurchaseReturnLine[]
+
+  @@unique([id, tenantId], map: "uq_prl_id_tenant")
+  @@index([receiptId])
+  @@map("purchase_receipt_lines")
+}
+
+/// Goods sent back to a supplier against one purchase receipt. Each line removes stock through
+/// the ledger (SUPPLIER_RETURN) at the cost it was bought at, and reverses that line's input
+/// GST. Settling the money with the supplier stays in ERPNext.
+model PurchaseReturn {
+  id              String        @id @default(cuid())
+  tenantId        String
+  receiptId       String
+  reason          String
+  taxableMinor    Int
+  inputTaxMinor   Int
+  totalMinor      Int
+  createdByUserId String
+  idempotencyKey  String
+  /// ERPNext-first (owner rule 2026-10-14): the ERPNext document this row is mirrored to, and
+  /// whether it got there. ERPNext is the master once connected; this row is the working copy.
+  erpnextName     String?
+  erpSyncStatus   ErpSyncStatus @default(PENDING)
+  createdAt       DateTime      @default(now())
+
+  tenant  Tenant               @relation(fields: [tenantId], references: [id], onDelete: Restrict, map: "fk_pret_tenant")
+  receipt PurchaseReceipt      @relation(fields: [receiptId, tenantId], references: [id, tenantId], onDelete: Restrict, map: "fk_pret_receipt")
+  lines   PurchaseReturnLine[]
+
+  @@unique([tenantId, idempotencyKey])
+  @@unique([id, tenantId], map: "uq_pret_id_tenant")
+  @@index([receiptId])
+  @@map("purchase_returns")
+}
+
+model PurchaseReturnLine {
+  id              String @id @default(cuid())
+  tenantId        String
+  returnId        String
+  receiptLineId   String
+  quantity        Int
+  taxableMinor    Int
+  inputTaxMinor   Int
+  stockMovementId String
+
+  purchaseReturn PurchaseReturn      @relation(fields: [returnId, tenantId], references: [id, tenantId], onDelete: Cascade, map: "fk_pretl_return")
+  receiptLine    PurchaseReceiptLine @relation(fields: [receiptLineId, tenantId], references: [id, tenantId], onDelete: Restrict, map: "fk_pretl_receipt_line")
+
+  @@index([receiptLineId])
+  @@map("purchase_return_lines")
+}
+
+enum StockTransferStatus {
+  IN_TRANSIT
+  RECEIVED
+  CANCELLED
+}
+
+/// Stock moved between two stores of one business (screens 28-29). Dispatch takes the stock out
+/// of the source at once (TRANSFER_OUT); receiving puts what actually arrived into the destination
+/// (TRANSFER_IN) at the source's average cost; a cancel before receipt puts it back. ERPNext holds
+/// the matching Stock Entry once connected (ERPNEXT_DOCTYPE_MAP.md).
+model StockTransfer {
+  id                  String              @id @default(cuid())
+  tenantId            String
+  fromStoreId         String
+  toStoreId           String
+  status              StockTransferStatus @default(IN_TRANSIT)
+  note                String?
+  createdByUserId     String
+  receivedByUserId    String?
+  idempotencyKey      String
+  /// ERPNext Stock Entries (Material Transfer) for the send leg and the receive/cancel leg.
+  erpnextSendEntry    String?
+  erpnextReceiveEntry String?
+  erpSyncStatus       ErpSyncStatus       @default(PENDING)
+  createdAt           DateTime            @default(now())
+  receivedAt          DateTime?
+  cancelledAt         DateTime?
+
+  tenant    Tenant              @relation(fields: [tenantId], references: [id], onDelete: Restrict, map: "fk_st_tenant")
+  fromStore Store               @relation("TransferFrom", fields: [fromStoreId, tenantId], references: [id, tenantId], onDelete: Restrict, map: "fk_st_from_store")
+  toStore   Store               @relation("TransferTo", fields: [toStoreId, tenantId], references: [id, tenantId], onDelete: Restrict, map: "fk_st_to_store")
+  lines     StockTransferLine[]
+
+  @@unique([tenantId, idempotencyKey])
+  @@unique([id, tenantId], map: "uq_st_id_tenant")
+  @@index([tenantId, status, createdAt])
+  @@map("stock_transfers")
+}
+
+model StockTransferLine {
+  id               String @id @default(cuid())
+  tenantId         String
+  transferId       String
+  variantId        String
+  quantity         Int
+  /// Set when received: what actually arrived. Less than `quantity` is a recorded shortfall.
+  receivedQuantity Int?
+  /// The source store's weighted average cost when dispatched, carried to the destination.
+  unitCostMinor    Int?
+
+  transfer StockTransfer  @relation(fields: [transferId, tenantId], references: [id, tenantId], onDelete: Cascade, map: "fk_stl_transfer")
+  variant  ProductVariant @relation(fields: [variantId, tenantId], references: [id, tenantId], onDelete: Restrict, map: "fk_stl_variant")
+
+  @@index([transferId])
+  @@map("stock_transfer_lines")
+}
+
+/// Screen 32. Reorder level and quantity for one item in one store. Mirrors ERPNext's Item Reorder
+/// row (warehouse, warehouse_reorder_level, warehouse_reorder_qty), which is the master once
+/// connected; this is the working copy the screen reads.
+model ReorderRule {
+  id              String        @id @default(cuid())
+  tenantId        String
+  storeId         String
+  variantId       String
+  reorderLevel    Int
+  reorderQty      Int
+  erpSyncStatus   ErpSyncStatus @default(PENDING)
+  updatedByUserId String
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  tenant  Tenant         @relation(fields: [tenantId], references: [id], onDelete: Restrict, map: "fk_rr_tenant")
+  store   Store          @relation(fields: [storeId, tenantId], references: [id, tenantId], onDelete: Restrict, map: "fk_rr_store")
+  variant ProductVariant @relation(fields: [variantId, tenantId], references: [id, tenantId], onDelete: Restrict, map: "fk_rr_variant")
+
+  @@unique([tenantId, storeId, variantId])
+  @@map("reorder_rules")
+}
+
+/// Screen 32. A request to buy stock for one store; becomes a draft ERPNext Material Request
+/// (type Purchase), which purchasing turns into a Purchase Order there.
+model ReplenishmentRequest {
+  id              String        @id @default(cuid())
+  tenantId        String
+  storeId         String
+  createdByUserId String
+  idempotencyKey  String
+  note            String?
+  erpnextName     String?
+  erpSyncStatus   ErpSyncStatus @default(PENDING)
+  createdAt       DateTime      @default(now())
+
+  tenant Tenant                     @relation(fields: [tenantId], references: [id], onDelete: Restrict, map: "fk_rq_tenant")
+  store  Store                      @relation(fields: [storeId, tenantId], references: [id, tenantId], onDelete: Restrict, map: "fk_rq_store")
+  lines  ReplenishmentRequestLine[]
+
+  @@unique([tenantId, idempotencyKey])
+  @@unique([id, tenantId], map: "uq_rq_id_tenant")
+  @@index([tenantId, storeId, createdAt])
+  @@map("replenishment_requests")
+}
+
+model ReplenishmentRequestLine {
+  id        String @id @default(cuid())
+  tenantId  String
+  requestId String
+  variantId String
+  quantity  Int
+
+  request ReplenishmentRequest @relation(fields: [requestId, tenantId], references: [id, tenantId], onDelete: Cascade, map: "fk_rql_request")
+  variant ProductVariant       @relation(fields: [variantId, tenantId], references: [id, tenantId], onDelete: Restrict, map: "fk_rql_variant")
+
+  @@map("replenishment_request_lines")
+}
+
+enum PurchaseOrderStatus {
+  OPEN
+  CANCELLED
+}
+
+/// Screens 47-48. An order placed with a supplier for one store. ERPNext is the master: it syncs as a
+/// submitted Purchase Order, and receipts made against it link back line by line. "Received" and
+/// "part received" are derived from the lines, not stored, so they can never disagree with them.
+model PurchaseOrder {
+  id              String              @id @default(cuid())
+  tenantId        String
+  storeId         String
+  supplierId      String
+  status          PurchaseOrderStatus @default(OPEN)
+  expectedDate    DateTime
+  notes           String?
+  taxableMinor    Int
+  createdByUserId String
+  idempotencyKey  String
+  erpnextName     String?
+  erpSyncStatus   ErpSyncStatus       @default(PENDING)
+  createdAt       DateTime            @default(now())
+  cancelledAt     DateTime?
+
+  tenant   Tenant              @relation(fields: [tenantId], references: [id], onDelete: Restrict, map: "fk_po_tenant")
+  store    Store               @relation(fields: [storeId, tenantId], references: [id, tenantId], onDelete: Restrict, map: "fk_po_store")
+  supplier Supplier            @relation(fields: [supplierId, tenantId], references: [id, tenantId], onDelete: Restrict, map: "fk_po_supplier")
+  lines    PurchaseOrderLine[]
+  receipts PurchaseReceipt[]
+
+  @@unique([tenantId, idempotencyKey])
+  @@unique([id, tenantId], map: "uq_po_id_tenant")
+  @@index([tenantId, storeId, createdAt])
+  @@map("purchase_orders")
+}
+
+model PurchaseOrderLine {
+  id               String  @id @default(cuid())
+  tenantId         String
+  orderId          String
+  variantId        String
+  quantity         Int
+  receivedQuantity Int     @default(0)
+  unitCostMinor    Int
+  gstRateBp        Int
+  /// The ERPNext Purchase Order Item row this line became; receipts cite it so ERPNext tracks
+  /// what is still to come.
+  erpnextItemName  String?
+
+  order        PurchaseOrder         @relation(fields: [orderId, tenantId], references: [id, tenantId], onDelete: Cascade, map: "fk_pol_order")
+  variant      ProductVariant        @relation(fields: [variantId, tenantId], references: [id, tenantId], onDelete: Restrict, map: "fk_pol_variant")
+  receiptLines PurchaseReceiptLine[]
+
+  @@unique([id, tenantId], map: "uq_pol_id_tenant")
+  @@map("purchase_order_lines")
+}
+
+enum CashMovementKind {
+  PAY_IN
+  PAY_OUT
+}
+
+/// Screen 53. Cash put into or taken out of a till's drawer during a shift, with a reason.
+model CashMovement {
+  id               String           @id @default(cuid())
+  tenantId         String
+  sessionId        String
+  kind             CashMovementKind
+  amountMinor      Int
+  reason           String
+  /// E6 (owner 2026-10-14): what kind of pay-out, to whom, and who approved it at which level.
+  category         String?
+  payee            String?
+  approvedByUserId String?
+  approvalLevel    String?
+  createdByUserId  String
+  idempotencyKey   String
+  createdAt        DateTime         @default(now())
+
+  tenant  Tenant     @relation(fields: [tenantId], references: [id], onDelete: Restrict, map: "fk_cm_tenant")
+  session PosSession @relation(fields: [sessionId, tenantId], references: [id, tenantId], onDelete: Restrict, map: "fk_cm_session")
+
+  @@unique([tenantId, idempotencyKey])
+  @@index([tenantId, sessionId])
+  @@map("cash_movements")
+}
+
+/// Screen 54. At close, one row per payment method: what the till expected and what was counted.
+/// Mirrors ERPNext POS Closing Entry's payment_reconciliation (expected_amount, closing_amount,
+/// difference).
+model SessionCount {
+  id              String        @id @default(cuid())
+  tenantId        String
+  sessionId       String
+  method          PaymentMethod
+  expectedMinor   Int
+  countedMinor    Int
+  differenceMinor Int
+
+  tenant  Tenant     @relation(fields: [tenantId], references: [id], onDelete: Restrict, map: "fk_sc_tenant")
+  session PosSession @relation(fields: [sessionId, tenantId], references: [id, tenantId], onDelete: Restrict, map: "fk_sc_session")
+
+  @@unique([sessionId, method])
+  @@map("session_counts")
+}
+
+enum CheckinType {
+  IN
+  OUT
+}
+
+/// Screen 51. One clock-in or clock-out, shaped like the ERPNext HRMS Employee Checkin (employee,
+/// log_type IN/OUT, time) so it can sync once HRMS is installed; today HRMS is not on the site.
+model StaffCheckin {
+  id                   String      @id @default(cuid())
+  tenantId             String
+  storeId              String
+  userId               String
+  logType              CheckinType
+  at                   DateTime    @default(now())
+  /// E5: PUNCH (the person clocked) or CORRECTION (added by an approved correction request).
+  source               String      @default("PUNCH")
+  /// Set when an approved correction replaces this punch; the row itself is never edited or deleted.
+  voidedByCorrectionId String?
+  createdAt            DateTime    @default(now())
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Restrict, map: "fk_ci_tenant")
+  store  Store  @relation(fields: [storeId, tenantId], references: [id, tenantId], onDelete: Restrict, map: "fk_ci_store")
+
+  @@index([tenantId, storeId, at])
+  @@index([tenantId, userId, at])
+  @@map("staff_checkins")
+}
+
+/// Q9 (owner 2026-10-14): a one-time code sent to a customer's phone; the customer reads it back at
+/// the till. Only a correct code marks the phone verified — a cashier can't set it by hand.
+model CustomerPhoneChallenge {
+  id              String    @id @default(cuid())
+  tenantId        String
+  customerId      String
+  phone           String
+  codeHash        String
+  attempts        Int       @default(0)
+  expiresAt       DateTime
+  usedAt          DateTime?
+  createdByUserId String
+  createdAt       DateTime  @default(now())
+
+  @@index([tenantId, customerId, createdAt])
+  @@map("customer_phone_challenges")
+}
+
+enum ReservationSource {
+  ORDER
+  CHECKOUT
+}
+
+enum ReservationStatus {
+  ACTIVE
+  RELEASED
+  CONSUMED
+}
+
+/// Screen 36 (owner 2026-10-14). Units held for a confirmed commitment in one store. Held POS bills never
+/// reserve. A CHECKOUT hold expires after 15 minutes on its own; an ORDER reservation never expires
+/// silently — it carries a review date (7 days) and a person must renew or release it. Stock is
+/// available to sell only above what is actively reserved. AMBURAX keeps this ledger; ERPNext's
+/// Stock Reservation Entry (tied to Sales Orders, which AMBURAX doesn't sync) is not used in parallel.
+model StockReservation {
+  id              String            @id @default(cuid())
+  tenantId        String
+  storeId         String
+  variantId       String
+  quantity        Int
+  source          ReservationSource
+  sourceId        String
+  status          ReservationStatus @default(ACTIVE)
+  expiresAt       DateTime?
+  reviewAt        DateTime?
+  idempotencyKey  String
+  createdByUserId String
+  releasedAt      DateTime?
+  releaseReason   String?
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+
+  @@unique([tenantId, idempotencyKey])
+  @@index([tenantId, storeId, variantId, status])
+  @@index([tenantId, source, sourceId])
+  @@map("stock_reservations")
+}
+
+/// E5: a planned shift for one person in one store, published ahead (14-day horizon).
+model ShiftPlan {
+  id                    String    @id @default(cuid())
+  tenantId              String
+  storeId               String
+  userId                String
+  startAt               DateTime
+  endAt                 DateTime
+  breakMinutes          Int       @default(0)
+  status                String    @default("DRAFT")
+  notes                 String?
+  createdByUserId       String
+  publishedByUserId     String?
+  publishedAt           DateTime?
+  /// Changed after it was published: the person sees it flagged until they next view it.
+  changedAfterPublishAt DateTime?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  @@index([tenantId, storeId, startAt])
+  @@index([tenantId, userId, startAt])
+  @@map("shift_plans")
+}
+
+/// E5: a request to correct attendance. The original punch is kept; an approved request adds a
+/// CORRECTION punch (and, if replacing one, marks the old one voided). A manager can't approve their own.
+model PunchCorrection {
+  id                String      @id @default(cuid())
+  tenantId          String
+  storeId           String
+  userId            String
+  requestedByUserId String
+  originalCheckinId String?
+  logType           CheckinType
+  correctedAt       DateTime
+  reason            String
+  status            String      @default("PENDING")
+  decidedByUserId   String?
+  decidedAt         DateTime?
+  decisionNote      String?
+  appliedCheckinId  String?
+  createdAt         DateTime    @default(now())
+
+  @@index([tenantId, storeId, status])
+  @@map("punch_corrections")
+}
+
+/// Decision 41 (owner 2026-10-14): a loyalty program per tenant and currency. Every rule is data,
+/// not code. Earning and redemption stay OFF until finance and the GST reviewer approve; `enabled`
+/// alone does not switch them on (see LOYALTY_SIGNOFF in server/loyalty/loyalty.ts).
+model LoyaltyProgram {
+  id              String   @id @default(cuid())
+  tenantId        String
+  currency        String   @default("INR")
+  name            String   @default("Loyalty")
+  enabled         Boolean  @default(false)
+  /// Points earned per `earnUnitMinor` of eligible net spend excluding GST (default 1 per Rs 100).
+  pointsPerUnit   Int      @default(1)
+  earnUnitMinor   Int      @default(10000)
+  /// What one point is worth when redeemed, in minor units (default Rs 1).
+  pointValueMinor Int      @default(100)
+  expiryMonths    Int      @default(12)
+  minRedeemPoints Int      @default(100)
+  /// Most of a bill's eligible value points may pay, in basis points (default 10%).
+  maxRedeemBp     Int      @default(1000)
+  updatedByUserId String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@unique([tenantId, currency])
+  @@map("loyalty_programs")
+}
+
+/// The loyalty ledger. Append-only: a balance is the sum of entries, never an edited number. An EARN
+/// (or REVERSE_REDEEM) entry is a lot with `remaining` points and an expiry; redemptions, reversals and
+/// expiry consume lots oldest-expiring first and record what they took in `allocations`.
+model LoyaltyLedgerEntry {
+  id              String    @id @default(cuid())
+  tenantId        String
+  programId       String
+  customerId      String
+  /// EARN | REDEEM | REVERSE_EARN | REVERSE_REDEEM | EXPIRE
+  type            String
+  /// PENDING (credit sale not yet settled) | POSTED
+  status          String    @default("POSTED")
+  /// Signed: positive adds points, negative takes them.
+  points          Int
+  /// For lots only: points still available from this entry.
+  remaining       Int       @default(0)
+  expiresAt       DateTime?
+  saleId          String?
+  returnId        String?
+  sourceEntryId   String?
+  /// [{ entryId, points }] — which lots a consuming entry drew from.
+  allocations     Json?
+  idempotencyKey  String
+  createdByUserId String?
+  createdAt       DateTime  @default(now())
+
+  @@unique([tenantId, idempotencyKey])
+  @@index([tenantId, customerId, expiresAt])
+  @@index([tenantId, saleId])
+  @@map("loyalty_ledger_entries")
+}
+
+/// E5: leave and unavailability, so shift planning can refuse a shift on a day off. Shaped like HRMS
+/// Leave Application (employee, from/to date, half day, status) so it can sync — or hand over — when
+/// HRMS is added (latter.md). Dates are IST calendar days, inclusive. Approval is never by the person.
+model StaffLeave {
+  id                String    @id @default(cuid())
+  tenantId          String
+  storeId           String
+  userId            String
+  /// LEAVE | UNAVAILABLE
+  kind              String    @default("LEAVE")
+  fromDate          String
+  toDate            String
+  halfDay           Boolean   @default(false)
+  reason            String
+  /// PENDING | APPROVED | REJECTED | CANCELLED
+  status            String    @default("PENDING")
+  requestedByUserId String
+  decidedByUserId   String?
+  decidedAt         DateTime?
+  decisionNote      String?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  @@index([tenantId, userId, fromDate])
+  @@index([tenantId, storeId, status])
+  @@map("staff_leaves")
+}
+
+/// What a supplier calls one of our variants on their bill (learned when someone matches a line
+/// from a scanned bill). Next time that text appears on that supplier's bill it matches itself.
+model SupplierItemAlias {
+  id         String   @id @default(cuid())
+  tenantId   String
+  supplierId String
+  /// Normalised bill text: lower-case, single spaces.
+  text       String
+  variantId  String
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@unique([tenantId, supplierId, text])
+  @@map("supplier_item_aliases")
+}
+
+/// A bill from the shop's previous software, kept as history (customer history, past totals). It
+/// is not a sale here: it moves no stock, posts nothing and never goes to ERPNext.
+model ImportedSale {
+  id            String   @id @default(cuid())
+  tenantId      String
+  storeId       String
+  billNumber    String
+  soldAt        DateTime
+  customerId    String?
+  customerName  String?
+  customerPhone String?
+  totalMinor    Int
+  taxMinor      Int      @default(0)
+  paymentMode   String?
+  itemsText     String?
+  importBatchId String
+  createdAt     DateTime @default(now())
+
+  @@unique([tenantId, storeId, billNumber])
+  @@index([tenantId, customerId])
+  @@index([tenantId, soldAt])
+  @@map("imported_sales")
+}
+
+// -----------------------------------------------------------------------------
+// Phase 6 & 8: Marketplace Commerce Engine (Flipkart First-Class Integration)
+// -----------------------------------------------------------------------------
+
+enum CommercePlatform {
+  FLIPKART
+  AMAZON
+  SHOPIFY
+  MEESHO
+  WOOCOMMERCE
+}
+
+enum ChannelListingStatus {
+  DRAFT
+  ACTIVE
+  INACTIVE
+  OUT_OF_STOCK
+  ERROR
+}
+
+enum SyncJobType {
+  LISTINGS_PUSH
+  INVENTORY_SYNC
+  ORDERS_PULL
+  PRICE_SYNC
+}
+
+enum SyncJobStatus {
+  SUCCESS
+  PARTIAL
+  FAILED
+}
+
+/// A connected external sales channel account (e.g., Flipkart Marketplace).
+/// Stores API authentication details securely encrypted.
+model CommerceChannel {
+  id          String           @id @default(cuid())
+  tenantId    String
+  platform    CommercePlatform @default(FLIPKART)
+  name        String
+  sellerId    String
+  appId       String
+  /// AES-256-GCM encrypted client secret / auth token
+  appSecretCipher String?
+  /// Encrypted refresh/access token if OAuth based
+  accessTokenCipher String?
+  tokenExpiresAt   DateTime?
+  isActive    Boolean          @default(true)
+  storeId     String?
+
+  lastSyncAt  DateTime?
+  lastError   String?
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+
+  tenant      Tenant           @relation(fields: [tenantId], references: [id])
+  listings    ChannelListing[]
+  syncLogs    CommerceSyncLog[]
+
+  @@unique([tenantId, platform, sellerId])
+  // Composite key so children reference (id, tenantId): a listing or log can never point at
+  // another business's channel (the tenant-invariant every tenant-owned parent follows).
+  @@unique([id, tenantId])
+  @@index([tenantId, platform])
+  @@map("commerce_channels")
+}
+
+/// Maps an internal AMBURAX ProductVariant to an external channel listing (e.g. Flipkart FSN).
+model ChannelListing {
+  id              String               @id @default(cuid())
+  tenantId        String
+  channelId       String
+  variantId       String
+  /// The marketplace's identifier (Flipkart FSN / Serial Number)
+  externalListingId String?
+  /// Seller SKU registered on Flipkart
+  sellerSku       String
+  status          ChannelListingStatus @default(ACTIVE)
+  
+  /// Channel-specific price override in minor units (optional). If null, uses variant selling price.
+  channelPriceMinor Int?
+  /// Dedicated or reserved stock buffer for this channel.
+  stockAllocation Int                  @default(0)
+  /// Last known synced stock level pushed to the channel.
+  lastSyncedStock Int                  @default(0)
+
+  lastSyncAt      DateTime?
+  lastError       String?
+  createdAt       DateTime             @default(now())
+  updatedAt       DateTime             @updatedAt
+
+  channel         CommerceChannel      @relation(fields: [channelId, tenantId], references: [id, tenantId], onDelete: Cascade)
+  variant         ProductVariant       @relation(fields: [variantId, tenantId], references: [id, tenantId], onDelete: Cascade)
+
+  @@unique([channelId, sellerSku])
+  @@index([tenantId, channelId])
+  @@index([tenantId, variantId])
+  @@map("channel_listings")
+}
+
+/// Execution audit log for marketplace synchronization jobs (orders pull, inventory push, etc.).
+model CommerceSyncLog {
+  id          String        @id @default(cuid())
+  tenantId    String
+  channelId   String
+  type        SyncJobType
+  status      SyncJobStatus
+  itemsCount  Int           @default(0)
+  details     String?
+  error       String?
+  createdAt   DateTime      @default(now())
+
+  channel     CommerceChannel @relation(fields: [channelId, tenantId], references: [id, tenantId], onDelete: Cascade)
+
+  @@index([tenantId, channelId, createdAt])
+  @@map("commerce_sync_logs")
+}
+
+// ===========================================================================
+// SECURITY SETTINGS & POLICY ENGINE MODELS (V4)
+// ===========================================================================
+
+enum LocationEnforcementMode {
+  OFF
+  WARN
+  ENFORCE_STAFF_ONLY
+  ENFORCE_ALL
+}
+
+enum SignInDecision {
+  ALLOWED
+  ALLOWED_WITH_WARNING
+  ALLOWED_BREAK_GLASS
+  BLOCKED_CREDENTIALS
+  BLOCKED_UNTRUSTED_NETWORK
+  BLOCKED_GEO_POLICY
+  BLOCKED_LOCKED_ACCOUNT
+}
+
+enum OutboxChannel {
+  EMAIL
+  SMS
+  WHATSAPP
+}
+
+enum OutboxStatus {
+  PENDING
+  PROCESSING
+  DELIVERED
+  FAILED
+  DEAD_LETTER
+}
+
+model UserSecurityPreferences {
+  userId               String   @id @map("user_id")
+  tenantId             String   @map("tenant_id")
+  signInAlertsEnabled  Boolean  @default(true) @map("sign_in_alerts_enabled")
+  alertOnNewDeviceOnly Boolean  @default(true) @map("alert_on_new_device_only")
+  notifyEmail          Boolean  @default(true) @map("notify_email")
+  notifySms            Boolean  @default(false) @map("notify_sms")
+  updatedAt            DateTime @updatedAt @map("updated_at")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId, tenantId], references: [id, tenantId], onDelete: Cascade)
+
+  @@unique([userId, tenantId])
+  @@index([tenantId])
+  @@map("user_security_preferences")
+}
+
+model KnownDevice {
+  id          String   @id @default(cuid())
+  tenantId    String   @map("tenant_id")
+  userId      String   @map("user_id")
+  deviceHash  String   @map("device_hash")
+  userAgent   String   @map("user_agent")
+  deviceKind  String   @map("device_kind")
+  browser     String?  @map("browser")
+  os          String?  @map("os")
+  firstSeenAt DateTime @default(now()) @map("first_seen_at")
+  lastSeenAt  DateTime @default(now()) @map("last_seen_at")
+  lastIp      String   @map("last_ip")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId, tenantId], references: [id, tenantId], onDelete: Cascade)
+
+  @@unique([tenantId, userId, deviceHash])
+  @@index([tenantId, userId])
+  @@map("known_devices")
+}
+
+model TenantLoginPolicy {
+  tenantId         String                  @id @map("tenant_id")
+  enforcementMode  LocationEnforcementMode @default(OFF) @map("enforcement_mode")
+  allowedCountries String[]                @default([]) @map("allowed_countries")
+  allowVpn         Boolean                 @default(false) @map("allow_vpn")
+  updatedByUserId  String                  @map("updated_by_user_id")
+  updatedAt        DateTime                @updatedAt @map("updated_at")
+
+  tenant    Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  updatedBy User   @relation("PolicyUpdatedBy", fields: [updatedByUserId, tenantId], references: [id, tenantId], onDelete: Restrict)
+
+  @@map("tenant_login_policies")
+}
+
+model TrustedNetwork {
+  id              String    @id @default(cuid())
+  tenantId        String    @map("tenant_id")
+  storeId         String?   @map("store_id")
+  label           String    @map("label")
+  cidr            String    @map("cidr")
+  ipVersion       Int       @default(4)      @map("ip_version")
+  createdByUserId String    @map("created_by_user_id")
+  createdAt       DateTime  @default(now())  @map("created_at")
+  expiresAt       DateTime? @map("expires_at")
+
+  tenant    Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  store     Store? @relation(fields: [storeId, tenantId], references: [id, tenantId], onDelete: Cascade)
+  createdBy User   @relation("TrustedNetworksCreated", fields: [createdByUserId, tenantId], references: [id, tenantId], onDelete: Restrict)
+
+  @@index([tenantId, storeId])
+  @@map("trusted_networks")
+}
+
+model BreakGlassSessionGrant {
+  id         String   @id @default(cuid())
+  tenantId   String   @map("tenant_id")
+  userId     String   @map("user_id")
+  deviceHash String   @map("device_hash")
+  ipAddress  String   @map("ip_address")
+  grantedAt  DateTime @default(now()) @map("granted_at")
+  expiresAt  DateTime @map("expires_at")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId, tenantId], references: [id, tenantId], onDelete: Cascade)
+
+  @@index([tenantId, userId, deviceHash])
+  @@map("break_glass_session_grants")
+}
+
+model SignInEvent {
+  id         String         @id @default(cuid())
+  tenantId   String         @map("tenant_id")
+  userId     String?        @map("user_id")
+  email      String         @map("email")
+  ip         String         @map("ip")
+  userAgent  String?        @map("user_agent")
+  country    String?        @map("country")
+  city       String?        @map("city")
+  decision   SignInDecision @map("decision")
+  reason     String?        @map("reason")
+  deviceHash String?        @map("device_hash")
+  sessionId  String?        @map("session_id")
+  createdAt  DateTime       @default(now()) @map("created_at")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  user   User?  @relation(fields: [userId, tenantId], references: [id, tenantId], onDelete: Restrict)
+
+  @@index([tenantId, createdAt])
+  @@index([tenantId, userId, createdAt])
+  @@index([ip, createdAt])
+  @@map("sign_in_events")
+}
+
+model SecurityNotificationOutbox {
+  id             String        @id @default(cuid())
+  tenantId       String        @map("tenant_id")
+  userId         String        @map("user_id")
+  channel        OutboxChannel @map("channel")
+  destination    String        @map("destination")
+  templateId     String        @map("template_id")
+  payloadCipher  String        @map("payload_cipher")
+  idempotencyKey String        @unique @map("idempotency_key")
+  status         OutboxStatus  @default(PENDING) @map("status")
+  attempts       Int           @default(0) @map("attempts")
+  maxAttempts    Int           @default(5) @map("max_attempts")
+  nextRetryAt    DateTime      @default(now()) @map("next_retry_at")
+  lockedAt       DateTime?     @map("locked_at")
+  lockedBy       String?       @map("locked_by")
+  lastError      String?       @map("last_error")
+  providerMsgId  String?       @map("provider_msg_id")
+  createdAt      DateTime      @default(now()) @map("created_at")
+  deliveredAt    DateTime?     @map("delivered_at")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId, tenantId], references: [id, tenantId], onDelete: Cascade)
+
+  @@index([status, nextRetryAt])
+  @@map("security_notification_outbox")
+}
+
+enum BarcodeType {
+  INTERNAL
+  MANUFACTURER
+  EAN13
+  UPC
+  QR
+}
+
+model AttributeDefinition {
+  id          String   @id @default(cuid())
+  tenantId    String
+  name        String
+  code        String
+  sortOrder   Int      @default(0)
+  isSystem    Boolean  @default(false)
+  isMandatory Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  tenant   Tenant                  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  values   AttributeValue[]
+  variants VariantAttributeValue[]
+
+  @@unique([tenantId, code])
+  @@unique([id, tenantId])
+  @@index([tenantId, sortOrder])
+  @@map("attribute_definitions")
+}
+
+model AttributeValue {
+  id           String   @id @default(cuid())
+  tenantId     String
+  definitionId String
+  value        String
+  code         String
+  colorHex     String?
+  sortOrder    Int      @default(0)
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  tenant         Tenant                  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  definition     AttributeDefinition     @relation(fields: [definitionId, tenantId], references: [id, tenantId], onDelete: Cascade, onUpdate: NoAction)
+  sizeGroupItems SizeGroupItem[]
+  variantLinks   VariantAttributeValue[]
+
+  @@unique([tenantId, definitionId, code])
+  @@unique([id, tenantId])
+  @@index([tenantId, definitionId, sortOrder])
+  @@map("attribute_values")
+}
+
+model SizeGroup {
+  id        String   @id @default(cuid())
+  tenantId  String
+  name      String
+  code      String
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  tenant Tenant          @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  items  SizeGroupItem[]
+
+  @@unique([tenantId, code])
+  @@unique([id, tenantId])
+  @@index([tenantId, sortOrder])
+  @@map("size_groups")
+}
+
+model SizeGroupItem {
+  id               String   @id @default(cuid())
+  tenantId         String
+  sizeGroupId      String
+  attributeValueId String
+  sortOrder        Int      @default(0)
+  createdAt        DateTime @default(now())
+
+  tenant    Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  sizeGroup SizeGroup      @relation(fields: [sizeGroupId, tenantId], references: [id, tenantId], onDelete: Cascade, onUpdate: NoAction)
+  value     AttributeValue @relation(fields: [attributeValueId, tenantId], references: [id, tenantId], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([sizeGroupId, attributeValueId])
+  @@index([tenantId, sizeGroupId, sortOrder])
+  @@map("size_group_items")
+}
+
+model VariantAttributeValue {
+  id                    String   @id @default(cuid())
+  tenantId              String
+  variantId             String
+  attributeDefinitionId String
+  attributeValueId      String
+  createdAt             DateTime @default(now())
+
+  tenant     Tenant              @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  variant    ProductVariant      @relation(fields: [variantId, tenantId], references: [id, tenantId], onDelete: Cascade, onUpdate: NoAction)
+  definition AttributeDefinition @relation(fields: [attributeDefinitionId, tenantId], references: [id, tenantId], onDelete: Restrict, onUpdate: NoAction)
+  value      AttributeValue      @relation(fields: [attributeValueId, tenantId], references: [id, tenantId], onDelete: Restrict, onUpdate: NoAction)
+
+  @@unique([variantId, attributeDefinitionId])
+  @@index([tenantId, attributeValueId])
+  @@map("variant_attribute_values")
+}
+
+model VariantBarcode {
+  id        String      @id @default(cuid())
+  tenantId  String
+  variantId String
+  barcode   String
+  type      BarcodeType @default(INTERNAL)
+  isPrimary Boolean     @default(false)
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
+
+  tenant  Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  variant ProductVariant @relation(fields: [variantId, tenantId], references: [id, tenantId], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([tenantId, barcode])
+  @@index([tenantId, variantId])
+  @@map("variant_barcodes")
 }

@@ -1,0 +1,2 @@
+-- Placeholder for migration recorded in _prisma_migrations table
+-- Ensures local migrations folder matches database migration history
