@@ -1,0 +1,3 @@
+﻿*.sql
+*.dump
+!**/prisma/migrations/**/*.sql
