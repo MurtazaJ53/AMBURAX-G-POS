@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { Prisma } from "@prisma/client";
 import { db } from "@/server/db";
 import { env } from "@/lib/env";
@@ -7,6 +8,7 @@ import { generateOpaqueToken, hashOpaqueToken } from "@/server/identity/token";
 import { isIpRateLimited, recordAttempt } from "@/server/identity/loginGuard";
 import { writeAuditLog } from "@/server/identity/audit";
 import { seedDefaultCapabilities } from "@/server/capability/capabilityService";
+import { seedGarmentMasters } from "../../../prisma/seedGarmentMasters";
 
 export type BusinessType = "RETAIL" | "WHOLESALE" | "MANUFACTURING" | "SERVICES" | "DISTRIBUTION" | "OTHER";
 
@@ -88,11 +90,10 @@ export async function registerBusiness(input: RegisterBusinessInput): Promise<Re
   for (let attempt = 1; attempt <= MAX_SLUG_ATTEMPTS; attempt++) {
     try {
       const result = await db.$transaction(async (tx) => {
-        const crypto = require("node:crypto");
         const slug = generateTenantSlug(input.businessName);
         const tenant = await tx.tenant.create({
           data: {
-            id: crypto.randomUUID(),
+            id: randomUUID(),
             name: input.businessName,
             slug,
             businessType: input.businessType,
@@ -103,13 +104,16 @@ export async function registerBusiness(input: RegisterBusinessInput): Promise<Re
             contactPhone: input.contactPhone,
             registrationKey: input.idempotencyKey,
             termsAcceptedAt: new Date(),
+            erpnextSiteId: "frontend",
+            erpnextCompanyId: null,
+            erpnextProvisionStatus: "NOT_PROVISIONED",
+            erpnextProvisionedAt: null,
           },
         });
 
-        // Same transaction as the tenant row on purpose: a tenant that committed without its
-        // default capabilities would be a tenant whose POS is switched off, and no crash
-        // between two statements should be able to produce that.
+        // Seed default capabilities and Garment Masters (Size/Colour definitions, presets, and size groups)
         await seedDefaultCapabilities(tx, tenant.id);
+        await seedGarmentMasters(tx as unknown as Prisma.TransactionClient, tenant.id);
 
         const token = generateOpaqueToken();
         const expiresAt = new Date(Date.now() + env.ONBOARDING_SESSION_TTL_MINUTES * 60 * 1000);

@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { Prisma } from "@prisma/client";
 import { db } from "@/server/db";
 import { writeAuditLog } from "@/server/identity/audit";
@@ -186,10 +187,9 @@ export async function seedDefaultCapabilities(
   tx: Prisma.TransactionClient,
   tenantId: string,
 ): Promise<void> {
-  const crypto = require("node:crypto");
   await tx.tenantCapability.createMany({
     data: DEFAULT_CAPABILITIES.map((capability) => ({ 
-      id: crypto.randomUUID(),
+      id: randomUUID(),
       tenantId, 
       capability, 
       enabled: true 
