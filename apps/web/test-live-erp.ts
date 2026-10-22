@@ -10,19 +10,31 @@ async function runLiveTest() {
   const storeId = "st-100";
   const userId = "u-100";
   
-  // Find a tenant
-  const tenant = await db.tenant.findFirst();
-  if (!tenant) throw new Error("No tenant");
+  // Find the active connected tenant
+  const tenant = await db.tenant.findFirst({
+    where: { erpnextCompanyId: { not: null } },
+  });
+  if (!tenant) throw new Error("No connected tenant");
   
-  const store = await db.store.findFirst({ where: { tenantId: tenant.id } });
-  if (!store) throw new Error("No store");
+  const store = await db.store.findFirst({
+    where: {
+      tenantId: tenant.id,
+      erpnextWarehouseId: { not: null },
+    },
+  });
+  if (!store) throw new Error("No provisioned store with warehouse");
   
   const user = await db.user.findFirst({ where: { tenantId: tenant.id } });
   
-  const product = await db.product.findFirst({ where: { tenantId: tenant.id } });
-  const variant = await db.productVariant.findFirst({ where: { productId: product?.id } });
+  const variant = await db.productVariant.findFirst({
+    where: {
+      tenantId: tenant.id,
+      taxTreatment: { not: "UNSPECIFIED" },
+      priceMinor: { gt: 0 },
+    },
+  });
   
-  if (!variant) throw new Error("No variant");
+  if (!variant) throw new Error("No sellable variant found for tenant " + tenant.id);
 
   console.log("Creating sale...");
   const saleRes = await createSale({
@@ -35,7 +47,10 @@ async function runLiveTest() {
     payment: { method: "CASH", amountMinor: variant.priceMinor * 2 },
   });
   
-  if (saleRes.status !== "ok" || !saleRes.sale) throw new Error("Sale creation failed");
+  if (saleRes.status !== "ok" || !saleRes.sale) {
+    console.error("Sale creation result:", JSON.stringify(saleRes, null, 2));
+    throw new Error("Sale creation failed: " + saleRes.status);
+  }
   const saleId = saleRes.sale.id;
   if (!saleId) throw new Error("Sale creation failed");
   
@@ -50,8 +65,11 @@ async function runLiveTest() {
   const retRes = await createReturn({
     tenantId: tenant.id,
     storeId: store.id,
+    // Returns are a manager's call (PERMISSIONS.md); this script stands in for the owner.
+    actor: { userId: user?.id ?? userId, tenantRole: "OWNER", membershipRole: null },
     originalSaleId: saleId,
     idempotencyKey: randomUUID(),
+    posSessionId: "cmv9nrct60007fh7ov6t9nazb",
     items: [{ originalSaleItemId: sale.items[0]!.id, quantity: 1 }],
     refundPayments: [{ method: "CASH", amountMinor: variant.priceMinor }],
   });

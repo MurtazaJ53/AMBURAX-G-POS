@@ -66,7 +66,7 @@ export async function resolveErpEnvironment(
 ): Promise<ResolveErpEnvironmentResult> {
   const tenant = await db.tenant.findUnique({
     where: { id: tenantId },
-    select: { id: true, erpnextSiteId: true, erpnextProvisionStatus: true },
+    select: { id: true, erpnextSiteId: true, erpnextProvisionStatus: true, erpnextCompanyId: true },
   });
   if (!tenant) return { status: "not_found" };
 
@@ -84,7 +84,9 @@ export async function resolveErpEnvironment(
       siteId: tenant.erpnextSiteId,
       // Placement is a later phase. Null is the honest value, not a default pool invented here.
       clusterId: null,
-      companyId: null,
+      // Set by provisioning (ADR-077/078). Null means "not linked yet" — callers that post documents
+      // must refuse (requireCompany), never substitute a company by name.
+      companyId: tenant.erpnextCompanyId ?? null,
       version: null,
     },
   };

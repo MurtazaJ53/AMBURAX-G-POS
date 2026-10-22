@@ -1,6 +1,7 @@
 import { Prisma } from "@prisma/client";
 import { db } from "@/server/db";
 import { logError, sanitizeText } from "@/lib/safeLog";
+import { ErpError } from "@/server/erp/errors";
 import {
   resolveOutboxPublisher,
   type OutboxPublisher,
@@ -76,25 +77,60 @@ export async function claimDueEvents(params: {
   now?: Date;
 }): Promise<ClaimedRow[]> {
   const batchSize = params.batchSize ?? 20;
-  const now = params.now ?? new Date();
+  // One clock for "is it due": the database's. `nextAttemptAt` defaults to the database's now(), so
+  // comparing it with the app server's clock let any skew (Docker's clock runs ~0.3 s ahead here)
+  // hold back a just-created event. Columns are UTC timestamps without zone, hence AT TIME ZONE.
+  // A caller-supplied `now` (tests) is used as given.
+  const now = params.now ? Prisma.sql`${params.now}` : Prisma.sql`(clock_timestamp() AT TIME ZONE 'UTC')`;
   const tenantFilter = params.tenantId
     ? Prisma.sql`AND "tenantId" = ${params.tenantId}`
     : Prisma.empty;
 
   const rows = await db.$queryRaw<ClaimedRow[]>`
+    WITH unpaused_tenants AS (
+      SELECT id FROM "tenants" WHERE "isSyncPaused" = false
+    ),
+    -- Rank ALL unpublished events per tenant first so an earlier event waiting after failure
+    -- blocks any subsequent dependent events from jumping ahead of it.
+    all_unpublished_ranked AS (
+      SELECT 
+        o.id, 
+        o."tenantId", 
+        o."occurredAt",
+        o."nextAttemptAt",
+        ROW_NUMBER() OVER (
+          PARTITION BY o."tenantId" 
+          ORDER BY o."occurredAt" ASC, o."id" ASC
+        ) AS tenant_seq
+      FROM "outbox_events" o
+      JOIN unpaused_tenants t ON t.id = o."tenantId"
+      WHERE o."publishedAt" IS NULL
+        AND o."deadLetteredAt" IS NULL
+        ${tenantFilter}
+    ),
+    -- Find the earliest sequence per tenant that is NOT yet due (waiting after a transient failure)
+    blocked_tenants AS (
+      SELECT "tenantId", MIN(tenant_seq) as first_waiting_seq
+      FROM all_unpublished_ranked
+      WHERE "nextAttemptAt" > ${now}
+      GROUP BY "tenantId"
+    ),
+    candidates AS (
+      SELECT a.id, a."occurredAt", a.id as tie_id
+      FROM all_unpublished_ranked a
+      LEFT JOIN blocked_tenants b ON b."tenantId" = a."tenantId"
+      WHERE a.tenant_seq <= 20
+        AND a."nextAttemptAt" <= ${now}
+        -- If an earlier event is waiting, DO NOT claim any later event for this tenant!
+        AND (b.first_waiting_seq IS NULL OR a.tenant_seq < b.first_waiting_seq)
+      ORDER BY a."occurredAt" ASC, a.id ASC
+      LIMIT ${batchSize}
+      FOR UPDATE SKIP LOCKED
+    )
     UPDATE "outbox_events" AS o
        SET "attempts"      = o."attempts" + 1,
            "nextAttemptAt" = ${now} + (LEAST(3600000, 30000 * POWER(2, o."attempts")) || ' milliseconds')::interval
-     WHERE o."id" IN (
-       SELECT "id" FROM "outbox_events"
-        WHERE "publishedAt" IS NULL
-          AND "deadLetteredAt" IS NULL
-          AND "nextAttemptAt" <= ${now}
-          ${tenantFilter}
-        ORDER BY "occurredAt" ASC
-        FOR UPDATE SKIP LOCKED
-        LIMIT ${batchSize}
-     )
+     WHERE o."id" IN (SELECT id FROM candidates)
     RETURNING o."id", o."tenantId", o."storeId", o."eventType", o."eventVersion",
               o."occurredAt", o."actorUserId", o."correlationId", o."causationId",
               o."entityId", o."payload", o."attempts"
@@ -171,8 +207,23 @@ export async function dispatchOutboxOnce(params?: {
       });
       result.published += 1;
     } catch (err) {
-      // `attempts` was already incremented by the claim, so this is the count so far.
-      const exhausted = row.attempts >= MAX_ATTEMPTS;
+      // Classify Permanent vs. Transient Errors per reviewer specification:
+      // Permanent errors (statutory validation failures, fiscal year setup errors, unsupported config):
+      // -> Dead-letter immediately on attempt 1.
+      // Dependency / Not Found errors (e.g. Item not yet in ERPNext, waiting for variant sync):
+      // -> Retried with backoff so the preceding Item creation event has a chance to complete.
+      // Transient errors (timeouts, 5xx server errors, rate limits 429):
+      // -> Retried with exponential backoff up to MAX_ATTEMPTS (or 24 hours).
+      const errMsg = err instanceof Error ? err.message : String(err);
+      const isMissingWarehouse = errMsg.includes("has no ERP warehouse provisioned");
+      const isMissingValuation = errMsg.includes("no valuation cost recorded");
+      const isFiscalYearError = errMsg.includes("not in any active Fiscal Year");
+      const isStatutoryValidationError = errMsg.includes("tax treatment UNSPECIFIED");
+      const isPermanentConfig = err instanceof ErpError && (err.kind === "configuration_error" || err.kind === "unsupported_version");
+      const isMissingItemDependency = errMsg.includes("Could not find Row #1: Item Code") || errMsg.includes("Item Code does not exist") || (err instanceof ErpError && err.kind === "not_found");
+      
+      const isUnrecoverable = !isMissingItemDependency && (isMissingWarehouse || isMissingValuation || isFiscalYearError || isStatutoryValidationError || isPermanentConfig || (err instanceof ErpError && !err.retryable));
+      const exhausted = isUnrecoverable || row.attempts >= MAX_ATTEMPTS;
 
       await db.outboxEvent.update({
         where: { id: row.id },

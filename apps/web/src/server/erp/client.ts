@@ -115,11 +115,33 @@ export class ErpClient {
       const response = await this.transport.send(request, credentials);
 
       if (response.status >= 400) {
+        let detailedMsg = `ERP refused the request (status ${response.status}).`;
+        // For validation errors (422), do not forward upstream exception strings that can leak customer/commercial data
+        if (response.status !== 422 && response.body && typeof response.body === "object") {
+          const b = response.body as Record<string, unknown>;
+          if (typeof b._server_messages === "string") {
+            try {
+              const msgs = JSON.parse(b._server_messages);
+              if (Array.isArray(msgs) && msgs.length > 0) {
+                const parsed = typeof msgs[0] === "string" ? JSON.parse(msgs[0]) : msgs[0];
+                if (parsed?.message) {
+                  // Strip HTML tags for clean display
+                  detailedMsg = String(parsed.message).replace(/<[^>]+>/g, "").trim();
+                }
+              }
+            } catch {
+              // fallback to default
+            }
+          } else if (typeof b.exception === "string") {
+            detailedMsg = b.exception.split(":").slice(1).join(":").trim() || b.exception;
+          } else if (typeof b.message === "string") {
+            detailedMsg = b.message;
+          }
+        }
+
         throw new ErpError({
           kind: kindFromHttpStatus(response.status),
-          // Sanitized, and deliberately not the body: an ERP validation message can quote the
-          // document it refused, and that document is somebody's commercial data.
-          message: `ERP refused the request (status ${response.status}).`,
+          message: sanitizeText(detailedMsg),
           correlationId: context.correlationId,
         });
       }

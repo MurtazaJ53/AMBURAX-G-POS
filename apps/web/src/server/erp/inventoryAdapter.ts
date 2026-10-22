@@ -1,4 +1,5 @@
 import { db } from "@/server/db";
+import { requireCompany, assertWarehouseCompanyMatch } from "@/server/erp/documentSync";
 import { ErpClient } from "@/server/erp/client";
 import { resolveErpEnvironment, EnvErpCredentialProvider } from "@/server/erp/config";
 import type { ErpEnvironment } from "@/server/erp/config";
@@ -67,54 +68,65 @@ export class ErpInventoryAdapter {
       return null;
     }
 
-    // More than one: this should never happen because remarks contains the movement id,
-    // but if ERPNext somehow has duplicates we throw rather than silently picking one.
     if (data.length === 1) {
       return data[0]?.name ?? null;
     }
 
+    // Defensive: multiple Stock Entries share the exact same movement remarks token.
+    // This is an unrecoverable invariant violation that requires operator inspection.
     throw new ErpError({
       kind: "validation_failed",
-      message: `Multiple Stock Entries found for movement ${movementId}`,
+      message: `Multiple Stock Entries found for movement ${movementId} with remarks "${remarks}". Manual intervention required.`,
       correlationId,
     });
   }
 
   /**
-   * Sync one local StockMovement to ERPNext as a submitted Stock Entry.
+   * Synchronize a single Stock Movement to an ERPNext Stock Entry document.
    *
-   * - Positive quantityDelta → Material Receipt (t_warehouse)
-   * - Negative quantityDelta → Material Issue (s_warehouse)
-   *
-   * Idempotent: a second call for the same movementId returns without creating
-   * a second Stock Entry.
-   *
-   * Tenant isolation: the movement is fetched with `{ id, tenantId }` so a
-   * movement belonging to another tenant produces "not found" rather than
-   * crossing a boundary.
+   * Invariant rules:
+   *   1. Exactly one Stock Entry per AMBURAX StockMovement record (idempotency key: `remarks`).
+   *   2. Positive delta (+N) → incoming stock → purpose "Material Receipt" → target `t_warehouse`.
+   *   3. Negative delta (-N) → outgoing stock → purpose "Material Issue"   → source `s_warehouse`.
+   *   4. Quantity must be non-zero (zero-delta movements are a business logic error).
+   *   5. Submits the Stock Entry (`docstatus: 1`) so that ERPNext stock ledger entries are posted.
+   *   6. On retry after failure: checks for existing Stock Entry before attempting creation.
+   *   7. Requires a provisioned store with `erpnextWarehouseId` set.
+   *   8. Opening Stock valuation:
+   *      - unitCostMinor > 0 → valuation_rate = unitCostMinor / 100
+   *      - unitCostMinor === 0 AND isFreeSample === true → valuation_rate = 0, allow_zero_valuation_rate = 1
+   *      - unitCostMinor === 0 AND isFreeSample === false → REJECT with 422 MISSING_OPENING_COST
+   *   9. Step 5b Guard: Store warehouse must belong to tenant company (fail-closed).
    */
-  public async syncMovement(
-    tenantId: string,
-    movementId: string,
-    correlationId: string
-  ): Promise<void> {
+  public async syncMovement(tenantId: string, movementId: string, correlationId: string): Promise<void> {
     const movement = await db.stockMovement.findUnique({
       where: { id: movementId, tenantId },
       include: {
         store: true,
         variant: {
-          include: { product: true },
+          include: {
+            product: true,
+          },
         },
       },
     });
 
     if (!movement) {
-      // Movement does not exist or belongs to another tenant — treat both the same way.
-      throw new Error(`Stock movement ${movementId} not found for tenant ${tenantId}`);
+      throw new Error(`Stock movement ${movementId} not found`);
     }
 
-    const envResult = await resolveErpEnvironment(tenantId);
+    if (movement.quantityDelta === 0) {
+      // Invariant violation: movements with 0 delta should not be created.
+      // This is a permanent validation failure — dead-letter immediately.
+      throw new ErpError({
+        kind: "validation_failed",
+        message: `Stock movement ${movementId} has quantityDelta of 0. Cannot sync zero-quantity movement.`,
+        correlationId,
+      });
+    }
 
+    // ── Pre-flight: Check ERP environment provision status ───────────────────
+    const envResult = await resolveErpEnvironment(tenantId);
     if (envResult.status !== "ok") {
       throw new ErpError({
         kind: "configuration_error",
@@ -122,10 +134,9 @@ export class ErpInventoryAdapter {
         correlationId,
       });
     }
-
     const env = envResult.environment;
 
-    // ── Idempotency guard ────────────────────────────────────────────────────
+    // ── Idempotency Check ────────────────────────────────────────────────────
     const existingEntryName = await this.lookupStockEntryByMovementId(
       env,
       tenantId,
@@ -138,16 +149,16 @@ export class ErpInventoryAdapter {
       return;
     }
 
-    // ── Dependency validation ────────────────────────────────────────────────
-    if (!movement.store.erpnextWarehouseId) {
-      throw new ErpError({
-        kind: "configuration_error",
-        message: `Store ${movement.storeId} has no ERP warehouse provisioned. Cannot sync stock movement.`,
-        correlationId,
-      });
-    }
+    // ── Dependency validation & Cross-Tenant Guard ────────────────────────────
+    const company = requireCompany(env, correlationId);
+    await assertWarehouseCompanyMatch(this.client, env, { tenantId, correlationId, causationId: movement.id }, {
+      storeId: movement.storeId,
+      warehouseId: movement.store.erpnextWarehouseId,
+      expectedCompany: company,
+    });
 
-    const warehouseId = movement.store.erpnextWarehouseId;
+    const warehouseId = movement.store.erpnextWarehouseId!;
+
     // The AMBURAX variantId is used as the ERPNext item_code (established by catalogAdapter).
     const itemCode = movement.variantId;
     const quantity = Math.abs(movement.quantityDelta);
@@ -157,57 +168,75 @@ export class ErpInventoryAdapter {
     // Negative → outgoing stock: Material Issue   → s_warehouse
     const purpose = isPositive ? "Material Receipt" : "Material Issue";
 
+    // ── Valuation Rate & Free Sample Logic ───────────────────────────────────
+    let valuationRate: number | undefined;
+    let allowZeroValuationRate: number | undefined;
+
+    if (isPositive) {
+      if (movement.unitCostMinor != null && movement.unitCostMinor > 0) {
+        valuationRate = movement.unitCostMinor / 100;
+      } else if (movement.isFreeSample) {
+        valuationRate = 0;
+        allowZeroValuationRate = 1;
+      } else {
+        // Enforce strict zero cost rejection
+        throw new ErpError({
+          kind: "validation_failed",
+          message: `Stock movement ${movementId} has zero or missing unit cost without isFreeSample flag. Cannot sync stock movement.`,
+          correlationId,
+        });
+      }
+    }
+
+    // Build line item
+    const lineItem: Record<string, unknown> = {
+      item_code: itemCode,
+      qty: quantity,
+      uom: "Nos",
+      stock_uom: "Nos",
+      conversion_factor: 1,
+      ...(isPositive ? { t_warehouse: warehouseId } : { s_warehouse: warehouseId }),
+      ...(valuationRate !== undefined ? { basic_rate: valuationRate } : {}),
+      ...(allowZeroValuationRate !== undefined ? { allow_zero_valuation_rate: allowZeroValuationRate } : {}),
+    };
+
     const stockEntryDoc: Record<string, unknown> = {
       doctype: "Stock Entry",
       purpose,
-      // Embed the movement id in remarks so idempotency lookup works on re-delivery.
+      stock_entry_type: purpose,
+      company,
+      posting_date: new Date().toISOString().split("T")[0],
       remarks: buildRemarks(movement.id),
-      company: env.companyId ?? "Amburax Retail",
-      items: [
-        {
-          item_code: itemCode,
-          qty: quantity,
-          uom: "Nos",
-          stock_uom: "Nos",
-          t_warehouse: isPositive ? warehouseId : undefined,
-          s_warehouse: isPositive ? undefined : warehouseId,
-        },
-      ],
+      docstatus: 1, // Submit immediately
+      items: [lineItem],
     };
 
-    // ── Create the Stock Entry (Draft) ───────────────────────────────────────
-    const createResponse = await this.client.call(
+    const response = await this.client.call(
       env,
       { tenantId, correlationId, causationId: movement.id },
       {
         method: "POST",
         path: "/api/resource/Stock Entry",
         body: stockEntryDoc,
-        idempotencyKey: movement.id,
+        idempotencyKey: `stock-entry:${movement.id}`,
       }
     );
 
-    if (createResponse.status !== 200 && createResponse.status !== 201) {
+    if (response.status !== 200 && response.status !== 201) {
       throw new ErpError({
         kind: "server_error",
-        message: `Failed to create Stock Entry: HTTP ${createResponse.status}`,
+        message: `Failed to create Stock Entry: HTTP ${response.status}`,
         correlationId,
       });
     }
 
-    // ── Submit the Stock Entry ───────────────────────────────────────────────
-    const createdName = (createResponse.body as { data?: { name?: string } })?.data?.name;
-
-    if (createdName) {
-      await this.client.call(
-        env,
-        { tenantId, correlationId, causationId: movement.id },
-        {
-          method: "PUT",
-          path: `/api/resource/Stock Entry/${encodeURIComponent(createdName)}`,
-          body: { docstatus: 1 },
-        }
-      );
+    const created = response.body as { data?: { name: string } };
+    if (!created?.data?.name) {
+      throw new ErpError({
+        kind: "malformed_response",
+        message: `ERPNext created Stock Entry but did not return document name for movement ${movement.id}`,
+        correlationId,
+      });
     }
   }
 }

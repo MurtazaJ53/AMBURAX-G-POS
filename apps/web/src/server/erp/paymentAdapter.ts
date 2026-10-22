@@ -1,4 +1,5 @@
 import { db } from "@/server/db";
+import { requireCompany } from "@/server/erp/documentSync";
 import { ErpClient } from "@/server/erp/client";
 import { resolveErpEnvironment, EnvErpCredentialProvider } from "@/server/erp/config";
 import type { ErpEnvironment } from "@/server/erp/config";
@@ -181,10 +182,25 @@ export class ErpPaymentAdapter {
       remainingAmount -= allocation;
     }
 
-    const company = env.companyId ?? "Amburax Retail";
+    const company = requireCompany(env, correlationId);
+    let abbr = "AR";
+    try {
+      const compRes = await this.client.call(
+        env,
+        { tenantId, correlationId, causationId: payment.id },
+        { method: "GET", path: `/api/resource/Company/${encodeURIComponent(company)}` }
+      );
+      const compBody = compRes.body as { data?: { abbr?: string } };
+      if (compBody?.data?.abbr) {
+        abbr = compBody.data.abbr;
+      }
+    } catch {
+      // Fallback
+    }
+
     const modeOfPayment = payment.paymentMethod === "UPI" ? "Bank" : payment.paymentMethod === "CARD" ? "Bank" : "Cash";
-    const paidToAccount = modeOfPayment === "Bank" ? "Bank - AR" : "Cash - AR";
-    const paidFromAccount = "Debtors - AR";
+    const paidToAccount = modeOfPayment === "Bank" ? `Bank - ${abbr}` : `Cash - ${abbr}`;
+    const paidFromAccount = `Debtors - ${abbr}`;
 
     const paymentEntryPayload = {
       doctype: "Payment Entry",

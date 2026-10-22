@@ -7,6 +7,19 @@ import {
   describeRunnerStartup,
   runOutboxWorker,
 } from "@/server/events/outboxRunner";
+import { TenantProvisioner } from "@/server/erp/tenantProvisioning";
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+/** Daily: every connected business gets its next financial year well before 1 April. */
+function startFiscalYearRenewal(): () => void {
+  const run = () =>
+    new TenantProvisioner().renewFiscalYears().catch((err) => logError("fiscal year renewal failed", err, {}));
+  void run();
+  const timer = setInterval(run, DAY_MS);
+  timer.unref();
+  return () => clearInterval(timer);
+}
 
 /**
  * Standalone entry point for the outbox dispatcher. Run with `npm run outbox:work`.
@@ -72,6 +85,7 @@ export async function main(): Promise<number> {
   process.once("SIGINT", () => stop("SIGINT"));
   process.once("SIGTERM", () => stop("SIGTERM"));
 
+  const stopRenewal = startFiscalYearRenewal();
   try {
     const summary = await runOutboxWorker({ signal: controller.signal });
     console.log(JSON.stringify({ level: "info", scope: "outbox runner: stopped", ...summary }));
@@ -80,6 +94,7 @@ export async function main(): Promise<number> {
     logError("outbox runner: terminated", err, {});
     return EXIT_FAILED;
   } finally {
+    stopRenewal();
     // The worker owns its process, so it owns the connection pool's shutdown too.
     await db.$disconnect().catch(() => {});
   }

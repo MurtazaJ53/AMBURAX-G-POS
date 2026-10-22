@@ -37,6 +37,25 @@ export const OUTBOX_EVENT_TYPES = [
   "CustomerUpdated",
   "CustomerPaymentCollected",
   "SaleReturnCreated",
+  // ERPNext-first (2026-10-14): purchasing and transfers sync as their own ERPNext documents.
+  "SupplierCreated",
+  "SupplierUpdated",
+  "PurchaseReceiptCreated",
+  "PurchaseReturnCreated",
+  "StockTransferSent",
+  "StockTransferReceived",
+  "StockTransferCancelled",
+  // Screen 32: reorder levels → ERPNext Item Reorder; requests → draft ERPNext Material Request.
+  "ReorderRuleSet",
+  "ReplenishmentRequested",
+  // Screens 47-48: purchase orders → submitted ERPNext Purchase Order; cancel → cancelled there.
+  "PurchaseOrderCreated",
+  "PurchaseOrderCancelled",
+  // E4: an approved till difference -> ERPNext cash over/short Journal Entry.
+  "TillVarianceApproved",
+  // ADR-077/078: connect a business to ERPNext — site, Company, AMBURAX company, warehouses.
+  "TenantProvisionRequested",
+  "TenantGstRegistered",
 ] as const;
 
 export type OutboxEventType = (typeof OUTBOX_EVENT_TYPES)[number];

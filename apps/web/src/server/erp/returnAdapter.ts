@@ -1,4 +1,5 @@
 import { db } from "@/server/db";
+import { requireCompany, assertWarehouseCompanyMatch } from "@/server/erp/documentSync";
 import { ErpClient } from "@/server/erp/client";
 import { resolveErpEnvironment, EnvErpCredentialProvider } from "@/server/erp/config";
 import type { ErpEnvironment } from "@/server/erp/config";
@@ -6,6 +7,7 @@ import { HttpErpTransport } from "@/server/erp/httpTransport";
 import { ErpError } from "@/server/erp/errors";
 import type { ErpTransport } from "@/server/erp/transport";
 import { ErpCustomerAdapter } from "@/server/erp/customerAdapter";
+import { buildGstInvoice, defaultGstAccounts } from "@/server/erp/gstInvoice";
 
 export class ErpReturnAdapter {
   private client: ErpClient;
@@ -61,7 +63,13 @@ export class ErpReturnAdapter {
       include: {
         items: { include: { originalSaleItem: true } },
         payments: true,
-        originalSale: { include: { store: true } },
+        originalSale: {
+          include: {
+            store: { include: { company: { select: { code: true } } } },
+            customer: { select: { gstin: true } },
+            tenant: { select: { taxId: true } },
+          },
+        },
       },
     });
 
@@ -101,12 +109,39 @@ export class ErpReturnAdapter {
       invoiceId = existingInvoiceId;
     } else {
       // 2. Map to ERPNext Sales Invoice (Return)
-      // ERPNext expects negative quantities for return invoices.
-      const items = saleReturn.items.map((item) => ({
-        item_code: item.originalSaleItem.variantId,
-        qty: -item.quantity, // Negative for return
-        rate: item.originalSaleItem.unitPriceMinor / 100, // Positive rate
-      }));
+      // ERPNext expects negative quantities for return invoices. A GST-registered business
+      // reverses the GST too: each returned line's refund carries the same share of GST as the
+      // line had when sold, sent as taxable value plus negative CGST/SGST (or IGST) rows.
+      const supplierGstin = saleReturn.originalSale.tenant?.taxId?.trim().toUpperCase() || null;
+      const abbr = saleReturn.originalSale.store.company?.code;
+      const gst =
+        supplierGstin && abbr
+          ? buildGstInvoice({
+              supplierGstin,
+              customerGstin: saleReturn.originalSale.customer?.gstin,
+              accounts: defaultGstAccounts(abbr),
+              lines: saleReturn.items.map((item) => {
+                const sold = item.originalSaleItem;
+                const paid = sold.lineTotalMinor - sold.lineDiscountMinor;
+                const taxMinor = paid > 0 ? Math.round((item.refundMinor * sold.taxMinor) / paid) : 0;
+                return {
+                  variantId: sold.variantId,
+                  quantity: item.quantity,
+                  unitPriceMinor: sold.unitPriceMinor,
+                  lineDiscountMinor: 0,
+                  taxMinor,
+                  lineTotalMinor: item.refundMinor,
+                };
+              }),
+            })
+          : null;
+      const items = gst
+        ? gst.items.map((i) => ({ ...i, qty: -i.qty }))
+        : saleReturn.items.map((item) => ({
+            item_code: item.originalSaleItem.variantId,
+            qty: -item.quantity, // Negative for return
+            rate: item.originalSaleItem.unitPriceMinor / 100, // Positive rate
+          }));
 
       // Payments are also negative in ERPNext POS Returns
       const payments = saleReturn.payments.map((p) => {
@@ -119,13 +154,12 @@ export class ErpReturnAdapter {
         };
       }).filter(p => p.amount !== 0);
 
-      if (!saleReturn.originalSale.store.erpnextWarehouseId) {
-        throw new ErpError({
-          kind: "configuration_error",
-          message: `Store ${saleReturn.storeId} has no ERP warehouse provisioned. Cannot sync return.`,
-          correlationId,
-        });
-      }
+      const company = requireCompany(envResult.environment, correlationId);
+      await assertWarehouseCompanyMatch(this.client, envResult.environment, { tenantId, correlationId, causationId: saleReturn.id }, {
+        storeId: saleReturn.storeId,
+        warehouseId: saleReturn.originalSale.store.erpnextWarehouseId,
+        expectedCompany: company,
+      });
 
       // Resolve ERP Customer name if original sale had a customer
       let customerName = "Cash";
@@ -155,16 +189,22 @@ export class ErpReturnAdapter {
 
       const invoiceDoc = {
         doctype: "Sales Invoice",
-        company: envResult.environment.companyId ?? "Amburax Retail",
+        company: requireCompany(envResult.environment, correlationId),
         customer: customerName,
-        is_pos: 1,
+        currency: "INR",
+        conversion_rate: 1,
+        selling_price_list: "Standard Selling",
+        price_list_currency: "USD",
+        plc_conversion_rate: 85,
+        is_pos: payments.length > 0 ? 1 : 0,
         is_return: 1,
         return_against: saleReturn.originalSale.erpInvoiceId,
         update_stock: 1,
         docstatus: 1, // Submitted
         set_warehouse: saleReturn.originalSale.store.erpnextWarehouseId, 
         items,
-        payments,
+        ...(payments.length > 0 ? { payments } : {}),
+        ...(gst ? { taxes: gst.taxes.map((t) => ({ ...t, tax_amount: -t.tax_amount })), company_gstin: supplierGstin } : {}),
         amburax_sale_id: saleReturn.id, // Deterministic idempotency key mapping
       };
 
