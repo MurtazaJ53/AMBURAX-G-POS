@@ -1,5 +1,12 @@
 import { db } from "@/server/db";
-import { requireCompany, assertWarehouseCompanyMatch, inrPricingPayload, assertInrCurrencyGuard } from "@/server/erp/documentSync";
+import {
+  requireCompany,
+  assertWarehouseCompanyMatch,
+  inrPricingPayload,
+  assertInrCurrencyGuard,
+  erpDate,
+  erpTime,
+} from "@/server/erp/documentSync";
 import { ErpClient } from "@/server/erp/client";
 import { resolveErpEnvironment, EnvErpCredentialProvider } from "@/server/erp/config";
 import type { ErpEnvironment } from "@/server/erp/config";
@@ -63,6 +70,10 @@ export class ErpSaleAdapter {
     if (data.length === 1) {
       const doc = data[0]!;
       const docstatus = doc.docstatus ?? 0;
+      // If found invoice was cancelled (docstatus === 2), it is not a valid active invoice; return null so a fresh one is created
+      if (docstatus === 2) {
+        return null;
+      }
       // If found invoice is still a draft (docstatus === 0), validate currency guard before returning/submitting
       if (docstatus === 0) {
         assertInrCurrencyGuard("Sales Invoice", doc.name, doc, correlationId);
@@ -241,6 +252,9 @@ export class ErpSaleAdapter {
         ...inrPricingPayload("selling"),
         company: requireCompany(envResult.environment, correlationId),
         customer: customerName,
+        posting_date: erpDate(sale.completedAt),
+        posting_time: erpTime(sale.completedAt),
+        set_posting_time: 1,
         is_pos: payments.length > 0 ? 1 : 0,
         update_stock: 1,
         // Insert as draft (docstatus: 0), run currency guards on created doc, then submit in separate call.

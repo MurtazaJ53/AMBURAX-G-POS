@@ -1,5 +1,12 @@
 import { db } from "@/server/db";
-import { requireCompany, assertWarehouseCompanyMatch, inrPricingPayload, assertInrCurrencyGuard } from "@/server/erp/documentSync";
+import {
+  requireCompany,
+  assertWarehouseCompanyMatch,
+  inrPricingPayload,
+  assertInrCurrencyGuard,
+  erpDate,
+  erpTime,
+} from "@/server/erp/documentSync";
 import { ErpClient } from "@/server/erp/client";
 import { resolveErpEnvironment, EnvErpCredentialProvider } from "@/server/erp/config";
 import type { ErpEnvironment } from "@/server/erp/config";
@@ -63,6 +70,10 @@ export class ErpReturnAdapter {
     if (data.length === 1) {
       const doc = data[0]!;
       const docstatus = doc.docstatus ?? 0;
+      // If found return invoice was cancelled (docstatus === 2), it is not a valid active invoice; return null so a fresh one is created
+      if (docstatus === 2) {
+        return null;
+      }
       // If found return invoice is still a draft (docstatus === 0), validate currency guard before returning/submitting
       if (docstatus === 0) {
         assertInrCurrencyGuard("Sales Invoice", doc.name, doc, correlationId, true);
@@ -224,6 +235,9 @@ export class ErpReturnAdapter {
         ...inrPricingPayload("selling"),
         company: requireCompany(envResult.environment, correlationId),
         customer: customerName,
+        posting_date: erpDate(saleReturn.createdAt),
+        posting_time: erpTime(saleReturn.createdAt),
+        set_posting_time: 1,
         is_pos: payments.length > 0 ? 1 : 0,
         is_return: 1,
         return_against: saleReturn.originalSale.erpInvoiceId,

@@ -1,5 +1,5 @@
 import { db } from "@/server/db";
-import { requireCompany } from "@/server/erp/documentSync";
+import { requireCompany, erpDate, erpTime } from "@/server/erp/documentSync";
 import { ErpClient } from "@/server/erp/client";
 import { resolveErpEnvironment, EnvErpCredentialProvider } from "@/server/erp/config";
 import type { ErpEnvironment } from "@/server/erp/config";
@@ -208,7 +208,7 @@ export class ErpPaymentAdapter {
       party_type: "Customer",
       party: erpCustomerName,
       company,
-      posting_date: payment.createdAt.toISOString().split("T")[0],
+      posting_date: erpDate(payment.createdAt),
       paid_from: paidFromAccount,
       paid_to: paidToAccount,
       paid_amount: amountToAllocate,

@@ -172,6 +172,11 @@ export function erpDate(at: Date): string {
   return new Date(at.getTime() + 330 * 60_000).toISOString().slice(0, 10);
 }
 
+/** The ERPNext time (HH:MM:SS) for a moment, in India time — the store's business time. */
+export function erpTime(at: Date): string {
+  return new Date(at.getTime() + 330 * 60_000).toISOString().slice(11, 19);
+}
+
 /**
  * Find a document by a field AMBURAX stamped on it (usually `remarks`). This is the idempotency
  * guard: a re-delivered event finds the document the first delivery made and stops there.
@@ -196,15 +201,18 @@ export async function findDocumentName(
   }
   const data = (response.body as { data?: Array<{ name: string; docstatus?: number } & Record<string, unknown>> })?.data;
   if (!Array.isArray(data) || data.length === 0) return null;
-  if (data.length > 1) {
+  // Ignore cancelled documents (docstatus === 2) so cancelled idempotency targets allow fresh recreation
+  const activeDocs = data.filter((d) => d.docstatus !== 2);
+  if (activeDocs.length === 0) return null;
+  if (activeDocs.length > 1) {
     throw new ErpError({
       kind: "validation_failed",
-      message: `Multiple ${doctype} documents match ${field}`,
+      message: `Multiple active ${doctype} documents match ${field}`,
       correlationId: ctx.correlationId,
     });
   }
 
-  const doc = data[0];
+  const doc = activeDocs[0];
   if (!doc?.name) return null;
 
   // If the document is a draft (docstatus === 0), validate that it satisfies currency guards
