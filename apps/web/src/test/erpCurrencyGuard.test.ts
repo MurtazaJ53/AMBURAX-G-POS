@@ -124,4 +124,34 @@ describe("ERP Currency Guard & Payload", () => {
       assertInrCurrencyGuard("Stock Entry", "STE-2026-00001", doc, "test-corr-5")
     ).not.toThrow();
   });
+
+  it("findDocumentName throws currency_mismatch if found document is a draft with invalid currency", async () => {
+    const { findDocumentName } = await import("@/server/erp/documentSync");
+    const mockClient = {
+      call: async () => ({
+        status: 200,
+        body: {
+          data: [
+            {
+              name: "ACC-SINV-2026-DRAFT-USD",
+              docstatus: 0,
+              currency: "USD",
+              conversion_rate: 1,
+            },
+          ],
+        },
+      }),
+    };
+
+    await expect(
+      findDocumentName(
+        mockClient as any,
+        { siteId: "test", tenantId: "t1", clusterId: null, companyId: "C1", version: null },
+        { tenantId: "t1", correlationId: "c1" },
+        "Sales Invoice",
+        "amburax_sale_id",
+        "sale-1"
+      )
+    ).rejects.toThrowError(ErpError);
+  });
 });

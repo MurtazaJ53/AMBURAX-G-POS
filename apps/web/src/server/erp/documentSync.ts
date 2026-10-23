@@ -185,7 +185,7 @@ export async function findDocumentName(
   value: string,
 ): Promise<string | null> {
   const filters = JSON.stringify([[field, "=", value]]);
-  const fields = JSON.stringify(["name"]);
+  const fields = JSON.stringify(["name", "docstatus", "currency", "price_list_currency", "conversion_rate", "plc_conversion_rate"]);
   const path = `/api/resource/${doctype}?filters=${encodeURIComponent(filters)}&fields=${encodeURIComponent(fields)}`;
   let response;
   try {
@@ -194,7 +194,7 @@ export async function findDocumentName(
     if (error instanceof ErpError && error.kind === "not_found") return null;
     throw error;
   }
-  const data = (response.body as { data?: Array<{ name: string }> })?.data;
+  const data = (response.body as { data?: Array<{ name: string; docstatus?: number } & Record<string, unknown>> })?.data;
   if (!Array.isArray(data) || data.length === 0) return null;
   if (data.length > 1) {
     throw new ErpError({
@@ -203,7 +203,17 @@ export async function findDocumentName(
       correlationId: ctx.correlationId,
     });
   }
-  return data[0]?.name ?? null;
+
+  const doc = data[0];
+  if (!doc?.name) return null;
+
+  // If the document is a draft (docstatus === 0), validate that it satisfies currency guards
+  // before callers attempt to submit or reuse it.
+  if (doc.docstatus === 0 && CURRENCY_GUARDED_DOCTYPES.has(doctype)) {
+    assertInrCurrencyGuard(doctype, doc.name, doc, ctx.correlationId);
+  }
+
+  return doc.name;
 }
 
 /**

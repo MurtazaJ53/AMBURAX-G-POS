@@ -29,7 +29,15 @@ export class ErpReturnAdapter {
     correlationId: string
   ): Promise<string | null> {
     const filters = JSON.stringify([["amburax_sale_id", "=", returnId]]);
-    const fields = JSON.stringify(["name", "amburax_sale_id"]);
+    const fields = JSON.stringify([
+      "name",
+      "docstatus",
+      "currency",
+      "price_list_currency",
+      "conversion_rate",
+      "plc_conversion_rate",
+      "amburax_sale_id",
+    ]);
     
     const path = `/api/resource/Sales Invoice?filters=${encodeURIComponent(filters)}&fields=${encodeURIComponent(fields)}`;
 
@@ -39,7 +47,13 @@ export class ErpReturnAdapter {
       { method: "GET", path }
     );
 
-    const body = response.body as { data?: Array<{ name: string; amburax_sale_id: string }> };
+    const body = response.body as {
+      data?: Array<{
+        name: string;
+        docstatus?: number;
+        amburax_sale_id: string;
+      } & Record<string, unknown>>;
+    };
     const data = body?.data;
 
     if (!Array.isArray(data) || data.length === 0) {
@@ -47,7 +61,12 @@ export class ErpReturnAdapter {
     }
 
     if (data.length === 1) {
-      return data[0]?.name ?? null;
+      const doc = data[0]!;
+      // If found return invoice is still a draft (docstatus === 0), validate currency guard before returning/submitting
+      if (doc.docstatus === 0) {
+        assertInrCurrencyGuard("Sales Invoice", doc.name, doc, correlationId, true);
+      }
+      return doc.name;
     }
 
     throw new ErpError({
@@ -196,7 +215,8 @@ export class ErpReturnAdapter {
         is_return: 1,
         return_against: saleReturn.originalSale.erpInvoiceId,
         update_stock: 1,
-        docstatus: 1, // Submitted
+        // Insert as draft (docstatus: 0), run currency guard on created doc, then submit
+        docstatus: 0,
         set_warehouse: saleReturn.originalSale.store.erpnextWarehouseId, 
         items,
         ...(payments.length > 0 ? { payments } : {}),
@@ -226,6 +246,17 @@ export class ErpReturnAdapter {
         }
         assertInrCurrencyGuard("Sales Invoice", body.data.name, body.data, correlationId, true);
         invoiceId = body.data.name;
+
+        // Submit the validated draft
+        await this.client.call(
+          envResult.environment,
+          { tenantId, correlationId, causationId: saleReturn.id },
+          {
+            method: "PUT",
+            path: `/api/resource/Sales Invoice/${encodeURIComponent(invoiceId)}`,
+            body: { docstatus: 1 },
+          }
+        );
       } catch (err: unknown) {
         // Fallback lookup to defend against unique constraint races / lost responses
         const fallbackId = await this.lookupReturnInvoiceByReturnId(

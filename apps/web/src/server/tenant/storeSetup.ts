@@ -120,8 +120,8 @@ export async function createFirstStore(input: CreateFirstStoreInput): Promise<Cr
           state: input.state,
           postalCode: input.postalCode,
           isDefault: true,
-          erpnextProvisionStatus: "PROVISIONED",
-          erpnextWarehouseId: process.env["ERP_DEFAULT_WAREHOUSE"] ?? "Stores - MUR",
+          erpnextProvisionStatus: "NOT_PROVISIONED",
+          erpnextWarehouseId: null,
         },
       });
 

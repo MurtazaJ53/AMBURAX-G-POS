@@ -29,7 +29,15 @@ export class ErpSaleAdapter {
     correlationId: string
   ): Promise<string | null> {
     const filters = JSON.stringify([["amburax_sale_id", "=", saleId]]);
-    const fields = JSON.stringify(["name", "amburax_sale_id"]);
+    const fields = JSON.stringify([
+      "name",
+      "docstatus",
+      "currency",
+      "price_list_currency",
+      "conversion_rate",
+      "plc_conversion_rate",
+      "amburax_sale_id",
+    ]);
     
     const path = `/api/resource/Sales Invoice?filters=${encodeURIComponent(filters)}&fields=${encodeURIComponent(fields)}`;
 
@@ -39,7 +47,13 @@ export class ErpSaleAdapter {
       { method: "GET", path }
     );
 
-    const body = response.body as { data?: Array<{ name: string; amburax_sale_id: string }> };
+    const body = response.body as {
+      data?: Array<{
+        name: string;
+        docstatus?: number;
+        amburax_sale_id: string;
+      } & Record<string, unknown>>;
+    };
     const data = body?.data;
 
     if (!Array.isArray(data) || data.length === 0) {
@@ -47,7 +61,12 @@ export class ErpSaleAdapter {
     }
 
     if (data.length === 1) {
-      return data[0]?.name ?? null;
+      const doc = data[0]!;
+      // If found invoice is still a draft (docstatus === 0), validate currency guard before returning/submitting
+      if (doc.docstatus === 0) {
+        assertInrCurrencyGuard("Sales Invoice", doc.name, doc, correlationId);
+      }
+      return doc.name;
     }
 
     throw new ErpError({
@@ -210,10 +229,9 @@ export class ErpSaleAdapter {
         customer: customerName,
         is_pos: payments.length > 0 ? 1 : 0,
         update_stock: 1,
-        // Submitted on insert, not left as a draft. A draft posts nothing: no stock leaves the
-        // warehouse, and an udhar bill's unpaid amount never becomes an outstanding receivable,
-        // so the customer's khata in the ledger (which reads submitted invoices) would miss it.
-        docstatus: 1,
+        // Insert as draft (docstatus: 0), run currency guards on created doc, then submit in separate call.
+        // Prevents contaminating ledger entries if ERPNext miscalculates rates or currencies.
+        docstatus: 0,
         set_warehouse: sale.store.erpnextWarehouseId, 
         items,
         ...(payments.length > 0 ? { payments } : {}),
@@ -254,6 +272,17 @@ export class ErpSaleAdapter {
         }
         assertInrCurrencyGuard("Sales Invoice", body.data.name, body.data, correlationId);
         invoiceId = body.data.name;
+
+        // Submit the validated draft
+        await this.client.call(
+          envResult.environment,
+          { tenantId, correlationId, causationId: sale.id },
+          {
+            method: "PUT",
+            path: `/api/resource/Sales Invoice/${encodeURIComponent(invoiceId)}`,
+            body: { docstatus: 1 },
+          }
+        );
       } catch (err: unknown) {
         // If ERPNext refuses submission due to insufficient ledger stock in the warehouse
         // (NegativeStockError), post the financial invoice without update_stock so receivables,
@@ -275,6 +304,15 @@ export class ErpSaleAdapter {
             if (fbBody?.data?.name) {
               assertInrCurrencyGuard("Sales Invoice", fbBody.data.name, fbBody.data, correlationId);
               invoiceId = fbBody.data.name;
+              await this.client.call(
+                envResult.environment,
+                { tenantId, correlationId, causationId: sale.id },
+                {
+                  method: "PUT",
+                  path: `/api/resource/Sales Invoice/${encodeURIComponent(invoiceId)}`,
+                  body: { docstatus: 1 },
+                }
+              );
             } else {
               throw err;
             }
