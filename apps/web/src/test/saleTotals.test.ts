@@ -156,6 +156,45 @@ describe("computeSaleTotals", () => {
       expect(Number.isInteger(value)).toBe(true);
     }
   });
+
+  describe("non-GST shop (isGstRegistered = false)", () => {
+    it("forces tax to 0 and subtotal equals totalMinor", () => {
+      const totals = computeSaleTotals(
+        [
+          { variantId: "v1", quantity: 2, unitPriceMinor: 100_000, taxRateBp: 1800 },
+          { variantId: "v2", quantity: 1, unitPriceMinor: 50_000, taxRateBp: 500 },
+        ],
+        10_000,
+        null,
+        false, // non-GST shop
+      );
+
+      expect(totals.grossMinor).toBe(250_000);
+      expect(totals.discountMinor).toBe(10_000);
+      expect(totals.totalMinor).toBe(240_000);
+      expect(totals.taxMinor).toBe(0);
+      expect(totals.subtotalMinor).toBe(240_000);
+
+      // Verify every line has taxRateBp 0 and taxMinor 0
+      for (const line of totals.lines) {
+        expect(line.taxRateBp).toBe(0);
+        expect(line.taxMinor).toBe(0);
+      }
+    });
+
+    it("GST registered shop calculates taxes normally", () => {
+      const totals = computeSaleTotals(
+        [{ variantId: "v1", quantity: 1, unitPriceMinor: 105_000, taxRateBp: 500 }],
+        0,
+        null,
+        true, // GST shop
+      );
+
+      expect(totals.taxMinor).toBe(5_000);
+      expect(totals.subtotalMinor).toBe(100_000);
+      expect(totals.totalMinor).toBe(105_000);
+    });
+  });
 });
 
 describe("formatMinor", () => {

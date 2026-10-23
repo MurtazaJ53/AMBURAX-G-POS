@@ -23,6 +23,9 @@ const mockTx = {
 };
 
 const mockDb = {
+  tenant: {
+    findUnique: vi.fn(async () => ({ taxId: "29AABCU9603R1ZM" })),
+  },
   sale: {
     findUnique: vi.fn(),
   },

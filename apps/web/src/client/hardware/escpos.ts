@@ -201,6 +201,7 @@ function fmtMinor(minor: number | null | undefined): string {
  */
 export function generateEscPosReceipt(data: ReceiptData, paperWidth: PrinterPaperWidth = "80mm"): Uint8Array {
   const p = new EscPosBuilder(paperWidth);
+  const isGstRegistered = Boolean(data.storeGstin?.trim());
 
   // 1. Header (Store Name & Contact)
   p.align("center")
@@ -216,11 +217,17 @@ export function generateEscPosReceipt(data: ReceiptData, paperWidth: PrinterPape
   if (data.storePhone) {
     p.line(`Tel: ${data.storePhone}`);
   }
-  if (data.storeGstin) {
+  if (isGstRegistered && data.storeGstin) {
     p.line(`GSTIN: ${data.storeGstin}`);
   }
 
   p.divider("-");
+
+  // Document Heading: TAX INVOICE vs BILL OF SUPPLY
+  p.align("center")
+    .bold(true)
+    .line(isGstRegistered ? "TAX INVOICE" : "BILL OF SUPPLY")
+    .bold(false);
 
   // 2. Bill Number (Centered, Prominent) & Timestamp
   p.align("center")
@@ -265,7 +272,7 @@ export function generateEscPosReceipt(data: ReceiptData, paperWidth: PrinterPape
 
     p.columns(`  ${qtyDesc}`, lineTotal);
 
-    if (item.hsn) {
+    if (isGstRegistered && item.hsn) {
       p.line(`    HSN: ${item.hsn}${item.gstRateBp ? ` [GST ${(item.gstRateBp / 100).toFixed(0)}%]` : ""}`);
     }
   }
@@ -279,14 +286,16 @@ export function generateEscPosReceipt(data: ReceiptData, paperWidth: PrinterPape
     p.columns("Discount", `-${fmtMinor(data.discountMinor)}`);
   }
 
-  if (data.cgstMinor && data.cgstMinor > 0) {
-    p.columns("CGST", fmtMinor(data.cgstMinor));
-  }
-  if (data.sgstMinor && data.sgstMinor > 0) {
-    p.columns("SGST", fmtMinor(data.sgstMinor));
-  }
-  if (data.igstMinor && data.igstMinor > 0) {
-    p.columns("IGST", fmtMinor(data.igstMinor));
+  if (isGstRegistered) {
+    if (data.cgstMinor && data.cgstMinor > 0) {
+      p.columns("CGST", fmtMinor(data.cgstMinor));
+    }
+    if (data.sgstMinor && data.sgstMinor > 0) {
+      p.columns("SGST", fmtMinor(data.sgstMinor));
+    }
+    if (data.igstMinor && data.igstMinor > 0) {
+      p.columns("IGST", fmtMinor(data.igstMinor));
+    }
   }
 
   p.divider("-");

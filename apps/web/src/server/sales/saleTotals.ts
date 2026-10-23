@@ -142,6 +142,7 @@ export function computeSaleTotals(
   lines: PricedLine[],
   discountMinor = 0,
   slab: ApparelSlab | null = null,
+  isGstRegistered = true,
 ): SaleTotals {
   const lineTotals = lines.map((line) => line.unitPriceMinor * line.quantity);
   const grossMinor = lineTotals.reduce((sum, t) => sum + t, 0);
@@ -152,27 +153,29 @@ export function computeSaleTotals(
     const lineTotalMinor = lineTotals[i]!;
     const lineDiscountMinor = shares[i]!;
     const netMinor = lineTotalMinor - lineDiscountMinor;
-    const taxRateBp =
+    const rawTaxRateBp =
       line.taxRateMode === "APPAREL_SLAB" && slab
         ? apparelSlabRateBp(netMinor, line.quantity, slab)
         : line.taxRateBp;
+    const taxRateBp = isGstRegistered ? rawTaxRateBp : 0;
     return {
       ...line,
       taxRateBp,
       lineTotalMinor,
       lineDiscountMinor,
-      taxMinor: taxFromInclusive(netMinor, taxRateBp),
+      taxMinor: isGstRegistered ? taxFromInclusive(netMinor, taxRateBp) : 0,
     };
   });
 
-  const taxMinor = computed.reduce((sum, l) => sum + l.taxMinor, 0);
+  const taxMinor = isGstRegistered ? computed.reduce((sum, l) => sum + l.taxMinor, 0) : 0;
   const totalMinor = grossMinor - discount;
 
   return {
     lines: computed,
     grossMinor,
     // The taxable value: what the customer pays, net of the GST it contains. With no discount
-    // this is gross minus tax, exactly as before.
+    // this is gross minus tax, exactly as before. For non-GST shops (isGstRegistered = false),
+    // tax is 0 and subtotalMinor equals totalMinor.
     subtotalMinor: totalMinor - taxMinor,
     discountMinor: discount,
     taxMinor,

@@ -20,6 +20,9 @@ const mockTx = {
 };
 
 const mockDb = {
+  tenant: {
+    findUnique: vi.fn(async () => ({ taxId: "29AABCU9603R1ZM" })),
+  },
   uom: {
     findUnique: vi.fn(),
   },
@@ -365,6 +368,63 @@ describe("Catalog GST Treatment Persistence & Validation (Offline)", () => {
 
       expect(res).toEqual({ status: "invalid_tax_classification" });
       expect(mockTx.productVariant.create).not.toHaveBeenCalled();
+    });
+
+    it("rejects TAXABLE and positive tax rate for non-GST tenant (taxId is null)", async () => {
+      mockDb.tenant.findUnique.mockResolvedValueOnce({ taxId: null } as any);
+
+      const res = await createProduct({
+        actor: ACTOR,
+        name: "Non-GST Shirt",
+        category: null,
+        brand: null,
+        isActive: true,
+        baseUomId: "uom-pcs",
+        correlationId: "corr-nongst-taxable",
+        firstVariant: {
+          sku: "NONGST-TAXABLE",
+          barcode: null,
+          size: null,
+          colour: null,
+          priceMinor: 50000,
+          mrpMinor: null,
+          taxRateBp: 500,
+          taxTreatment: GstTaxTreatment.TAXABLE,
+          taxExemptionRef: null,
+          isActive: true,
+        },
+      });
+
+      expect(res).toEqual({ status: "invalid_tax_classification" });
+      expect(mockTx.productVariant.create).not.toHaveBeenCalled();
+    });
+
+    it("allows NON_GST and EXEMPT for non-GST tenant (taxId is null)", async () => {
+      mockDb.tenant.findUnique.mockResolvedValueOnce({ taxId: null } as any);
+
+      const res = await createProduct({
+        actor: ACTOR,
+        name: "Non-GST Item",
+        category: null,
+        brand: null,
+        isActive: true,
+        baseUomId: "uom-pcs",
+        correlationId: "corr-nongst-exempt",
+        firstVariant: {
+          sku: "NONGST-EXEMPT",
+          barcode: null,
+          size: null,
+          colour: null,
+          priceMinor: 50000,
+          mrpMinor: null,
+          taxRateBp: 0,
+          taxTreatment: GstTaxTreatment.NON_GST,
+          taxExemptionRef: null,
+          isActive: true,
+        },
+      });
+
+      expect(res.status).toBe("ok");
     });
   });
 

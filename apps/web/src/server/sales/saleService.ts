@@ -262,7 +262,7 @@ export async function createSale(input: CreateSaleInput): Promise<CreateSaleResu
   // unmapped Store still sells as before; its sales simply carry no scope.
   const scope = storeScopeOf(store);
 
-  const [cashier, membership] = await Promise.all([
+  const [cashier, membership, tenant] = await Promise.all([
     db.user.findFirst({
       where: { id: input.cashierUserId, tenantId: input.tenantId },
       select: { tenantRole: true },
@@ -270,6 +270,10 @@ export async function createSale(input: CreateSaleInput): Promise<CreateSaleResu
     db.storeMembership.findUnique({
       where: { userId_storeId: { userId: input.cashierUserId, storeId: store.id } },
       select: { role: true },
+    }),
+    db.tenant.findUnique({
+      where: { id: input.tenantId },
+      select: { taxId: true },
     }),
   ]);
   if (!cashier) return { status: "forbidden" };
@@ -439,7 +443,8 @@ export async function createSale(input: CreateSaleInput): Promise<CreateSaleResu
     }
     discountAuthoriser = approval.approverUserId;
   }
-  const totals = computeSaleTotals(priced, requestedDiscount, slab);
+  const isGstRegistered = Boolean(tenant?.taxId?.trim());
+  const totals = computeSaleTotals(priced, requestedDiscount, slab, isGstRegistered);
 
   // --- Khata / Udhar (on-account) validation ---------------------------------------
   const onAccountMinor = input.onAccountMinor ?? 0;

@@ -122,6 +122,12 @@ export async function createProduct(input: CreateProductInput): Promise<CreatePr
     return { status: "not_found" };
   }
 
+  const tenant = await db.tenant.findUnique({
+    where: { id: input.actor.tenantId },
+    select: { taxId: true },
+  });
+  const isGstShop = Boolean(tenant?.taxId?.trim());
+
   // Pre-validate unique SKUs, Barcodes and Tax Classification before opening a transaction
   const seenSkus = new Set<string>();
   const seenBarcodes = new Set<string>();
@@ -156,6 +162,11 @@ export async function createProduct(input: CreateProductInput): Promise<CreatePr
     }
 
     if (!v.taxTreatment || v.taxTreatment === GstTaxTreatment.UNSPECIFIED) {
+      return { status: "invalid_tax_classification" };
+    }
+
+    // For non-GST shops (no taxId), reject TAXABLE or positive tax rate. Allow NON_GST and EXEMPT (taxRateBp = 0).
+    if (!isGstShop && (v.taxTreatment === GstTaxTreatment.TAXABLE || (v.taxRateBp && v.taxRateBp > 0))) {
       return { status: "invalid_tax_classification" };
     }
 
@@ -224,6 +235,10 @@ export async function createProduct(input: CreateProductInput): Promise<CreatePr
         // Service-level enforcement: UNSPECIFIED is not a decided statutory tax treatment and cannot be saved
         if (!v.taxTreatment || v.taxTreatment === GstTaxTreatment.UNSPECIFIED) {
           throw new Error("UNSPECIFIED_TAX_TREATMENT");
+        }
+
+        if (!isGstShop && (v.taxTreatment === GstTaxTreatment.TAXABLE || (v.taxRateBp && v.taxRateBp > 0))) {
+          throw new Error("INVALID_TAX_CLASSIFICATION");
         }
 
         const taxClassification = await withRateMode(
@@ -473,12 +488,21 @@ export async function updateProduct(input: UpdateProductInput): Promise<UpdatePr
     if (!uom) return { status: "not_found" };
   }
 
+  const tenant = await db.tenant.findUnique({
+    where: { id: input.actor.tenantId },
+    select: { taxId: true },
+  });
+  const isGstShop = Boolean(tenant?.taxId?.trim());
+
   // Pre-validate variants if provided
   if (input.variants && input.variants.length > 0) {
     const seenSkus = new Set<string>();
     const seenBarcodes = new Set<string>();
 
     for (const v of input.variants) {
+      if (!isGstShop && (v.taxTreatment === GstTaxTreatment.TAXABLE || (v.taxRateBp && v.taxRateBp > 0))) {
+        return { status: "invalid_tax_classification" };
+      }
       if (v.sku?.trim()) {
         const normalized = v.sku.trim().toUpperCase();
         if (seenSkus.has(normalized)) {
@@ -758,6 +782,15 @@ export async function createVariant(input: CreateVariantInput): Promise<CreateVa
 
   // Service-level enforcement: UNSPECIFIED is not a decided statutory tax treatment and cannot be saved
   if (!input.taxTreatment || input.taxTreatment === GstTaxTreatment.UNSPECIFIED) {
+    return { status: "invalid_tax_classification" };
+  }
+
+  const tenant = await db.tenant.findUnique({
+    where: { id: input.actor.tenantId },
+    select: { taxId: true },
+  });
+  const isGstShop = Boolean(tenant?.taxId?.trim());
+  if (!isGstShop && (input.taxTreatment === GstTaxTreatment.TAXABLE || (input.taxRateBp && input.taxRateBp > 0))) {
     return { status: "invalid_tax_classification" };
   }
 

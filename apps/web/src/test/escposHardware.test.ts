@@ -104,4 +104,44 @@ describe("Hardware & ESC/POS Thermal Printing Suite", () => {
     const textRepresentation = new TextDecoder().decode(payload58);
     expect(textRepresentation).toContain("BL-2026-0042");
   });
+
+  describe("Non-GST vs GST receipts", () => {
+    it("prints TAX INVOICE and GSTIN when store has GSTIN", () => {
+      const payload = generateEscPosReceipt(mockReceipt, "80mm");
+      const text = new TextDecoder().decode(payload);
+      expect(text).toContain("TAX INVOICE");
+      expect(text).toContain("GSTIN: 29AAAAA0000A1Z5");
+      expect(text).toContain("CGST");
+      expect(text).toContain("SGST");
+    });
+
+    it("prints BILL OF SUPPLY and omits GSTIN and tax breakup when store has no GSTIN", () => {
+      const nonGstReceipt: ReceiptData = {
+        ...mockReceipt,
+        storeGstin: null,
+        cgstMinor: 0,
+        sgstMinor: 0,
+        igstMinor: 0,
+        items: [
+          {
+            name: "Classic Cotton T-Shirt",
+            variant: "L / Navy Blue",
+            quantity: 1,
+            unitPriceMinor: 50000,
+            totalMinor: 50000,
+            hsn: "6203", // Even if product has HSN, non-GST receipt does not print HSN/GST
+          },
+        ],
+      };
+
+      const payload = generateEscPosReceipt(nonGstReceipt, "80mm");
+      const text = new TextDecoder().decode(payload);
+      expect(text).toContain("BILL OF SUPPLY");
+      expect(text).not.toContain("TAX INVOICE");
+      expect(text).not.toContain("GSTIN:");
+      expect(text).not.toContain("CGST");
+      expect(text).not.toContain("SGST");
+      expect(text).not.toContain("IGST");
+    });
+  });
 });
