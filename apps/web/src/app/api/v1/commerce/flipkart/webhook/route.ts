@@ -35,6 +35,16 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Missing required Flipkart authorization headers (X_Authorization / X_Date)" }, { status: 401 });
     }
 
+    // Reject replay requests: check that X_Date is within 5 minutes of server time
+    const parsedDate = Date.parse(dateHeader);
+    if (isNaN(parsedDate)) {
+      return NextResponse.json({ error: "Invalid X_Date format in header" }, { status: 401 });
+    }
+    const maxClockSkewMs = 5 * 60 * 1000;
+    if (Math.abs(Date.now() - parsedDate) > maxClockSkewMs) {
+      return NextResponse.json({ error: "Expired X_Date header (timestamp out of tolerance)" }, { status: 401 });
+    }
+
     const authMatch = authHeader.trim().match(/^FKLOGIN\s+([A-Za-z0-9+/=]+)$/);
     if (!authMatch) {
       return NextResponse.json({ error: "Malformed X_Authorization header format" }, { status: 401 });
@@ -79,7 +89,9 @@ export async function POST(req: NextRequest) {
 
     // 3. Re-calculate Flipkart signature:
     // fk_signature = SHA1(date_timestamp + notification_http_url + notification_http_method + OAuth-secret)
-    const requestUrl = req.nextUrl.origin + req.nextUrl.pathname;
+    // Avoid proxy host/scheme issues by using FLIPKART_WEBHOOK_URL env var if configured,
+    // otherwise falling back to reconstructed request URL without query parameters.
+    const requestUrl = process.env.FLIPKART_WEBHOOK_URL || (req.nextUrl.origin + req.nextUrl.pathname);
     const stringToSign = `${dateHeader}${requestUrl}POST${appSecret}`;
     const expectedSignature = createHash("sha1").update(stringToSign).digest("hex");
 
