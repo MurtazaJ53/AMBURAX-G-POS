@@ -35,9 +35,9 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Missing required Flipkart authorization headers (X_Authorization / X_Date)" }, { status: 401 });
     }
 
-    // Reject replay requests: check that X_Date is within 5 minutes of server time
+    // Reject replay requests: check that X_Date is a valid timestamp within 5 minutes of server time
     const parsedDate = Date.parse(dateHeader);
-    if (isNaN(parsedDate)) {
+    if (Number.isNaN(parsedDate)) {
       return NextResponse.json({ error: "Invalid X_Date format in header" }, { status: 401 });
     }
     const maxClockSkewMs = 5 * 60 * 1000;
@@ -89,10 +89,17 @@ export async function POST(req: NextRequest) {
 
     // 3. Re-calculate Flipkart signature:
     // fk_signature = SHA1(date_timestamp + notification_http_url + notification_http_method + OAuth-secret)
-    // Avoid proxy host/scheme issues by using FLIPKART_WEBHOOK_URL env var if configured,
-    // otherwise falling back to reconstructed request URL without query parameters.
-    const requestUrl = process.env.FLIPKART_WEBHOOK_URL || (req.nextUrl.origin + req.nextUrl.pathname);
-    const stringToSign = `${dateHeader}${requestUrl}POST${appSecret}`;
+    // where date_timestamp is epoch seconds according to Flipkart API documentation sample.
+    const webhookUrl = process.env.FLIPKART_WEBHOOK_URL;
+    if (!webhookUrl) {
+      logError("FLIPKART_WEBHOOK_URL environment variable is required to authenticate incoming webhooks deterministically", {
+        correlationId,
+      });
+      return NextResponse.json({ error: "Server configuration error: FLIPKART_WEBHOOK_URL is unset" }, { status: 500 });
+    }
+
+    const epochSec = Math.floor(parsedDate / 1000);
+    const stringToSign = `${epochSec}${webhookUrl}POST${appSecret}`;
     const expectedSignature = createHash("sha1").update(stringToSign).digest("hex");
 
     const incomingBuf = Buffer.from(incomingSignature.toLowerCase());
@@ -110,8 +117,30 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Invalid JSON payload" }, { status: 400 });
     }
 
-    const { eventType, sellerId, orderId, items, customerInfo } = rawPayload || {};
+    const { eventType, orderId, shipmentId } = rawPayload || {};
     const tenantId = channel.tenantId;
+
+    // Reject notifications without valid Flipkart order/shipment identifiers
+    const targetOrderId = orderId || shipmentId;
+    if (!targetOrderId || typeof targetOrderId !== "string" || !targetOrderId.trim()) {
+      return NextResponse.json({ error: "Missing mandatory Flipkart order/shipment identifier in notification" }, { status: 400 });
+    }
+
+    const extOrderId = targetOrderId.trim();
+    const idempotencyKey = `fk-webhook-${extOrderId}-${tenantId}`;
+
+    // Idempotency check: Don't duplicate if already processed
+    const existing = await db.order.findUnique({
+      where: {
+        tenantId_idempotencyKey: {
+          tenantId,
+          idempotencyKey,
+        },
+      },
+    });
+    if (existing) {
+      return NextResponse.json({ ok: true, status: "already_processed", orderNumber: existing.orderNumber });
+    }
 
     // 2. Resolve store & owner user
     const [store, ownerUser] = await Promise.all([
@@ -127,116 +156,146 @@ export async function POST(req: NextRequest) {
 
     const createdByUserId = ownerUser?.id || "system";
 
-    // Handle ORDER_CREATED
-    if (eventType === "ORDER_CREATED" || !eventType) {
-      const extOrderId = orderId || `OD${Date.now().toString().slice(-8)}${Math.floor(Math.random() * 899 + 100)}`;
-      const idempotencyKey = `fk-webhook-${extOrderId}-${tenantId}`;
+    // 3. Webhook acts as a nudge: fetch verified shipment/order data from Flipkart Seller API
+    // Using Flipkart Shipments API v3: GET https://api.flipkart.net/sellers/v3/shipments?orderIds={orderId}
+    let verifiedItems: Array<{ sellerSku: string; quantity: number; priceMinor: number }> = [];
+    let buyerName = "Flipkart Buyer";
+    let buyerCity = "Bengaluru";
+    let buyerState = "Karnataka";
+    let buyerPin = "560001";
 
-      // Idempotency check: Don't duplicate if already processed
-      const existing = await db.order.findUnique({
-        where: {
-          tenantId_idempotencyKey: {
-            tenantId,
-            idempotencyKey,
-          },
-        },
-      });
-      if (existing) {
-        return NextResponse.json({ ok: true, status: "already_processed", orderNumber: existing.orderNumber });
-      }
+    const FLIPKART_API_BASE = process.env.FLIPKART_API_BASE || "https://api.flipkart.net/sellers";
+    const token = channel.accessTokenCipher ? decryptSecret(channel.accessTokenCipher) : null;
 
-      // Default UOM
-      const defaultUom = await db.uom.findFirst({ where: { tenantId } });
-      if (!defaultUom) {
-        return NextResponse.json({ error: "Default unit of measure missing" }, { status: 500 });
-      }
-
-      // Find or create external Flipkart customer
-      let customer = await db.customer.findFirst({
-        where: { tenantId, name: "Flipkart Marketplace Customer" },
-      });
-      if (!customer) {
-        customer = await db.customer.create({
-          data: {
-            tenantId,
-            name: "Flipkart Marketplace Customer",
-            phone: customerInfo?.phone || "9876543210",
-            email: "orders@flipkart.com",
-            isActive: true,
+    if (token) {
+      try {
+        const flipkartRes = await fetch(`${FLIPKART_API_BASE}/v3/shipments?orderIds=${encodeURIComponent(extOrderId)}`, {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
           },
         });
-      }
-
-      // Match items by sellerSku or externalListingId
-      const webhookItems: Array<{ sku: string; quantity: number; priceMinor?: number }> = Array.isArray(items) && items.length > 0
-        ? items
-        : [];
-
-      // Look up listings
-      const matchedListings = await db.channelListing.findMany({
-        where: {
-          channelId: channel.id,
-          status: { in: ["ACTIVE", "OUT_OF_STOCK"] },
-        },
-        include: { variant: true },
-      });
-
-      const orderItemsToCreate: Array<{
-        tenantId: string;
-        variantId: string;
-        uomId: string;
-        quantity: number;
-        fulfilledQuantity: number;
-        unitPriceMinor: number;
-        lineTotalMinor: number;
-        skuSnapshot: string;
-        nameSnapshot: string;
-        uomCodeSnapshot: string;
-      }> = [];
-
-      for (const item of webhookItems) {
-        const found = matchedListings.find(
-          (l) => l.sellerSku === item.sku || l.externalListingId === item.sku || l.variant.sku === item.sku
-        );
-        if (found) {
-          const qty = Number.isInteger(item.quantity) && item.quantity > 0 ? item.quantity : 1;
-          const unitPrice = item.priceMinor || found.channelPriceMinor || found.variant.priceMinor;
-          orderItemsToCreate.push({
-            tenantId,
-            variantId: found.variantId,
-            uomId: defaultUom.id,
-            quantity: qty,
-            fulfilledQuantity: 0,
-            unitPriceMinor: unitPrice,
-            lineTotalMinor: unitPrice * qty,
-            skuSnapshot: found.variant.sku,
-            nameSnapshot: `[Flipkart FSN: ${found.externalListingId || found.sellerSku}] SKU: ${found.variant.sku}`,
-            uomCodeSnapshot: defaultUom.code,
+        if (flipkartRes.ok) {
+          const fkData = await flipkartRes.json();
+          const shipments = fkData?.shipments || [];
+          if (shipments.length > 0) {
+            const shipment = shipments[0];
+            const orderItems = shipment.orderItems || [];
+            for (const oi of orderItems) {
+              verifiedItems.push({
+                sellerSku: oi.sku || oi.sellerSku,
+                quantity: oi.quantity || 1,
+                priceMinor: Math.round((oi.priceComponents?.sellingPrice || 0) * 100),
+              });
+            }
+            if (shipment.deliveryAddress) {
+              buyerName = shipment.deliveryAddress.firstName || buyerName;
+              buyerCity = shipment.deliveryAddress.city || buyerCity;
+              buyerState = shipment.deliveryAddress.state || buyerState;
+              buyerPin = shipment.deliveryAddress.pincode || buyerPin;
+            }
+          }
+        } else {
+          logError(`Failed to fetch order from Flipkart API: ${flipkartRes.status} ${flipkartRes.statusText}`, {
+            correlationId,
+            extOrderId,
           });
         }
+      } catch (apiErr: any) {
+        logError(`Flipkart API fetch error for order ${extOrderId}: ${apiErr.message}`, { correlationId });
       }
+    }
 
-      // If no specific item matched, fall back to first listing
-      if (orderItemsToCreate.length === 0 && matchedListings.length > 0) {
-        const first = matchedListings[0]!;
-        const unitPrice = first.channelPriceMinor || first.variant.priceMinor;
+    // Default UOM
+    const defaultUom = await db.uom.findFirst({ where: { tenantId } });
+    if (!defaultUom) {
+      return NextResponse.json({ error: "Default unit of measure missing" }, { status: 500 });
+    }
+
+    // Find or create external Flipkart customer
+    let customer = await db.customer.findFirst({
+      where: { tenantId, name: "Flipkart Marketplace Customer" },
+    });
+    if (!customer) {
+      customer = await db.customer.create({
+        data: {
+          tenantId,
+          name: "Flipkart Marketplace Customer",
+          phone: "9876543210",
+          email: "orders@flipkart.com",
+          isActive: true,
+        },
+      });
+    }
+
+    // Look up channel listings mapped to variant
+    const matchedListings = await db.channelListing.findMany({
+      where: {
+        channelId: channel.id,
+        status: { in: ["ACTIVE", "OUT_OF_STOCK"] },
+      },
+      include: { variant: true },
+    });
+
+    const orderItemsToCreate: Array<{
+      tenantId: string;
+      variantId: string;
+      uomId: string;
+      quantity: number;
+      fulfilledQuantity: number;
+      unitPriceMinor: number;
+      lineTotalMinor: number;
+      skuSnapshot: string;
+      nameSnapshot: string;
+      uomCodeSnapshot: string;
+    }> = [];
+
+    for (const item of verifiedItems) {
+      const found = matchedListings.find(
+        (l) => l.sellerSku === item.sellerSku || l.externalListingId === item.sellerSku || l.variant.sku === item.sellerSku
+      );
+      if (found) {
+        const qty = item.quantity;
+        const unitPrice = item.priceMinor || found.channelPriceMinor || found.variant.priceMinor;
         orderItemsToCreate.push({
           tenantId,
-          variantId: first.variantId,
+          variantId: found.variantId,
           uomId: defaultUom.id,
-          quantity: 1,
+          quantity: qty,
           fulfilledQuantity: 0,
           unitPriceMinor: unitPrice,
-          lineTotalMinor: unitPrice,
-          skuSnapshot: first.variant.sku,
-          nameSnapshot: `[Flipkart FSN: ${first.externalListingId || first.sellerSku}] SKU: ${first.variant.sku}`,
+          lineTotalMinor: unitPrice * qty,
+          skuSnapshot: found.variant.sku,
+          nameSnapshot: `[Flipkart FSN: ${found.externalListingId || found.sellerSku}] SKU: ${found.variant.sku}`,
           uomCodeSnapshot: defaultUom.code,
         });
       }
+    }
 
-      if (orderItemsToCreate.length === 0) {
-        return NextResponse.json({ error: "No listings mapped to fulfill this marketplace order" }, { status: 400 });
-      }
+    // Fall back to first mapped listing if API didn't return item lines
+    if (orderItemsToCreate.length === 0 && matchedListings.length > 0) {
+      const first = matchedListings[0]!;
+      const unitPrice = first.channelPriceMinor || first.variant.priceMinor;
+      orderItemsToCreate.push({
+        tenantId,
+        variantId: first.variantId,
+        uomId: defaultUom.id,
+        quantity: 1,
+        fulfilledQuantity: 0,
+        unitPriceMinor: unitPrice,
+        lineTotalMinor: unitPrice,
+        skuSnapshot: first.variant.sku,
+        nameSnapshot: `[Flipkart FSN: ${first.externalListingId || first.sellerSku}] SKU: ${first.variant.sku}`,
+        uomCodeSnapshot: defaultUom.code,
+      });
+    }
+
+    if (orderItemsToCreate.length === 0) {
+      return NextResponse.json({ error: "No listings mapped to fulfill this marketplace order" }, { status: 400 });
+    }
+
+    // Handle ORDER_CREATED / SHIPMENT_CREATED
+    if (eventType === "ORDER_CREATED" || eventType === "SHIPMENT_CREATED" || !eventType) {
 
       // Atomic reservation and order creation
       const createdOrder = await db.$transaction(async (tx) => {
