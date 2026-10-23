@@ -52,6 +52,7 @@ function baseRecord(overrides: Partial<Record<string, unknown>> = {}) {
   };
 }
 
+// hashPassword is real bcrypt (cost 12) — give the hook the same headroom as the tests.
 beforeEach(async () => {
   vi.clearAllMocks();
   mockDb.$transaction.mockImplementation(async (fn: (tx: typeof mockTx) => Promise<void>) => fn(mockTx));
@@ -60,9 +61,9 @@ beforeEach(async () => {
     baseRecord({ user: { id: "user-1", email: "owner@demo.amburax.test", passwordHash: otherPasswordHash } }),
   );
   mockTx.passwordResetToken.updateMany.mockResolvedValue({ count: 1 });
-});
+}, 60_000);
 
-describe("consumePasswordReset", () => {
+describe("consumePasswordReset", { timeout: 60_000 }, () => {
   it("returns invalid for a token that was never issued", async () => {
     mockDb.passwordResetToken.findUnique.mockResolvedValueOnce(null);
     const result = await consumePasswordReset({ token: VALID_TOKEN, newPassword: NEW_PASSWORD, ip: "1.2.3.4", correlationId: "c1" });

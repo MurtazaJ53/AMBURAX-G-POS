@@ -95,7 +95,7 @@ beforeEach(() => {
   mockTx.storeMembership.create.mockResolvedValue({});
 });
 
-describe("acceptInvitation — new user", () => {
+describe("acceptInvitation — new user", { timeout: 60_000 }, () => {
   it("creates the user, binds acceptance, creates the membership, and issues a session", async () => {
     const result = await acceptInvitation(newUserInput());
     expect(result.status).toBe("ok");
@@ -142,7 +142,7 @@ describe("acceptInvitation — new user", () => {
   });
 });
 
-describe("acceptInvitation — existing user", () => {
+describe("acceptInvitation — existing user", { timeout: 60_000 }, () => {
   beforeEach(() => {
     mockDb.user.findUnique.mockResolvedValue({
       id: "user-existing",
@@ -258,7 +258,7 @@ describe("acceptInvitation — existing user", () => {
   });
 });
 
-describe("acceptInvitation — invalid invitation states", () => {
+describe("acceptInvitation — invalid invitation states", { timeout: 60_000 }, () => {
   it("reports expired", async () => {
     vi.mocked(resolveInvitation).mockResolvedValueOnce(null as never);
     vi.mocked(previewInvitation).mockResolvedValueOnce({ status: "EXPIRED" } as never);
@@ -303,7 +303,7 @@ describe("acceptInvitation — invalid invitation states", () => {
   });
 });
 
-describe("acceptInvitation — concurrency (the A11 invariant)", () => {
+describe("acceptInvitation — concurrency (the A11 invariant)", { timeout: 60_000 }, () => {
   it("two concurrent acceptances: the loser creates no user, no membership, no session", async () => {
     // The loser's conditional claim matches zero rows — exactly what Postgres returns to
     // the second transaction once the first has committed `acceptedAt`.

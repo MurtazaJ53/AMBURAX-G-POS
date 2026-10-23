@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { hashPassword, verifyPassword } from "@/server/identity/password";
 
-describe("password hashing", () => {
+// Real bcryptjs at cost 12 is pure JS; under the full parallel suite a single hash can
+// exceed the 15s global timeout, so the bcrypt-backed suites get more headroom.
+describe("password hashing", { timeout: 60_000 }, () => {
   it("verifies a correct password against its hash", async () => {
     const hash = await hashPassword("Passw0rd!123");
     await expect(verifyPassword("Passw0rd!123", hash)).resolves.toBe(true);
