@@ -116,8 +116,17 @@ describe("the bill", () => {
   it("previews totals with the same function the server charges with", () => {
     let state = billReducer(base, { type: "scanned", item: item() });
     state = billReducer(state, { type: "quantity_set", variantId: "var-1", quantity: 3 });
-    const totals = billTotals(state);
+    const totals = billTotals(state, true);
     expect(totals.totalMinor).toBe(30000);
     expect(totals.subtotalMinor + totals.taxMinor).toBe(totals.totalMinor);
+  });
+
+  it("shows no GST on screen for a shop without a GSTIN, as the server charges", () => {
+    const state = billReducer(base, { type: "scanned", item: item() });
+    expect(billTotals(state, true).taxMinor).toBeGreaterThan(0);
+    const nonGst = billTotals(state, false);
+    expect(nonGst.taxMinor).toBe(0);
+    expect(nonGst.lines.every((l) => l.taxRateBp === 0 && l.taxMinor === 0)).toBe(true);
+    expect(nonGst.subtotalMinor).toBe(nonGst.totalMinor);
   });
 });

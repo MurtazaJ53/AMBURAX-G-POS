@@ -180,7 +180,7 @@ export function billReducer(state: BillState, action: BillAction): BillState {
 }
 
 /** The preview. Same function the server uses, from prices the server sent. */
-export function billTotals(state: BillState): SaleTotals {
+export function billTotals(state: BillState, isGstRegistered: boolean): SaleTotals {
   return computeSaleTotals(
     state.lines.map((line) => ({
       variantId: line.variantId,
@@ -188,6 +188,9 @@ export function billTotals(state: BillState): SaleTotals {
       unitPriceMinor: line.unitPriceMinor,
       taxRateBp: line.taxRateBp,
     })),
+    0,
+    null,
+    isGstRegistered,
   );
 }
 

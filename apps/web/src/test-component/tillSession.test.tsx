@@ -21,6 +21,7 @@ function renderTill() {
       roleLabel="Cashier"
       storeName="Linking Road"
       storeCode="LR-01"
+      gstRegistered
     />,
   );
 }

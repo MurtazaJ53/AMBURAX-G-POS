@@ -48,14 +48,17 @@ export function TillWorkspace({
   roleLabel,
   storeName,
   storeCode,
+  gstRegistered,
 }: {
   currentUserId: string;
   cashierName: string;
   roleLabel: string;
   storeName: string;
   storeCode: string;
+  /** No GSTIN = not GST-registered: the preview shows no GST, matching createSale. */
+  gstRegistered: boolean;
 }) {
-  const till = useTill(currentUserId);
+  const till = useTill(currentUserId, gstRegistered);
   const router = useRouter();
   const scanRef = useRef<HTMLInputElement>(null);
   const customerRef = useRef<HTMLInputElement>(null);

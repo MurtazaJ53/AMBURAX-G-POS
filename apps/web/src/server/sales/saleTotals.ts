@@ -140,9 +140,10 @@ export function allocateDiscount(lineTotals: number[], discountMinor: number): n
  */
 export function computeSaleTotals(
   lines: PricedLine[],
-  discountMinor = 0,
-  slab: ApparelSlab | null = null,
-  isGstRegistered = true,
+  discountMinor: number,
+  slab: ApparelSlab | null,
+  // No default: a caller that forgets this must fail to compile, not silently charge GST.
+  isGstRegistered: boolean,
 ): SaleTotals {
   const lineTotals = lines.map((line) => line.unitPriceMinor * line.quantity);
   const grossMinor = lineTotals.reduce((sum, t) => sum + t, 0);

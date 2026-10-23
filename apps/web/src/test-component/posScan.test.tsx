@@ -37,7 +37,7 @@ function posRoutes(scanReplies: StubRoute["replies"], extra: StubRoute[] = []): 
 }
 
 function renderPos() {
-  return render(<PosTerminal storeName="Linking Road" storeCode="LR-01" cashierName="Asha" />);
+  return render(<PosTerminal storeName="Linking Road" storeCode="LR-01" cashierName="Asha" gstRegistered />);
 }
 
 const searchBox = () => screen.getByLabelText(/^search products$/i) as HTMLInputElement;

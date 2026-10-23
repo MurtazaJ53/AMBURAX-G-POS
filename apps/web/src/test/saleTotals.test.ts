@@ -68,7 +68,7 @@ describe("taxFromInclusive", () => {
 
 describe("computeSaleTotals", () => {
   it("computes an empty cart as all zeroes", () => {
-    const totals = computeSaleTotals([]);
+    const totals = computeSaleTotals([], 0, null, true);
     expect(totals).toMatchObject({
       subtotalMinor: 0,
       taxMinor: 0,
@@ -81,7 +81,7 @@ describe("computeSaleTotals", () => {
   it("multiplies quantity by unit price without floating point error", () => {
     const totals = computeSaleTotals([
       { variantId: "v1", quantity: 3, unitPriceMinor: 10, taxRateBp: 0 },
-    ]);
+    ], 0, null, true);
     // 0.1 + 0.1 + 0.1 in floats is not 0.3; in paise it is exactly 30.
     expect(totals.totalMinor).toBe(30);
     expect(Number.isInteger(totals.totalMinor)).toBe(true);
@@ -91,14 +91,14 @@ describe("computeSaleTotals", () => {
     const totals = computeSaleTotals([
       { variantId: "v1", quantity: 2, unitPriceMinor: 129_900, taxRateBp: 500 },
       { variantId: "v2", quantity: 1, unitPriceMinor: 249_900, taxRateBp: 1200 },
-    ]);
+    ], 0, null, true);
     expect(totals.subtotalMinor + totals.taxMinor).toBe(totals.totalMinor);
   });
 
   it("treats prices as tax-inclusive: the total is the sum of line prices", () => {
     const totals = computeSaleTotals([
       { variantId: "v1", quantity: 1, unitPriceMinor: 105_000, taxRateBp: 500 },
-    ]);
+    ], 0, null, true);
     // Tax is contained in the price, not added to it.
     expect(totals.totalMinor).toBe(105_000);
     expect(totals.taxMinor).toBe(5_000);
@@ -107,7 +107,7 @@ describe("computeSaleTotals", () => {
 
   it("rounds tax per line rather than once across the sale", () => {
     const line = { variantId: "v1", quantity: 1, unitPriceMinor: 333, taxRateBp: 1800 };
-    const totals = computeSaleTotals([line, { ...line, variantId: "v2" }]);
+    const totals = computeSaleTotals([line, { ...line, variantId: "v2" }], 0, null, true);
     const perLine = taxFromInclusive(333, 1800);
     expect(totals.taxMinor).toBe(perLine * 2);
     // Each line on the printed bill adds up on its own.
@@ -118,6 +118,8 @@ describe("computeSaleTotals", () => {
     const totals = computeSaleTotals(
       [{ variantId: "v1", quantity: 1, unitPriceMinor: 100_000, taxRateBp: 0 }],
       10_000,
+      null,
+      true,
     );
     expect(totals.discountMinor).toBe(10_000);
     expect(totals.totalMinor).toBe(90_000);
@@ -129,6 +131,8 @@ describe("computeSaleTotals", () => {
     const totals = computeSaleTotals(
       [{ variantId: "v1", quantity: 1, unitPriceMinor: 100_000, taxRateBp: 0 }],
       500_000,
+      null,
+      true,
     );
     expect(totals.discountMinor).toBe(100_000);
     expect(totals.totalMinor).toBe(0);
@@ -138,6 +142,8 @@ describe("computeSaleTotals", () => {
     const totals = computeSaleTotals(
       [{ variantId: "v1", quantity: 1, unitPriceMinor: 100_000, taxRateBp: 0 }],
       -50_000,
+      null,
+      true,
     );
     expect(totals.discountMinor).toBe(0);
     expect(totals.totalMinor).toBe(100_000);
@@ -146,7 +152,7 @@ describe("computeSaleTotals", () => {
   it("produces integer amounts for every field", () => {
     const totals = computeSaleTotals([
       { variantId: "v1", quantity: 7, unitPriceMinor: 33_333, taxRateBp: 1800 },
-    ]);
+    ], 0, null, true);
     for (const value of [
       totals.subtotalMinor,
       totals.taxMinor,

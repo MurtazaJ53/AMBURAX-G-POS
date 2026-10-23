@@ -81,7 +81,7 @@ const OPENING_INITIAL: OpeningCashState = {
   error: null,
 };
 
-export function useTill(currentUserId: string) {
+export function useTill(currentUserId: string, gstRegistered: boolean) {
   const [devices, setDevices] = useState<DeviceState>({
     phase: "loading",
     devices: [],
@@ -260,7 +260,7 @@ export function useTill(currentUserId: string) {
   const clearCustomer = useCallback(() => dispatchBill({ type: "customer_cleared" }), []);
 
   // --- completion --------------------------------------------------------------
-  const totals = useMemo(() => billTotals(bill), [bill]);
+  const totals = useMemo(() => billTotals(bill, gstRegistered), [bill, gstRegistered]);
 
   const takePayment = useCallback(() => {
     if (!canSubmitSale(completion)) return;

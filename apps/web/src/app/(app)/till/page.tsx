@@ -1,3 +1,4 @@
+import { db } from "@/server/db";
 import { redirect } from "next/navigation";
 import { cookies } from "next/headers";
 import { env } from "@/lib/env";
@@ -58,6 +59,12 @@ export default async function TillPage() {
   if (resolved.status === "no_store") redirect("/dashboard");
 
   const context = resolved.context;
+  // No GSTIN = not GST-registered, the same rule as createSale. A boolean, not the GSTIN, crosses
+  // to the client. On a lookup failure assume registered: the server stays the authority.
+  const gstRegistered = await db.tenant
+    .findUnique({ where: { id: context.tenantId }, select: { taxId: true } })
+    .then((t) => Boolean(t?.taxId?.trim()))
+    .catch(() => true);
 
   if (!context.canSell) {
     return (
@@ -83,6 +90,7 @@ export default async function TillPage() {
       roleLabel={roleLabel(context)}
       storeName={context.storeName}
       storeCode={context.storeCode}
+      gstRegistered={gstRegistered}
     />
   );
 }

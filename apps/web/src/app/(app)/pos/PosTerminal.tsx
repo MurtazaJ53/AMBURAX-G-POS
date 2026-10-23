@@ -320,7 +320,7 @@ export function PosTerminal(props: {
    * The business has a GSTIN. When it hasn't, it isn't GST-registered and sells NON_GST items at 0%
    * (owner 2026-10-15) — the same rule the server applies; the server stays the authority.
    */
-  gstRegistered?: boolean;
+  gstRegistered: boolean;
 }) {
   const [query, setQuery] = useState("");
   const [search, setSearch] = useState<SearchState<CatalogHit>>(EMPTY_SEARCH);
@@ -744,7 +744,7 @@ export function PosTerminal(props: {
     grossMinor,
     manualDiscountMinor + promoEvaluation.totalPromoDiscountMinor + loyaltyDiscountMinor
   );
-  const totals = computeSaleTotals(cart, totalDiscountMinor, props.slab ?? null);
+  const totals = computeSaleTotals(cart, totalDiscountMinor, props.slab ?? null, props.gstRegistered);
 
   // Live: does what is typed (not yet applied) go over the cashier's 10%? Shows the approval row.
   const typedDiscountValue = Number(discountRaw);

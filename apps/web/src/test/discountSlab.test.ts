@@ -36,7 +36,7 @@ describe("allocateDiscount", () => {
 
 describe("computeSaleTotals with discount and slab", () => {
   it("is unchanged from before when there is no discount and no slab", () => {
-    const t = computeSaleTotals([{ variantId: "a", quantity: 2, unitPriceMinor: 105_000, taxRateBp: 500 }]);
+    const t = computeSaleTotals([{ variantId: "a", quantity: 2, unitPriceMinor: 105_000, taxRateBp: 500 }], 0, null, true);
     expect(t.totalMinor).toBe(210_000);
     expect(t.taxMinor).toBe(10_000);
     expect(t.subtotalMinor).toBe(200_000);
@@ -44,7 +44,7 @@ describe("computeSaleTotals with discount and slab", () => {
   });
 
   it("extracts GST from the discounted amount", () => {
-    const t = computeSaleTotals([{ variantId: "a", quantity: 1, unitPriceMinor: 105_000, taxRateBp: 500 }], 10_500);
+    const t = computeSaleTotals([{ variantId: "a", quantity: 1, unitPriceMinor: 105_000, taxRateBp: 500 }], 10_500, null, true);
     expect(t.totalMinor).toBe(94_500);
     expect(t.taxMinor).toBe(4_500);
     expect(t.subtotalMinor).toBe(90_000);
@@ -59,14 +59,14 @@ describe("computeSaleTotals with discount and slab", () => {
       taxRateBp: 1_800,
       taxRateMode: "APPAREL_SLAB" as const,
     };
-    expect(computeSaleTotals([line], 0, SLAB).lines[0]!.taxRateBp).toBe(1_800);
-    const discounted = computeSaleTotals([line], 20_000, SLAB);
+    expect(computeSaleTotals([line], 0, SLAB, true).lines[0]!.taxRateBp).toBe(1_800);
+    const discounted = computeSaleTotals([line], 20_000, SLAB, true);
     expect(discounted.lines[0]!.taxRateBp).toBe(500);
     expect(discounted.taxMinor).toBe(Math.round((260_000 * 500) / 10_500));
   });
 
   it("leaves FIXED lines on their stored rate even when a slab is supplied", () => {
-    const t = computeSaleTotals([{ variantId: "a", quantity: 1, unitPriceMinor: 500_000, taxRateBp: 1_200 }], 0, SLAB);
+    const t = computeSaleTotals([{ variantId: "a", quantity: 1, unitPriceMinor: 500_000, taxRateBp: 1_200 }], 0, SLAB, true);
     expect(t.lines[0]!.taxRateBp).toBe(1_200);
   });
 });
