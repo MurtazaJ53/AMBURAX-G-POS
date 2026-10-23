@@ -30,6 +30,9 @@ const mockDb = {
     findFirst: vi.fn(),
     findUnique: vi.fn(),
   },
+  variantBarcode: {
+    findFirst: vi.fn(async () => null),
+  },
   $transaction: vi.fn(async (fn: (tx: typeof mockTx) => Promise<unknown>) => fn(mockTx)),
 };
 
@@ -40,6 +43,14 @@ vi.mock("@/server/identity/audit", () => ({ writeAuditLog: vi.fn(async () => {})
 vi.mock("@/server/events/outbox", () => ({ enqueueOutboxEvent: vi.fn(async () => ({} as any)) }));
 vi.mock("@/server/sales/posContext", () => ({
   resolvePosContext: (...args: unknown[]) => mockResolvePosContext(...args),
+}));
+
+vi.mock("@/server/catalog/variantDualWrite", () => ({
+  syncVariantDualWrite: vi.fn(async () => {}),
+  ensureSystemAttributeDefinitions: vi.fn(async () => ({ sizeDefId: "s", colourDefId: "c" })),
+}));
+vi.mock("@/server/catalog/barcodeGenerator", () => ({
+  generateUniqueShortBarcode: vi.fn(async () => "12345678"),
 }));
 
 const { createProduct, createVariant, updateVariant } = await import("@/server/catalog/catalogService");
@@ -768,3 +779,5 @@ describe("Catalog GST Treatment Persistence & Validation (Offline)", () => {
     });
   });
 });
+
+

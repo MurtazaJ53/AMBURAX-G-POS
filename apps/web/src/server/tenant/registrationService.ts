@@ -8,7 +8,7 @@ import { generateOpaqueToken, hashOpaqueToken } from "@/server/identity/token";
 import { isIpRateLimited, recordAttempt } from "@/server/identity/loginGuard";
 import { writeAuditLog } from "@/server/identity/audit";
 import { seedDefaultCapabilities } from "@/server/capability/capabilityService";
-import { seedGarmentMasters } from "../../../prisma/seedGarmentMasters";
+import { seedGarmentMasters } from "@/server/catalog/seedGarmentMasters";
 
 export type BusinessType = "RETAIL" | "WHOLESALE" | "MANUFACTURING" | "SERVICES" | "DISTRIBUTION" | "OTHER";
 

@@ -14,6 +14,9 @@ const mockTx = {
   saleItem: {
     createMany: vi.fn(),
   },
+  pendingPriceChange: {
+    findMany: vi.fn(async () => []),
+  },
   customer: {
     update: vi.fn(),
   },
@@ -34,6 +37,9 @@ const mockDb = {
   },
   productVariant: {
     findMany: vi.fn(),
+  },
+  pendingPriceChange: {
+    findMany: vi.fn(async () => []),
   },
   customer: {
     findFirst: vi.fn(),
@@ -143,3 +149,4 @@ describe("Khata Foundation & Fail-Closed Credit Policy", () => {
     );
   });
 });
+

@@ -21,6 +21,10 @@ const mockTx = {
   // Registration seeds the new tenant's default capabilities inside the same transaction, so
   // the mocked client has to offer the delegate the real one does.
   tenantCapability: { createMany: vi.fn() },
+  attributeDefinition: { upsert: vi.fn(async () => ({ id: "def-1" })) },
+  attributeValue: { upsert: vi.fn(async () => ({ id: "val-1" })) },
+  sizeGroup: { upsert: vi.fn(async () => ({ id: "grp-1" })) },
+  sizeGroupItem: { upsert: vi.fn(async () => ({ id: "item-1" })) },
 };
 
 const mockDb = {

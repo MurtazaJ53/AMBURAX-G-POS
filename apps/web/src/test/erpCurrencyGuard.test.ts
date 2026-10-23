@@ -154,4 +154,43 @@ describe("ERP Currency Guard & Payload", () => {
       )
     ).rejects.toThrowError(ErpError);
   });
+
+  it("ensures that when assertInrCurrencyGuard fails, submit PUT is never called in createDocument", async () => {
+    const { createDocument } = await import("@/server/erp/documentSync");
+    const calls: Array<{ method: string; path: string }> = [];
+    const mockClient = {
+      call: async (_env: any, _ctx: any, req: { method: string; path: string }) => {
+        calls.push({ method: req.method, path: req.path });
+        if (req.method === "POST") {
+          return {
+            status: 200,
+            body: {
+              data: {
+                name: "MAT-PRE-INVALID-USD",
+                currency: "USD",
+                conversion_rate: 1,
+              },
+            },
+          };
+        }
+        return { status: 200, body: {} };
+      },
+    };
+
+    await expect(
+      createDocument(
+        mockClient as any,
+        { siteId: "test", tenantId: "t1", clusterId: null, companyId: "C1", version: null },
+        { tenantId: "t1", correlationId: "c1" },
+        "Purchase Receipt",
+        { supplier: "Test", items: [] },
+        "idemp-1",
+        true
+      )
+    ).rejects.toThrowError(ErpError);
+
+    // Verify POST was called to create the draft, but submit PUT was NEVER called
+    expect(calls.some((c) => c.method === "POST")).toBe(true);
+    expect(calls.some((c) => c.method === "PUT")).toBe(false);
+  });
 });

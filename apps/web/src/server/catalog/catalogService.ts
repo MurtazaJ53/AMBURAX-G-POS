@@ -122,7 +122,7 @@ export async function createProduct(input: CreateProductInput): Promise<CreatePr
     return { status: "not_found" };
   }
 
-  // Pre-validate unique SKUs and Barcodes across the input list & against DB
+  // Pre-validate unique SKUs, Barcodes and Tax Classification before opening a transaction
   const seenSkus = new Set<string>();
   const seenBarcodes = new Set<string>();
 
@@ -153,6 +153,24 @@ export async function createProduct(input: CreateProductInput): Promise<CreatePr
         select: { id: true },
       });
       if (existingBarcode) return { status: "duplicate_barcode", barcode: bc };
+    }
+
+    if (!v.taxTreatment || v.taxTreatment === GstTaxTreatment.UNSPECIFIED) {
+      return { status: "invalid_tax_classification" };
+    }
+
+    const checkTaxClassification = await withRateMode(
+      input.actor.tenantId,
+      {
+        taxRateBp: v.taxRateBp ?? 0,
+        taxTreatment: v.taxTreatment,
+        taxExemptionRef: v.taxExemptionRef ?? null,
+      },
+      v.taxRateMode ?? "FIXED",
+      v.priceMinor,
+    );
+    if (gstClassificationError(checkTaxClassification)) {
+      return { status: "invalid_tax_classification" };
     }
   }
 

@@ -27,7 +27,7 @@ export class ErpReturnAdapter {
     tenantId: string,
     returnId: string,
     correlationId: string
-  ): Promise<string | null> {
+  ): Promise<{ name: string; docstatus: number } | null> {
     const filters = JSON.stringify([["amburax_sale_id", "=", returnId]]);
     const fields = JSON.stringify([
       "name",
@@ -62,11 +62,12 @@ export class ErpReturnAdapter {
 
     if (data.length === 1) {
       const doc = data[0]!;
+      const docstatus = doc.docstatus ?? 0;
       // If found return invoice is still a draft (docstatus === 0), validate currency guard before returning/submitting
-      if (doc.docstatus === 0) {
+      if (docstatus === 0) {
         assertInrCurrencyGuard("Sales Invoice", doc.name, doc, correlationId, true);
       }
-      return doc.name;
+      return { name: doc.name, docstatus };
     }
 
     throw new ErpError({
@@ -115,7 +116,7 @@ export class ErpReturnAdapter {
     }
 
     // 1. Initial Lookup
-    const existingInvoiceId = await this.lookupReturnInvoiceByReturnId(
+    const existingReturnInvoice = await this.lookupReturnInvoiceByReturnId(
       envResult.environment,
       tenantId,
       saleReturn.id,
@@ -124,8 +125,20 @@ export class ErpReturnAdapter {
 
     let invoiceId: string;
 
-    if (existingInvoiceId) {
-      invoiceId = existingInvoiceId;
+    if (existingReturnInvoice) {
+      invoiceId = existingReturnInvoice.name;
+      // If found draft (e.g. from timed out submit call on prior attempt), submit it
+      if (existingReturnInvoice.docstatus === 0) {
+        await this.client.call(
+          envResult.environment,
+          { tenantId, correlationId, causationId: saleReturn.id },
+          {
+            method: "PUT",
+            path: `/api/resource/Sales Invoice/${encodeURIComponent(invoiceId)}`,
+            body: { docstatus: 1 },
+          }
+        );
+      }
     } else {
       // 2. Map to ERPNext Sales Invoice (Return)
       // ERPNext expects negative quantities for return invoices. A GST-registered business
@@ -259,14 +272,25 @@ export class ErpReturnAdapter {
         );
       } catch (err: unknown) {
         // Fallback lookup to defend against unique constraint races / lost responses
-        const fallbackId = await this.lookupReturnInvoiceByReturnId(
+        const fallbackDoc = await this.lookupReturnInvoiceByReturnId(
           envResult.environment,
           tenantId,
           saleReturn.id,
           correlationId
         );
-        if (fallbackId) {
-          invoiceId = fallbackId;
+        if (fallbackDoc) {
+          invoiceId = fallbackDoc.name;
+          if (fallbackDoc.docstatus === 0) {
+            await this.client.call(
+              envResult.environment,
+              { tenantId, correlationId, causationId: saleReturn.id },
+              {
+                method: "PUT",
+                path: `/api/resource/Sales Invoice/${encodeURIComponent(invoiceId)}`,
+                body: { docstatus: 1 },
+              }
+            );
+          }
         } else {
           throw err;
         }

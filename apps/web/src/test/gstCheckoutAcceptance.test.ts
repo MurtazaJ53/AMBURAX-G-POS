@@ -42,6 +42,9 @@ const mockDb = {
   productVariant: {
     findMany: vi.fn(),
   },
+  pendingPriceChange: {
+    findMany: vi.fn(async () => []),
+  },
   customer: {
     findFirst: vi.fn(),
   },
@@ -442,3 +445,4 @@ describe("GST Checkout Acceptance Tests (Offline Mocks)", () => {
     });
   });
 });
+

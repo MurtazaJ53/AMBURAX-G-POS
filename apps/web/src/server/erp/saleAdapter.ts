@@ -27,7 +27,7 @@ export class ErpSaleAdapter {
     tenantId: string,
     saleId: string,
     correlationId: string
-  ): Promise<string | null> {
+  ): Promise<{ name: string; docstatus: number } | null> {
     const filters = JSON.stringify([["amburax_sale_id", "=", saleId]]);
     const fields = JSON.stringify([
       "name",
@@ -62,11 +62,12 @@ export class ErpSaleAdapter {
 
     if (data.length === 1) {
       const doc = data[0]!;
+      const docstatus = doc.docstatus ?? 0;
       // If found invoice is still a draft (docstatus === 0), validate currency guard before returning/submitting
-      if (doc.docstatus === 0) {
+      if (docstatus === 0) {
         assertInrCurrencyGuard("Sales Invoice", doc.name, doc, correlationId);
       }
-      return doc.name;
+      return { name: doc.name, docstatus };
     }
 
     throw new ErpError({
@@ -138,7 +139,7 @@ export class ErpSaleAdapter {
     }
 
     // 1. Initial Lookup
-    const existingInvoiceId = await this.lookupInvoiceBySaleId(
+    const existingInvoice = await this.lookupInvoiceBySaleId(
       envResult.environment,
       tenantId,
       sale.id,
@@ -147,8 +148,21 @@ export class ErpSaleAdapter {
 
     let invoiceId: string;
 
-    if (existingInvoiceId) {
-      invoiceId = existingInvoiceId;
+    if (existingInvoice) {
+      invoiceId = existingInvoice.name;
+      // If found invoice is still a draft (e.g. from an earlier timeout during submit),
+      // ensure it is submitted to finalize ledger and stock moves.
+      if (existingInvoice.docstatus === 0) {
+        await this.client.call(
+          envResult.environment,
+          { tenantId, correlationId, causationId: sale.id },
+          {
+            method: "PUT",
+            path: `/api/resource/Sales Invoice/${encodeURIComponent(invoiceId)}`,
+            body: { docstatus: 1 },
+          }
+        );
+      }
     } else {
       // 2. Map to ERPNext Sales Invoice. A GST-registered business sends taxable values plus
       // CGST/SGST or IGST rows (see gstInvoice.ts); a business without a GSTIN sends prices as
@@ -321,14 +335,25 @@ export class ErpSaleAdapter {
           }
         } else {
           // Fallback lookup to defend against unique constraint races
-          const fallbackId = await this.lookupInvoiceBySaleId(
+          const fallbackDoc = await this.lookupInvoiceBySaleId(
             envResult.environment,
             tenantId,
             sale.id,
             correlationId
           );
-          if (fallbackId) {
-            invoiceId = fallbackId;
+          if (fallbackDoc) {
+            invoiceId = fallbackDoc.name;
+            if (fallbackDoc.docstatus === 0) {
+              await this.client.call(
+                envResult.environment,
+                { tenantId, correlationId, causationId: sale.id },
+                {
+                  method: "PUT",
+                  path: `/api/resource/Sales Invoice/${encodeURIComponent(invoiceId)}`,
+                  body: { docstatus: 1 },
+                }
+              );
+            }
           } else {
             throw err;
           }

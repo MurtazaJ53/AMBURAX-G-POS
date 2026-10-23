@@ -2,7 +2,7 @@ import { PrismaClient } from "@prisma/client";
 import { hashPassword } from "../src/server/identity/password";
 import { logError } from "../src/lib/safeLog";
 import { seedCatalogue } from "./seedCatalogue";
-import { seedGarmentMasters } from "./seedGarmentMasters";
+import { seedGarmentMasters } from "../src/server/catalog/seedGarmentMasters";
 
 const db = new PrismaClient();
 

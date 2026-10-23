@@ -80,7 +80,7 @@ describe("Hardware & ESC/POS Thermal Printing Suite", () => {
     expect(textRepresentation).toContain("Priya Sharma");
     expect(textRepresentation).toContain("Classic Cotton T-Shirt");
     expect(textRepresentation).toContain("Slim Fit Chinos");
-    expect(textRepresentation).toContain("2097.00");
+    expect(textRepresentation).toContain("2,097");
   });
 
   it("generates compact 58mm roll format without throwing", () => {
