@@ -80,7 +80,20 @@ describe("Hardware & ESC/POS Thermal Printing Suite", () => {
     expect(textRepresentation).toContain("Priya Sharma");
     expect(textRepresentation).toContain("Classic Cotton T-Shirt");
     expect(textRepresentation).toContain("Slim Fit Chinos");
-    expect(textRepresentation).toContain("2,097");
+    expect(textRepresentation).toContain("2,097.00");
+  });
+
+  it("formats exact paise correctly on receipts with fractional amounts", () => {
+    const receiptWithPaise = {
+      ...mockReceipt,
+      totalMinor: 209750,
+      payments: [
+        { method: "Cash", amountMinor: 209750 },
+      ],
+    };
+    const payload = generateEscPosReceipt(receiptWithPaise, "80mm");
+    const text = new TextDecoder().decode(payload);
+    expect(text).toContain("2,097.50");
   });
 
   it("generates compact 58mm roll format without throwing", () => {

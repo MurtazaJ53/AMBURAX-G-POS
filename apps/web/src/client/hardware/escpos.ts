@@ -291,17 +291,23 @@ export function generateEscPosReceipt(data: ReceiptData, paperWidth: PrinterPape
 
   p.divider("-");
 
-  // Big Bold Total: "TOTAL  INR 1,350"
+  // Big Bold Total: "TOTAL  INR 1,350.00"
   p.bold(true).size(2, 2);
-  const totalRupees = Math.round(data.totalMinor / 100).toLocaleString("en-IN");
+  const totalRupees = (data.totalMinor / 100).toLocaleString("en-IN", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
   p.columns("TOTAL", `INR ${totalRupees}`);
   p.bold(false).size(1, 1);
 
   p.divider("-");
 
-  // 5. Payment Tendered (e.g. "Cash Received     1,350")
+  // 5. Payment Tendered (e.g. "Cash Received     1,350.00")
   for (const pay of data.payments) {
-    const payAmt = Math.round(pay.amountMinor / 100).toLocaleString("en-IN");
+    const payAmt = (pay.amountMinor / 100).toLocaleString("en-IN", {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    });
     p.columns(`${pay.method} Received`, payAmt);
   }
 
