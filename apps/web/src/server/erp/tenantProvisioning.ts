@@ -200,8 +200,10 @@ export class TenantProvisioner {
    *   - UPI -> Bank
    *   - Credit Card -> Bank
    * in Mode of Payment Account for THIS company only.
-   * Idempotent: existing company entries are updated if different, or kept if matched.
-   * Never mutates or removes entries for other companies.
+   * Idempotent: an existing entry for this company is kept whenever it names a valid leaf
+   * account of this company — the owner may have linked their real bank account, and a
+   * re-run must never undo that. It is replaced only when that account is missing, a group,
+   * or belongs to another company. Never mutates or removes entries for other companies.
    */
   private async ensureModeOfPaymentSetup(env: ErpEnvironment, ctx: ErpCallContext, company: string, abbr: string) {
     const bankAccount = `Bank - ${abbr}`;
@@ -244,7 +246,8 @@ export class TenantProvisioner {
           const accounts = Array.isArray(doc.accounts) ? [...doc.accounts] : [];
           const idx = accounts.findIndex((a) => a.company === company);
           if (idx !== -1) {
-            if (accounts[idx]?.default_account !== defaultAccount) {
+            const current = accounts[idx]?.default_account;
+            if (current !== defaultAccount && !(await this.isLeafAccountOf(env, ctx, current, company))) {
               accounts[idx] = { ...accounts[idx], company, default_account: defaultAccount };
               await this.client.call(env, ctx, {
                 method: "PUT",
@@ -268,6 +271,15 @@ export class TenantProvisioner {
         });
       }
     }
+  }
+
+  /** True when `account` exists, is a ledger (not a group) and belongs to `company`. */
+  private async isLeafAccountOf(env: ErpEnvironment, ctx: ErpCallContext, account: string | undefined, company: string) {
+    if (!account) return false;
+    const doc = (await this.get(env, ctx, `/api/resource/Account/${encodeURIComponent(account)}`))?.data as
+      | { company?: string; is_group?: number | boolean }
+      | undefined;
+    return Boolean(doc) && !doc?.is_group && doc?.company === company;
   }
 
   /** This company's Indian financial year (1 April - 31 March) for today, and the next one. */

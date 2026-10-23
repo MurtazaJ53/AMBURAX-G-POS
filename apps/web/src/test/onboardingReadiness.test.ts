@@ -19,6 +19,12 @@ vi.mock("@/server/identity/loginGuard", () => ({
 }));
 vi.mock("@/server/identity/audit", () => ({ writeAuditLog: vi.fn(async () => {}) }));
 vi.mock("@/server/identity/session", () => ({ resolveSession: vi.fn() }));
+const getBankLinkStatus = vi.fn();
+vi.mock("@/server/erp/bankLinkStatus", () => ({
+  ErpBankLinkReader: class {
+    getBankLinkStatus = getBankLinkStatus;
+  },
+}));
 
 const { getOnboardingReadiness } = await import("@/server/onboarding/readiness");
 const { completeOnboarding } = await import("@/server/onboarding/completeOnboarding");
@@ -413,5 +419,34 @@ describe("completeOnboarding", () => {
     await completeOnboarding({ sessionToken: "t", ip: "10.0.0.1", correlationId: "c" });
     const call = mockDb.tenant.updateMany.mock.calls[0]![0] as { where: { id: string } };
     expect(call.where.id).toBe(OWNER.tenantId);
+  });
+});
+
+describe("bank account link — the placeholder from provisioning", () => {
+  it("is not shown, and ERPNext is not asked, before the business is connected", async () => {
+    const r = await readiness();
+    expect(r.items.some((i) => i.key === "bank")).toBe(false);
+    expect(getBankLinkStatus).not.toHaveBeenCalled();
+  });
+
+  it("asks the owner to link their real bank while UPI or Credit Card use the placeholder", async () => {
+    setTenant("POS_CONFIGURED", "PROVISIONED");
+    getBankLinkStatus.mockResolvedValue("placeholder");
+    const bank = item(await readiness(), "bank");
+    expect(bank).toMatchObject({ level: "NOT_CONFIGURED", blocksSale: false });
+    expect((bank as Item & { label: string }).label).toBe("Link your real bank account");
+  });
+
+  it("clears once both are linked to another valid bank account", async () => {
+    setTenant("POS_CONFIGURED", "PROVISIONED");
+    getBankLinkStatus.mockResolvedValue("linked");
+    expect(item(await readiness(), "bank")).toMatchObject({ level: "READY", blocksSale: false });
+  });
+
+  it("leaves the item off rather than guessing when ERPNext can't be read", async () => {
+    setTenant("POS_CONFIGURED", "PROVISIONED");
+    getBankLinkStatus.mockRejectedValue(new Error("timeout"));
+    const r = await readiness();
+    expect(r.items.some((i) => i.key === "bank")).toBe(false);
   });
 });

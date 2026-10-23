@@ -260,3 +260,82 @@ describe("TenantProvisioner - Mode of Payment Setup (Fix 1)", () => {
     ]);
   });
 });
+
+describe("TenantProvisioner - Mode of Payment re-run keeps the owner's choice", () => {
+  type Row = { company: string; default_account: string };
+  type AccountDoc = { company: string; is_group: number; account_type?: string };
+
+  /** Re-provision an already-linked company with the given UPI rows and Account docs. */
+  async function reprovision(upiRows: Row[] | null, accounts: Record<string, AccountDoc>) {
+    mockDb.tenant.findUniqueOrThrow.mockResolvedValue({
+      id: "tenant-1",
+      name: "Acme Fashion",
+      slug: "acme-fashion",
+      taxId: null,
+      erpnextSiteId: "test-site.local",
+      erpnextCompanyId: "Acme Fashion",
+    });
+    mockDb.company.upsert.mockResolvedValue({ id: "comp-1" });
+    mockDb.store.updateMany.mockResolvedValue({ count: 0 });
+    mockDb.store.findMany.mockResolvedValue([]);
+
+    const t = new FakeErpTransport();
+    const calls: Array<{ method: string; path: string; body?: any }> = [];
+    t.send = async (req) => {
+      calls.push({ method: req.method, path: req.path, body: req.body });
+      const path = decodeURIComponent(req.path);
+      if (req.method === "GET") {
+        if (path.includes("/Company/Acme")) return { status: 200, body: { data: { name: "Acme Fashion", abbr: "AF" } } };
+        if (path.endsWith("/Mode of Payment/UPI")) {
+          return upiRows ? { status: 200, body: { data: { name: "UPI", accounts: upiRows } } } : { status: 404, body: {} };
+        }
+        if (path.includes("/Mode of Payment/")) return { status: 404, body: {} };
+        const account = path.match(/\/Account\/(.+)$/)?.[1];
+        if (account && accounts[account]) return { status: 200, body: { data: { name: account, ...accounts[account] } } };
+        if (account) return { status: 404, body: {} };
+      }
+      return { status: 200, body: { data: { name: "mock" } } };
+    };
+
+    const provisioner = new TenantProvisioner(t, {
+      kind: "existing",
+      ensureSite: async () => ({ status: "ready", siteId: "test-site.local" }),
+    });
+    await provisioner.provision("tenant-1", "corr-rerun");
+    const writes = calls.filter((c) => c.path.includes("UPI") && c.method !== "GET");
+    return Object.assign(writes, { calls });
+  }
+
+  const OTHER: Row = { company: "Other", default_account: "Bank - OT" };
+
+  it("(a) leaves a valid leaf account the owner linked untouched", async () => {
+    const writes = await reprovision([{ company: "Acme Fashion", default_account: "HDFC Current - AF" }, OTHER], {
+      "HDFC Current - AF": { company: "Acme Fashion", is_group: 0, account_type: "Bank" },
+    });
+    expect(writes).toHaveLength(0);
+  });
+
+  it.each([
+    ["a group account", { "Bank Accounts - AF": { company: "Acme Fashion", is_group: 1 } }, "Bank Accounts - AF"],
+    ["another company's account", { "HDFC - OT": { company: "Other", is_group: 0 } }, "HDFC - OT"],
+    ["an account that no longer exists", {}, "Deleted - AF"],
+  ])("(b) corrects %s back to the company's bank account", async (_label, accounts, current) => {
+    const writes = await reprovision([{ company: "Acme Fashion", default_account: current }, OTHER], accounts);
+    expect(writes).toHaveLength(1);
+    expect(writes[0]!.method).toBe("PUT");
+    expect(writes[0]!.body.accounts).toEqual([{ company: "Acme Fashion", default_account: "Bank - AF" }, OTHER]);
+  });
+
+  it("(c) adds a row for this company when it is missing, keeping other companies", async () => {
+    const writes = await reprovision([OTHER], {});
+    expect(writes).toHaveLength(1);
+    expect(writes[0]!.body.accounts).toEqual([OTHER, { company: "Acme Fashion", default_account: "Bank - AF" }]);
+  });
+
+  it("(c) creates the Mode of Payment itself when it does not exist", async () => {
+    const { calls } = await reprovision(null, {});
+    const created = calls.find((c) => c.method === "POST" && c.body?.mode_of_payment === "UPI");
+    expect(created?.path).toBe("/api/resource/Mode of Payment");
+    expect(created?.body.accounts).toEqual([{ company: "Acme Fashion", default_account: "Bank - AF" }]);
+  });
+});

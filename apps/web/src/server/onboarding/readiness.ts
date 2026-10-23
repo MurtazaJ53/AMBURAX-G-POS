@@ -1,6 +1,9 @@
 import { db } from "@/server/db";
 import { derivePosDeviceStatus } from "@/server/pos/posDevice";
+import { randomUUID } from "node:crypto";
 import { deriveInvitationStatus } from "@/server/tenant/invitation";
+import { ErpBankLinkReader, type BankLinkStatus } from "@/server/erp/bankLinkStatus";
+import { logError } from "@/lib/safeLog";
 
 /**
  * A10's authoritative readiness calculation. The single source of truth for "what is
@@ -36,7 +39,7 @@ import { deriveInvitationStatus } from "@/server/tenant/invitation";
  */
 export type ReadinessLevel = "READY" | "PENDING" | "ATTENTION" | "NOT_CONFIGURED" | "UNAVAILABLE";
 
-export type ReadinessKey = "business" | "owner" | "store" | "team" | "pos" | "inventory" | "payments";
+export type ReadinessKey = "business" | "owner" | "store" | "team" | "pos" | "inventory" | "payments" | "bank";
 
 export interface ReadinessItem {
   key: ReadinessKey;
@@ -143,6 +146,12 @@ export async function getOnboardingReadiness(params: {
     inventoryItem(store, tenant.erpnextProvisionStatus),
     paymentsItem(),
   ];
+
+  // Only a connected business has a placeholder bank account to replace.
+  if (tenant.erpnextProvisionStatus === "PROVISIONED") {
+    const bank = bankItem(await readBankLink(params.tenantId));
+    if (bank) items.push(bank);
+  }
 
   return {
     status: "ok",
@@ -355,6 +364,47 @@ function paymentsItem(): ReadinessItem {
     detail:
       "Payment methods aren't available yet. Card, UPI and cash handling arrive with the checkout release.",
     blocksSale: true,
+    action: null,
+  };
+}
+
+/**
+ * A failed ERPNext read leaves the item off rather than failing the whole checklist or
+ * guessing: "unknown" is not a claim either way.
+ */
+async function readBankLink(tenantId: string): Promise<BankLinkStatus> {
+  try {
+    return await new ErpBankLinkReader().getBankLinkStatus(tenantId, randomUUID());
+  } catch (err) {
+    logError("readiness: bank link could not be read", err, { tenantId });
+    return "unknown";
+  }
+}
+
+/**
+ * Provisioning points UPI and Credit Card at a placeholder "Bank - {abbr}" so sales can post on
+ * day one. Takings then land in an account that is not the owner's real bank until they link it.
+ * Never blocks a sale: the placeholder posts correctly, it just isn't reconciled to a real bank.
+ */
+function bankItem(status: BankLinkStatus): ReadinessItem | null {
+  if (status === "unknown") return null;
+  if (status === "linked") {
+    return {
+      key: "bank",
+      label: "Bank account",
+      level: "READY",
+      detail: "UPI and card payments go to your own bank account.",
+      blocksSale: false,
+      action: null,
+    };
+  }
+  return {
+    key: "bank",
+    label: "Link your real bank account",
+    level: "NOT_CONFIGURED",
+    detail:
+      'UPI and card payments are being recorded in a placeholder account named "Bank". In ERPNext, open Mode of Payment for UPI and Credit Card and choose your real bank account for this company.',
+    blocksSale: false,
     action: null,
   };
 }
