@@ -191,6 +191,83 @@ export class TenantProvisioner {
     }
 
     await this.ensureFiscalYears(env, ctx, company, abbr, today);
+    await this.ensureModeOfPaymentSetup(env, ctx, company, abbr);
+  }
+
+  /**
+   * Ensures a leaf Bank account exists for the company and links:
+   *   - Cash -> Cash
+   *   - UPI -> Bank
+   *   - Credit Card -> Bank
+   * in Mode of Payment Account for THIS company only.
+   * Idempotent: existing company entries are updated if different, or kept if matched.
+   * Never mutates or removes entries for other companies.
+   */
+  private async ensureModeOfPaymentSetup(env: ErpEnvironment, ctx: ErpCallContext, company: string, abbr: string) {
+    const bankAccount = `Bank - ${abbr}`;
+    const cashAccount = `Cash - ${abbr}`;
+    const bankParent = `Bank Accounts - ${abbr}`;
+
+    // Ensure leaf bank account exists (create one if missing)
+    await this.ensure(env, ctx, "Account", bankAccount, {
+      account_name: "Bank",
+      parent_account: bankParent,
+      company,
+      account_type: "Bank",
+      is_group: 0,
+    });
+
+    const mopMappings: Array<{ mode: string; type: "Cash" | "Bank"; defaultAccount: string }> = [
+      { mode: "Cash", type: "Cash", defaultAccount: cashAccount },
+      { mode: "UPI", type: "Bank", defaultAccount: bankAccount },
+      { mode: "Credit Card", type: "Bank", defaultAccount: bankAccount },
+    ];
+
+    for (const { mode, type, defaultAccount } of mopMappings) {
+      try {
+        const existing = await this.get(env, ctx, `/api/resource/Mode of Payment/${encodeURIComponent(mode)}`);
+        const doc = existing?.data as { accounts?: Array<{ company: string; default_account: string }> } | undefined;
+
+        if (!doc) {
+          await this.client.call(env, ctx, {
+            method: "POST",
+            path: "/api/resource/Mode of Payment",
+            body: {
+              doctype: "Mode of Payment",
+              mode_of_payment: mode,
+              enabled: 1,
+              type,
+              accounts: [{ company, default_account: defaultAccount }],
+            },
+          });
+        } else {
+          const accounts = Array.isArray(doc.accounts) ? [...doc.accounts] : [];
+          const idx = accounts.findIndex((a) => a.company === company);
+          if (idx !== -1) {
+            if (accounts[idx]?.default_account !== defaultAccount) {
+              accounts[idx] = { ...accounts[idx], company, default_account: defaultAccount };
+              await this.client.call(env, ctx, {
+                method: "PUT",
+                path: `/api/resource/Mode of Payment/${encodeURIComponent(mode)}`,
+                body: { accounts },
+              });
+            }
+          } else {
+            accounts.push({ company, default_account: defaultAccount });
+            await this.client.call(env, ctx, {
+              method: "PUT",
+              path: `/api/resource/Mode of Payment/${encodeURIComponent(mode)}`,
+              body: { accounts },
+            });
+          }
+        }
+      } catch (err) {
+        logError(`provisioning: Mode of Payment ${mode} could not be configured`, err, {
+          correlationId: ctx.correlationId,
+          company,
+        });
+      }
+    }
   }
 
   /** This company's Indian financial year (1 April - 31 March) for today, and the next one. */
