@@ -1,5 +1,5 @@
 import { db } from "@/server/db";
-import { requireCompany, assertWarehouseCompanyMatch } from "@/server/erp/documentSync";
+import { requireCompany, assertWarehouseCompanyMatch, inrPricingPayload, assertInrCurrencyGuard } from "@/server/erp/documentSync";
 import { ErpClient } from "@/server/erp/client";
 import { resolveErpEnvironment, EnvErpCredentialProvider } from "@/server/erp/config";
 import type { ErpEnvironment } from "@/server/erp/config";
@@ -205,13 +205,9 @@ export class ErpSaleAdapter {
 
       const invoiceDoc = {
         doctype: "Sales Invoice",
+        ...inrPricingPayload("selling"),
         company: requireCompany(envResult.environment, correlationId),
         customer: customerName,
-        currency: "INR",
-        conversion_rate: 1,
-        selling_price_list: "Standard Selling",
-        price_list_currency: "USD",
-        plc_conversion_rate: 85,
         is_pos: payments.length > 0 ? 1 : 0,
         update_stock: 1,
         // Submitted on insert, not left as a draft. A draft posts nothing: no stock leaves the
@@ -248,7 +244,7 @@ export class ErpSaleAdapter {
           }
         );
 
-        const body = response.body as { data?: { name?: string } };
+        const body = response.body as { data?: { name?: string } & Record<string, unknown> };
         if (!body?.data?.name) {
           throw new ErpError({
             kind: "malformed_response",
@@ -256,6 +252,7 @@ export class ErpSaleAdapter {
             correlationId,
           });
         }
+        assertInrCurrencyGuard("Sales Invoice", body.data.name, body.data, correlationId);
         invoiceId = body.data.name;
       } catch (err: unknown) {
         // If ERPNext refuses submission due to insufficient ledger stock in the warehouse
@@ -274,8 +271,9 @@ export class ErpSaleAdapter {
                 idempotencyKey: sale.id,
               }
             );
-            const fbBody = fallbackResponse.body as { data?: { name?: string } };
+            const fbBody = fallbackResponse.body as { data?: { name?: string } & Record<string, unknown> };
             if (fbBody?.data?.name) {
+              assertInrCurrencyGuard("Sales Invoice", fbBody.data.name, fbBody.data, correlationId);
               invoiceId = fbBody.data.name;
             } else {
               throw err;

@@ -206,6 +206,76 @@ export async function findDocumentName(
   return data[0]?.name ?? null;
 }
 
+/**
+ * Standard INR pricing & currency payload fields for transactional ERPNext documents.
+ * Explicitly pins currency and conversion rates to prevent ERPNext from defaulting
+ * to site-wide USD price lists with currency conversion multipliers.
+ */
+export function inrPricingPayload(
+  priceListType: "buying" | "selling",
+  customPriceList?: string
+): Record<string, unknown> {
+  const priceList =
+    customPriceList || (priceListType === "buying" ? "Standard Buying" : "Standard Selling");
+  return {
+    currency: "INR",
+    conversion_rate: 1,
+    plc_conversion_rate: 1,
+    [priceListType === "buying" ? "buying_price_list" : "selling_price_list"]: priceList,
+  };
+}
+
+/** Doctypes where currency, price list, and conversion rate guards are strictly enforced. */
+const CURRENCY_GUARDED_DOCTYPES = new Set([
+  "Purchase Receipt",
+  "Purchase Invoice",
+  "Purchase Order",
+  "Sales Invoice",
+]);
+
+/**
+ * Asserts that an ERPNext document carries strictly INR currency and 1.0 conversion rates.
+ * Applied immediately after creation (before submission) to prevent contaminting
+ * the General Ledger or Stock Ledger with inflated valuation or foreign currency tags.
+ */
+export function assertInrCurrencyGuard(
+  doctype: string,
+  docName: string,
+  doc: Record<string, unknown>,
+  correlationId: string,
+  isReturn?: boolean
+): void {
+  if (!CURRENCY_GUARDED_DOCTYPES.has(doctype)) {
+    return;
+  }
+
+  const currency = doc.currency != null ? String(doc.currency).trim() : undefined;
+  const priceListCurrency = doc.price_list_currency != null ? String(doc.price_list_currency).trim() : undefined;
+  const rawConversionRate = doc.conversion_rate != null ? Number(doc.conversion_rate) : 1;
+  const rawPlcConversionRate = doc.plc_conversion_rate != null ? Number(doc.plc_conversion_rate) : 1;
+
+  const hasInvalidCurrency = currency !== undefined && currency !== "INR";
+  const hasInvalidPlcCurrency = priceListCurrency !== undefined && priceListCurrency !== "INR";
+  const hasInvalidRate = rawConversionRate !== 1;
+  const hasInvalidPlcRate = rawPlcConversionRate !== 1;
+
+  if (hasInvalidCurrency || hasInvalidPlcCurrency || hasInvalidRate || hasInvalidPlcRate) {
+    if (isReturn && currency === "USD") {
+      throw new ErpError({
+        kind: "currency_mismatch",
+        message: `ERPNext ${doctype} ${docName} failed currency guard: Return inherited currency=${currency} from an original USD-labelled invoice. Submission aborted.`,
+        correlationId,
+      });
+    }
+
+    throw new ErpError({
+      kind: "currency_mismatch",
+      message: `ERPNext ${doctype} ${docName} failed currency guard: currency=${currency}, price_list_currency=${priceListCurrency}, conversion_rate=${rawConversionRate}, plc_conversion_rate=${rawPlcConversionRate}. Expected strictly INR and 1.0. Submission aborted to prevent ledger contamination.`,
+      correlationId,
+    });
+  }
+}
+
 /** Create a document and, for submittable doctypes, submit it. Returns the ERPNext name. */
 export async function createDocument(
   client: ErpClient,
@@ -229,7 +299,8 @@ export async function createDocument(
       correlationId: ctx.correlationId,
     });
   }
-  const name = (response.body as { data?: { name?: string } })?.data?.name;
+  const createdData = (response.body as { data?: Record<string, unknown> })?.data;
+  const name = createdData?.name as string | undefined;
   if (!name) {
     throw new ErpError({
       kind: "malformed_response",
@@ -237,6 +308,12 @@ export async function createDocument(
       correlationId: ctx.correlationId,
     });
   }
+
+  // Currency guard check before submission
+  if (createdData) {
+    assertInrCurrencyGuard(doctype, name, createdData, ctx.correlationId, Boolean(doc.is_return));
+  }
+
   if (submit) {
     await client.call(env, ctx, {
       method: "PUT",

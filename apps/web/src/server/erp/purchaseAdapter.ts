@@ -15,6 +15,7 @@ import {
   requireErpEnvironment,
   requireCompany,
   assertWarehouseCompanyMatch,
+  inrPricingPayload,
 } from "@/server/erp/documentSync";
 
 const RECEIPT_REMARKS = "amburax-purchase-receipt-id:";
@@ -269,6 +270,7 @@ export class ErpPurchaseAdapter {
     receipt: LoadedReceipt,
     taxes: TaxRow[],
   ): Promise<string> {
+    // TODO: migrate remarks lookup to custom field amburax_source_id
     const remarks = `${RECEIPT_REMARKS}${receipt.id}`;
     const found = await findDocumentName(this.client, env, ctx, "Purchase Receipt", "remarks", remarks);
     if (found) return found;
@@ -280,10 +282,9 @@ export class ErpPurchaseAdapter {
       ctx,
       "Purchase Receipt",
       {
+        ...inrPricingPayload("buying"),
         supplier: supplierName,
         company: env.companyId ?? undefined,
-        currency: "INR",
-        conversion_rate: 1,
         posting_date: erpDate(receipt.createdAt),
         set_posting_time: 1,
         set_warehouse: warehouse,
@@ -307,6 +308,7 @@ export class ErpPurchaseAdapter {
     taxes: TaxRow[],
   ): Promise<string> {
     if (receipt.erpnextInvoiceName) return receipt.erpnextInvoiceName;
+    // TODO: migrate remarks lookup to custom field amburax_source_id
     const remarks = `${INVOICE_REMARKS}${receipt.id}`;
     const found = await findDocumentName(this.client, env, ctx, "Purchase Invoice", "remarks", remarks);
     if (found) return found;
@@ -318,11 +320,9 @@ export class ErpPurchaseAdapter {
       ctx,
       "Purchase Invoice",
       {
+        ...inrPricingPayload("buying"),
         supplier: supplierName,
         company: env.companyId ?? undefined,
-        // Same currency as the receipt and the supplier (always INR): see syncReceipt.
-        currency: "INR",
-        conversion_rate: 1,
         posting_date: erpDate(receipt.createdAt),
         set_posting_time: 1,
         bill_no: erpText(receipt.supplierInvoiceNo),
@@ -350,6 +350,7 @@ export class ErpPurchaseAdapter {
     try {
       const env = await requireErpEnvironment(tenantId, correlationId);
       const ctx = { tenantId, correlationId, causationId: purchaseReturn.id };
+      // TODO: migrate remarks lookup to custom field amburax_source_id
       const remarks = `${RETURN_REMARKS}${purchaseReturn.id}`;
       let name = await findDocumentName(this.client, env, ctx, "Purchase Receipt", "remarks", remarks);
 
@@ -368,6 +369,7 @@ export class ErpPurchaseAdapter {
           ctx,
           "Purchase Receipt",
           {
+            ...inrPricingPayload("buying"),
             supplier: supplierName,
             company: env.companyId ?? undefined,
             is_return: 1,
@@ -419,6 +421,7 @@ export class ErpPurchaseAdapter {
     try {
       const env = await requireErpEnvironment(tenantId, correlationId);
       const ctx = { tenantId, correlationId, causationId: order.id };
+      // TODO: migrate remarks lookup to custom field amburax_source_id
       const stamp = `${ORDER_REMARKS}${order.id}`;
       let name = order.erpnextName ?? (await findDocumentName(this.client, env, ctx, "Purchase Order", "title", stamp));
       if (!name) {
@@ -433,6 +436,7 @@ export class ErpPurchaseAdapter {
           ctx,
           "Purchase Order",
           {
+            ...inrPricingPayload("buying"),
             title: stamp,
             supplier: supplierName,
             company: env.companyId ?? undefined,

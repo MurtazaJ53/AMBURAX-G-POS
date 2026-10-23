@@ -1,5 +1,5 @@
 import { db } from "@/server/db";
-import { requireCompany, assertWarehouseCompanyMatch } from "@/server/erp/documentSync";
+import { requireCompany, assertWarehouseCompanyMatch, inrPricingPayload, assertInrCurrencyGuard } from "@/server/erp/documentSync";
 import { ErpClient } from "@/server/erp/client";
 import { resolveErpEnvironment, EnvErpCredentialProvider } from "@/server/erp/config";
 import type { ErpEnvironment } from "@/server/erp/config";
@@ -189,13 +189,9 @@ export class ErpReturnAdapter {
 
       const invoiceDoc = {
         doctype: "Sales Invoice",
+        ...inrPricingPayload("selling"),
         company: requireCompany(envResult.environment, correlationId),
         customer: customerName,
-        currency: "INR",
-        conversion_rate: 1,
-        selling_price_list: "Standard Selling",
-        price_list_currency: "USD",
-        plc_conversion_rate: 85,
         is_pos: payments.length > 0 ? 1 : 0,
         is_return: 1,
         return_against: saleReturn.originalSale.erpInvoiceId,
@@ -220,7 +216,7 @@ export class ErpReturnAdapter {
           }
         );
 
-        const body = response.body as { data?: { name?: string } };
+        const body = response.body as { data?: { name?: string } & Record<string, unknown> };
         if (!body?.data?.name) {
           throw new ErpError({
             kind: "malformed_response",
@@ -228,6 +224,7 @@ export class ErpReturnAdapter {
             correlationId,
           });
         }
+        assertInrCurrencyGuard("Sales Invoice", body.data.name, body.data, correlationId, true);
         invoiceId = body.data.name;
       } catch (err: unknown) {
         // Fallback lookup to defend against unique constraint races / lost responses
