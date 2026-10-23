@@ -53,7 +53,8 @@ export type ErpErrorKind =
   | "unsupported_version"
   | "malformed_response"
   | "not_provisioned"
-  | "configuration_error";
+  | "configuration_error"
+  | "currency_mismatch";
 
 /**
  * Kind to category. Written as a total map rather than a switch, so adding a kind without
@@ -78,6 +79,7 @@ const CATEGORY_OF: Readonly<Record<ErpErrorKind, ErpErrorCategory>> = {
   malformed_response: "ErpUnavailable",
   not_provisioned: "ErpNotProvisioned",
   configuration_error: "ErpRejected",
+  currency_mismatch: "ErpRejected",
 };
 
 /**
@@ -106,6 +108,7 @@ const RETRYABLE: Readonly<Record<ErpErrorKind, boolean>> = {
   malformed_response: true,
   not_provisioned: false,
   configuration_error: false,
+  currency_mismatch: false,
 };
 
 export function categoryOf(kind: ErpErrorKind): ErpErrorCategory {
