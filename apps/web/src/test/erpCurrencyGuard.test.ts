@@ -416,4 +416,98 @@ describe("ERP Currency Guard & Payload", () => {
     );
     expect(res).toBeNull();
   });
+
+  it("cancel -> re-sync -> new invoice created, while cancelled document is retained", async () => {
+    const { ErpSaleAdapter } = await import("@/server/erp/saleAdapter");
+    const saleTimestamp = new Date("2025-04-21T18:00:00.000Z"); // 23:30 IST
+
+    const sentRequests: Array<{ method: string; path: string; body?: any }> = [];
+    const mockTransport = {
+      send: vi.fn().mockImplementation(async (req: any) => {
+        sentRequests.push({ method: req.method, path: req.path, body: req.body });
+        if (req.method === "GET" && req.path.includes("Sales%20Invoice")) {
+          // ERPNext returns BOTH the old cancelled invoice and NO active draft/submitted invoice
+          return {
+            status: 200,
+            body: {
+              data: [
+                {
+                  name: "ACC-SINV-CANCELLED-100",
+                  docstatus: 2, // Cancelled
+                  amburax_sale_id: "sale-cancelled-resync-1",
+                  currency: "INR",
+                  conversion_rate: 1,
+                },
+              ],
+            },
+          };
+        }
+        if (req.method === "GET" && req.path.includes("Warehouse")) {
+          return { status: 200, body: { data: { company: "Shree Krishna Fashion" } } };
+        }
+        if (req.method === "POST" && req.path === "/api/resource/Sales Invoice") {
+          return {
+            status: 200,
+            body: {
+              data: {
+                name: "ACC-SINV-NEW-101",
+                docstatus: 0,
+                currency: "INR",
+                conversion_rate: 1,
+                price_list_currency: "INR",
+                plc_conversion_rate: 1,
+                posting_date: req.body.posting_date,
+                posting_time: req.body.posting_time,
+              },
+            },
+          };
+        }
+        if (req.method === "PUT" && req.path.includes("ACC-SINV-NEW-101")) {
+          return { status: 200, body: { data: { name: "ACC-SINV-NEW-101", docstatus: 1 } } };
+        }
+        return { status: 200, body: {} };
+      }),
+    };
+
+    const adapter = new ErpSaleAdapter(mockTransport as any);
+    (adapter as any).client = {
+      call: async (_env: any, _ctx: any, req: any) => mockTransport.send(req),
+    };
+
+    mockSaleDb.sale.findUnique.mockResolvedValue({
+      id: "sale-cancelled-resync-1",
+      completedAt: saleTimestamp,
+      createdAt: saleTimestamp,
+      erpSyncStatus: "PENDING",
+      storeId: "store-1",
+      store: {
+        erpnextWarehouseId: "Stores - SKF",
+        company: { code: "SKF" },
+      },
+      items: [
+        { variantId: "var-1", quantity: 1, unitPriceMinor: 25000, discountMinor: 0, taxAmountMinor: 0 },
+      ],
+      payments: [
+        { method: "CASH", amountMinor: 25000 },
+      ],
+      tenant: { taxId: null },
+      discountMinor: 0,
+    });
+    mockSaleDb.sale.update.mockResolvedValue({});
+
+    // Trigger re-sync on a sale that was previously cancelled in ERPNext
+    await adapter.syncSale("t1", "sale-cancelled-resync-1", "corr-resync-1");
+
+    // Assert that a fresh invoice was created and submitted without mutating or deleting the cancelled invoice
+    const postCall = sentRequests.find((r) => r.method === "POST" && r.path === "/api/resource/Sales Invoice");
+    expect(postCall).toBeDefined();
+    expect(postCall!.body.amburax_sale_id).toBe("sale-cancelled-resync-1");
+
+    const putCall = sentRequests.find((r) => r.method === "PUT" && r.path.includes("ACC-SINV-NEW-101"));
+    expect(putCall).toBeDefined();
+    expect(putCall!.body.docstatus).toBe(1);
+
+    // Verify no DELETE calls were made against ERPNext
+    expect(sentRequests.some((r) => r.method === "DELETE")).toBe(false);
+  });
 });
