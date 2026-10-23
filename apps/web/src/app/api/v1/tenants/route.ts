@@ -74,6 +74,13 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    if (result.status === "validation_error") {
+      return NextResponse.json(
+        { error: { code: "validation_error", message: result.reason, field: "taxId" }, correlationId },
+        { status: 400 },
+      );
+    }
+
     // Deliberately minimal: no raw tenant id/slug — the onboarding token is the only
     // credential A6 needs, and it's opaque (see ADR series on token design).
     return NextResponse.json(

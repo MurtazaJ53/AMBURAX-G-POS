@@ -154,4 +154,39 @@ describe("registerBusiness", () => {
       expect.objectContaining({ tenantId: "tenant-winner" }),
     );
   });
+
+  describe("GSTIN validation at sign-up", () => {
+    it("accepts registration without taxId (non-GST shop)", async () => {
+      const result = await registerBusiness(baseInput({ taxId: undefined }));
+      expect(result.status).toBe("ok");
+    });
+
+    it("accepts registration with empty or whitespace taxId (non-GST shop)", async () => {
+      const result = await registerBusiness(baseInput({ taxId: "   " }));
+      expect(result.status).toBe("ok");
+    });
+
+    it("accepts registration with valid GSTIN", async () => {
+      const result = await registerBusiness(baseInput({ taxId: "24ABCDE1234F1Z6" }));
+      expect(result.status).toBe("ok");
+    });
+
+    it("rejects registration with invalid GSTIN format", async () => {
+      const result = await registerBusiness(baseInput({ taxId: "INVALID_GSTIN" }));
+      expect(result.status).toBe("validation_error");
+      if (result.status === "validation_error") {
+        expect(result.reason).toContain("15 characters");
+      }
+      expect(mockTx.tenant.create).not.toHaveBeenCalled();
+    });
+
+    it("rejects registration with invalid GSTIN checksum", async () => {
+      const result = await registerBusiness(baseInput({ taxId: "29AABCU9603R1Z9" }));
+      expect(result.status).toBe("validation_error");
+      if (result.status === "validation_error") {
+        expect(result.reason).toContain("last character doesn't match");
+      }
+      expect(mockTx.tenant.create).not.toHaveBeenCalled();
+    });
+  });
 });

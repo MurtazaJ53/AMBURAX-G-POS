@@ -9,6 +9,7 @@ import { isIpRateLimited, recordAttempt } from "@/server/identity/loginGuard";
 import { writeAuditLog } from "@/server/identity/audit";
 import { seedDefaultCapabilities } from "@/server/capability/capabilityService";
 import { seedGarmentMasters } from "@/server/catalog/seedGarmentMasters";
+import { gstinProblem } from "@/server/catalog/gstSetup";
 
 export type BusinessType = "RETAIL" | "WHOLESALE" | "MANUFACTURING" | "SERVICES" | "DISTRIBUTION" | "OTHER";
 
@@ -28,6 +29,7 @@ export interface RegisterBusinessInput {
 
 export type RegisterBusinessResult =
   | { status: "rate_limited" }
+  | { status: "validation_error"; reason: string }
   | { status: "ok"; businessName: string; onboardingToken: string; expiresAt: string };
 
 const MAX_SLUG_ATTEMPTS = 3;
@@ -55,6 +57,13 @@ function isUniqueViolation(err: unknown, field: string): boolean {
  * "partial tenant creation" outcome impossible: either both rows exist or neither does.
  */
 export async function registerBusiness(input: RegisterBusinessInput): Promise<RegisterBusinessResult> {
+  if (input.taxId && input.taxId.trim()) {
+    const problem = gstinProblem(input.taxId);
+    if (problem) {
+      return { status: "validation_error", reason: problem };
+    }
+  }
+
   if (
     await isIpRateLimited(input.ip, "tenant_registration", {
       windowMs: 60 * 60 * 1000,

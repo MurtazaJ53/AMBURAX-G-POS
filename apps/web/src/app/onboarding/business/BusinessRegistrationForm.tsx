@@ -3,6 +3,7 @@
 import { useMemo, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { gstinProblem } from "@/server/catalog/gstSetup";
 
 const BUSINESS_TYPES: { value: string; label: string }[] = [
   { value: "RETAIL", label: "Retail" },
@@ -64,6 +65,10 @@ export function BusinessRegistrationForm() {
     const errors: FieldErrors = {};
     if (form.businessName.trim().length < 2) errors.businessName = "Enter your business name.";
     if (!form.country.trim()) errors.country = "Enter the country you operate in.";
+    if (form.taxId.trim()) {
+      const problem = gstinProblem(form.taxId);
+      if (problem) errors.taxId = problem;
+    }
     if (!/^\S+@\S+\.\S+$/.test(form.contactEmail)) errors.contactEmail = "Enter a valid email address.";
     if (form.contactPhone.trim().length < 7) errors.contactPhone = "Enter a valid phone number.";
     if (!form.termsAccepted) errors.termsAccepted = "You must accept the terms to continue.";
@@ -252,9 +257,16 @@ export function BusinessRegistrationForm() {
               id="taxId"
               value={form.taxId}
               onChange={(e) => update("taxId", e.target.value)}
+              aria-invalid={!!fieldErrors.taxId}
+              aria-describedby={fieldErrors.taxId ? "taxId-error" : undefined}
               className="mt-1.5 block w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 shadow-sm focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/30"
               placeholder="22AAAAA0000A1Z5"
             />
+            {fieldErrors.taxId && (
+              <p id="taxId-error" className="mt-1 text-xs text-red-600">
+                {fieldErrors.taxId}
+              </p>
+            )}
           </div>
         </div>
 
