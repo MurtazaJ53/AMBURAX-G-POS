@@ -509,6 +509,38 @@ describe("the runner, against real PostgreSQL — audit finding F-01", () => {
     expect(await db.outboxEvent.count({ where: { publishedAt: null } })).toBe(0);
   });
 
+  it("four runners on 100 events publish every event exactly once", async () => {
+    // The two-runner case above only overlaps when the machine is busy. Four runners with small
+    // batches and a publish that yields keep their claims overlapping on every cycle, so a claim
+    // that can hand one row to two runners shows up as a count above 1.
+    for (let i = 0; i < 100; i += 1) await enqueueDueEvent(`s${i}`);
+
+    const published = new Map<string, number>();
+    const publisher = {
+      publish: async (event: { eventId: string }) => {
+        published.set(event.eventId, (published.get(event.eventId) ?? 0) + 1);
+        await new Promise((resolve) => setTimeout(resolve, 2));
+      },
+    };
+
+    // Rounds until drained: a tenant's later events wait while an earlier one is in flight, so a
+    // runner can find nothing to claim mid-way and stop; the next round picks up where it left.
+    const now = new Date(Date.now() + 10);
+    for (let round = 0; round < 50; round += 1) {
+      if ((await db.outboxEvent.count({ where: { publishedAt: null } })) === 0) break;
+      await Promise.all(
+        Array.from({ length: 4 }, () =>
+          runOutboxWorker({ publisher, maxCycles: 60, batchSize: 5, now, sleep: async () => {} }),
+        ),
+      );
+    }
+
+    const twice = [...published.entries()].filter(([, count]) => count > 1);
+    expect(twice).toEqual([]);
+    expect(published.size).toBe(100);
+    expect(await db.outboxEvent.count({ where: { publishedAt: null } })).toBe(0);
+  });
+
   it("refuses to run with no transport configured, leaving every event PENDING", async () => {
     // The honesty requirement, proved against the database rather than a mock: an
     // unconfigured system must not claim, must not burn attempts, and must not publish.

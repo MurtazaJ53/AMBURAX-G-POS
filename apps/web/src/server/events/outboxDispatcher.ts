@@ -58,11 +58,17 @@ export interface DispatchResult {
 /**
  * Atomically claim up to `batchSize` due events.
  *
- * One statement. The inner SELECT picks unpublished, non-dead-lettered rows whose
- * `nextAttemptAt` has arrived, oldest first, locking them with SKIP LOCKED so a parallel
- * dispatcher simply takes different rows. The outer UPDATE advances the retry state and
- * returns the claimed rows in the same round trip — there is no window in which a row is
- * selected but not yet claimed.
+ * One statement. `candidates` picks unpublished, non-dead-lettered rows whose
+ * `nextAttemptAt` has arrived, oldest first. `locked` then locks those rows *in the
+ * outbox_events table itself* with SKIP LOCKED, re-checking that each is still claimable, so
+ * a parallel dispatcher simply takes different rows. The outer UPDATE advances the retry
+ * state and returns the claimed rows in the same round trip.
+ *
+ * The lock must be taken on a table, not on a CTE: PostgreSQL ignores a locking clause for
+ * WITH queries it references, so `FOR UPDATE` on `candidates` (which reads the ranked CTE)
+ * locked nothing, and two dispatchers could each claim and publish the same row. The
+ * re-check matters too: under READ COMMITTED a row a parallel dispatcher has just claimed and
+ * committed is re-read at lock time, and its advanced `nextAttemptAt` now excludes it.
  *
  * `tenantId` scopes the claim when supplied. Tenant isolation holds end to end: every row
  * carries a required, FK-enforced tenantId, so a per-tenant dispatcher can never observe
@@ -125,12 +131,20 @@ export async function claimDueEvents(params: {
         AND (b.first_waiting_seq IS NULL OR a.tenant_seq < b.first_waiting_seq)
       ORDER BY a."occurredAt" ASC, a.id ASC
       LIMIT ${batchSize}
+    ),
+    locked AS (
+      SELECT e.id
+      FROM "outbox_events" e
+      WHERE e.id IN (SELECT id FROM candidates)
+        AND e."publishedAt" IS NULL
+        AND e."deadLetteredAt" IS NULL
+        AND e."nextAttemptAt" <= ${now}
       FOR UPDATE SKIP LOCKED
     )
     UPDATE "outbox_events" AS o
        SET "attempts"      = o."attempts" + 1,
            "nextAttemptAt" = ${now} + (LEAST(3600000, 30000 * POWER(2, o."attempts")) || ' milliseconds')::interval
-     WHERE o."id" IN (SELECT id FROM candidates)
+     WHERE o."id" IN (SELECT id FROM locked)
     RETURNING o."id", o."tenantId", o."storeId", o."eventType", o."eventVersion",
               o."occurredAt", o."actorUserId", o."correlationId", o."causationId",
               o."entityId", o."payload", o."attempts"
