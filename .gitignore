@@ -78,3 +78,6 @@ apps/web/prisma/seedRealShop*.ts
 apps/web/prisma/connectRealShop*.ts
 apps/web/prisma/record_migration_history.cjs
 *.tmp
+
+# Local database dumps
+backups/
