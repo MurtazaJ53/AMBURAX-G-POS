@@ -273,13 +273,28 @@ body {
     display: none !important;
   }
 
-  /* Thermal sticker card print precision */
-  .garment-barcode-sticker {
-    box-sizing: border-box !important;
-    page-break-inside: avoid !important;
-    break-inside: avoid !important;
-    border: 1px dashed #000000 !important;
-    background: #ffffff !important;
-    color: #000000 !important;
+  /* Barcode labels: while the label modal is open, only its print sheet prints. The sheet sizes
+   * itself in mm and sets its own @page size (BarcodeLabelModal / labelLayout). */
+  body.amb-printing-labels > *:not(.amb-label-print-root) {
+    display: none !important;
   }
+
+  body.amb-printing-labels .amb-label-print-root {
+    display: block !important;
+  }
+
+  .amb-label-page {
+    overflow: hidden;
+    break-after: page;
+    page-break-after: always;
+  }
+
+  .amb-label-page:last-child {
+    break-after: auto;
+    page-break-after: auto;
+  }
+}
+
+.amb-label-print-root {
+  display: none;
 }

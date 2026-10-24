@@ -7,7 +7,7 @@ import { type StockLevel, type ProductVariant, type Product } from "@prisma/clie
 import { StatusPill, type Status } from "./InventoryUI";
 import { formatMinor } from "@/server/sales/saleTotals";
 import { restoreInspectorFocus } from "./inspectorFocus";
-import { BarcodeLabelModal } from "./BarcodeLabelModal";
+import { BarcodeLabelModal } from "@/app/(app)/products/[id]/BarcodeLabelModal";
 
 type DetailStock = StockLevel & {
   variant: ProductVariant & {
@@ -303,15 +303,26 @@ export function InventoryDetailPanel({
         </div>
       </aside>
 
-      <BarcodeLabelModal
-        isOpen={barcodeModalOpen}
-        onClose={() => setBarcodeModalOpen(false)}
-        productName={p.name}
-        variantName={[v.size, v.colour].filter(Boolean).join(" / ") || null}
-        sku={v.sku}
-        barcode={v.barcode}
-        priceMinor={v.priceMinor}
-      />
+      {/* Mounted only while open, so the label count starts at 1 each time. */}
+      {barcodeModalOpen && (
+        <BarcodeLabelModal
+          isOpen
+          onClose={() => setBarcodeModalOpen(false)}
+          variants={[
+            {
+              id: v.id,
+              sku: v.sku,
+              barcode: v.barcode,
+              productName: p.name,
+              size: v.size,
+              colour: v.colour,
+              priceMinor: v.priceMinor,
+              mrpMinor: v.mrpMinor,
+              quantity: 1,
+            },
+          ]}
+        />
+      )}
     </>
   );
 }
