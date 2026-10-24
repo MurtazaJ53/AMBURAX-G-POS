@@ -3,6 +3,7 @@ import { derivePosDeviceStatus } from "@/server/pos/posDevice";
 import { randomUUID } from "node:crypto";
 import { deriveInvitationStatus } from "@/server/tenant/invitation";
 import { ErpBankLinkReader, type BankLinkStatus } from "@/server/erp/bankLinkStatus";
+import { ErpNegativeStockReader, type NegativeStockLine } from "@/server/erp/negativeStock";
 import { logError } from "@/lib/safeLog";
 
 /**
@@ -39,7 +40,7 @@ import { logError } from "@/lib/safeLog";
  */
 export type ReadinessLevel = "READY" | "PENDING" | "ATTENTION" | "NOT_CONFIGURED" | "UNAVAILABLE";
 
-export type ReadinessKey = "business" | "owner" | "store" | "team" | "pos" | "inventory" | "payments" | "bank";
+export type ReadinessKey = "business" | "owner" | "store" | "team" | "pos" | "inventory" | "payments" | "bank" | "negative_stock";
 
 export interface ReadinessItem {
   key: ReadinessKey;
@@ -55,6 +56,8 @@ export interface ReadinessItem {
   blocksSale: boolean;
   /** Only set when the merchant can genuinely act on it today. UNAVAILABLE items get none. */
   action: { label: string; href: string } | null;
+  /** The rows behind the item, when it is a list (negative stock). */
+  lines?: NegativeStockLine[];
 }
 
 export interface OnboardingReadiness {
@@ -151,6 +154,8 @@ export async function getOnboardingReadiness(params: {
   if (tenant.erpnextProvisionStatus === "PROVISIONED") {
     const bank = bankItem(await readBankLink(params.tenantId));
     if (bank) items.push(bank);
+    const negative = negativeStockItem(await readNegativeStock(params.tenantId));
+    if (negative) items.push(negative);
   }
 
   return {
@@ -406,5 +411,48 @@ function bankItem(status: BankLinkStatus): ReadinessItem | null {
       'UPI and card payments are being recorded in a placeholder account named "Bank". In ERPNext, open Mode of Payment for UPI and Credit Card and choose your real bank account for this company.',
     blocksSale: false,
     action: null,
+  };
+}
+
+/** Same rule as the bank link: a failed ERPNext read leaves the item off, never guesses. */
+async function readNegativeStock(tenantId: string): Promise<NegativeStockLine[] | null> {
+  try {
+    return await new ErpNegativeStockReader().listNegativeStock(tenantId, randomUUID());
+  } catch (err) {
+    logError("readiness: negative stock could not be read", err, { tenantId });
+    return null;
+  }
+}
+
+/**
+ * Sales are allowed to take stock below zero (POS policy), so ERPNext can't stop it. This is the
+ * owner's alert that something was sold before it was received. Never blocks a sale.
+ */
+function negativeStockItem(lines: NegativeStockLine[] | null): ReadinessItem | null {
+  if (!lines) return null;
+  if (lines.length === 0) {
+    return {
+      key: "negative_stock",
+      label: "Negative stock",
+      level: "READY",
+      detail: "No item is below zero in stock.",
+      blocksSale: false,
+      action: null,
+      lines: [],
+    };
+  }
+  const shown = lines
+    .slice(0, 5)
+    .map((l) => `${l.itemName} (${l.qty})`)
+    .join(", ");
+  const more = lines.length > 5 ? ` and ${lines.length - 5} more` : "";
+  return {
+    key: "negative_stock",
+    label: "Negative stock",
+    level: "ATTENTION",
+    detail: `${lines.length === 1 ? "1 item is" : `${lines.length} items are`} below zero in stock: ${shown}${more}. They were sold before being received — record the missing purchase or a stock count.`,
+    blocksSale: false,
+    action: null,
+    lines,
   };
 }

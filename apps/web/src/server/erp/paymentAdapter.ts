@@ -7,6 +7,9 @@ import { HttpErpTransport } from "@/server/erp/httpTransport";
 import { ErpError } from "@/server/erp/errors";
 import type { ErpTransport } from "@/server/erp/transport";
 
+/** AMBURAX payment method → the ERPNext Mode of Payment that provisioning creates for it. */
+export const MODE_OF_PAYMENT = { CASH: "Cash", UPI: "UPI", CARD: "Credit Card" } as const;
+
 export interface SyncPaymentResult {
   paymentEntryId: string;
   allocatedInvoices: string[];
@@ -54,6 +57,32 @@ export class ErpPaymentAdapter {
       }
       throw err;
     }
+  }
+
+  /** The account linked to `mode` for `company`. Refuses rather than guessing when none is linked. */
+  private async modeOfPaymentAccount(
+    env: ErpEnvironment,
+    tenantId: string,
+    mode: string,
+    company: string,
+    correlationId: string,
+    causationId: string
+  ): Promise<string> {
+    const res = await this.client.call(
+      env,
+      { tenantId, correlationId, causationId },
+      { method: "GET", path: `/api/resource/Mode of Payment/${encodeURIComponent(mode)}` }
+    );
+    const accounts = (res.body as { data?: { accounts?: Array<{ company: string; default_account?: string }> } })?.data?.accounts;
+    const account = accounts?.find((a) => a.company === company)?.default_account;
+    if (!account) {
+      throw new ErpError({
+        kind: "validation_failed",
+        message: `Mode of Payment ${mode} has no account for ${company}. Reconnect the business to ERPNext to set it up.`,
+        correlationId,
+      });
+    }
+    return account;
   }
 
   /**
@@ -183,23 +212,21 @@ export class ErpPaymentAdapter {
     }
 
     const company = requireCompany(env, correlationId);
-    let abbr = "AR";
-    try {
-      const compRes = await this.client.call(
-        env,
-        { tenantId, correlationId, causationId: payment.id },
-        { method: "GET", path: `/api/resource/Company/${encodeURIComponent(company)}` }
-      );
-      const compBody = compRes.body as { data?: { abbr?: string } };
-      if (compBody?.data?.abbr) {
-        abbr = compBody.data.abbr;
-      }
-    } catch {
-      // Fallback
+    // No fallback abbreviation: guessing one would post against another company's Debtors.
+    const compRes = await this.client.call(
+      env,
+      { tenantId, correlationId, causationId: payment.id },
+      { method: "GET", path: `/api/resource/Company/${encodeURIComponent(company)}` }
+    );
+    const abbr = (compRes.body as { data?: { abbr?: string } })?.data?.abbr;
+    if (!abbr) {
+      throw new ErpError({ kind: "malformed_response", message: `Company ${company} has no abbreviation`, correlationId });
     }
 
-    const modeOfPayment = payment.paymentMethod === "UPI" ? "Bank" : payment.paymentMethod === "CARD" ? "Bank" : "Cash";
-    const paidToAccount = modeOfPayment === "Bank" ? `Bank - ${abbr}` : `Cash - ${abbr}`;
+    // The Mode of Payment names provisioning creates, and the account the owner linked to each
+    // for this company (Mode of Payment Account) — which may be their real bank, not the placeholder.
+    const modeOfPayment = MODE_OF_PAYMENT[payment.paymentMethod];
+    const paidToAccount = await this.modeOfPaymentAccount(env, tenantId, modeOfPayment, company, correlationId, payment.id);
     const paidFromAccount = `Debtors - ${abbr}`;
 
     const paymentEntryPayload = {

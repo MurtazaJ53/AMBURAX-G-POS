@@ -20,6 +20,12 @@ vi.mock("@/server/identity/loginGuard", () => ({
 vi.mock("@/server/identity/audit", () => ({ writeAuditLog: vi.fn(async () => {}) }));
 vi.mock("@/server/identity/session", () => ({ resolveSession: vi.fn() }));
 const getBankLinkStatus = vi.fn();
+const listNegativeStock = vi.fn();
+vi.mock("@/server/erp/negativeStock", () => ({
+  ErpNegativeStockReader: class {
+    listNegativeStock = listNegativeStock;
+  },
+}));
 vi.mock("@/server/erp/bankLinkStatus", () => ({
   ErpBankLinkReader: class {
     getBankLinkStatus = getBankLinkStatus;
@@ -448,5 +454,41 @@ describe("bank account link — the placeholder from provisioning", () => {
     getBankLinkStatus.mockRejectedValue(new Error("timeout"));
     const r = await readiness();
     expect(r.items.some((i) => i.key === "bank")).toBe(false);
+  });
+});
+
+describe("negative stock — read-only alert from ERPNext", () => {
+  const line = (itemName: string, qty: number) => ({ itemCode: itemName, itemName, warehouse: "Ring Road - SKF", qty });
+
+  it("is not shown, and ERPNext is not asked, before the business is connected", async () => {
+    const r = await readiness();
+    expect(r.items.some((i) => i.key === "negative_stock")).toBe(false);
+    expect(listNegativeStock).not.toHaveBeenCalled();
+  });
+
+  it("lists the items below zero, most negative first, without blocking a sale", async () => {
+    setTenant("POS_CONFIGURED", "PROVISIONED");
+    getBankLinkStatus.mockResolvedValue("linked");
+    listNegativeStock.mockResolvedValue([line("Red Tee XL", -95), line("Beige Leggings XL", -82)]);
+    const neg = item(await readiness(), "negative_stock") as Item & { lines: unknown[] };
+    expect(neg).toMatchObject({ level: "ATTENTION", blocksSale: false });
+    expect(neg.detail).toContain("2 items are below zero");
+    expect(neg.detail).toContain("Red Tee XL (-95)");
+    expect(neg.lines).toHaveLength(2);
+  });
+
+  it("is READY when nothing is below zero", async () => {
+    setTenant("POS_CONFIGURED", "PROVISIONED");
+    getBankLinkStatus.mockResolvedValue("linked");
+    listNegativeStock.mockResolvedValue([]);
+    expect(item(await readiness(), "negative_stock")).toMatchObject({ level: "READY" });
+  });
+
+  it("leaves the item off when ERPNext can't be read", async () => {
+    setTenant("POS_CONFIGURED", "PROVISIONED");
+    getBankLinkStatus.mockResolvedValue("linked");
+    listNegativeStock.mockRejectedValue(new Error("403"));
+    const r = await readiness();
+    expect(r.items.some((i) => i.key === "negative_stock")).toBe(false);
   });
 });

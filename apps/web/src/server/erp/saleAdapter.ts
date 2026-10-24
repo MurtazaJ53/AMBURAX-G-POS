@@ -312,42 +312,14 @@ export class ErpSaleAdapter {
           }
         );
       } catch (err: unknown) {
-        // If ERPNext refuses submission due to insufficient ledger stock in the warehouse
-        // (NegativeStockError), post the financial invoice without update_stock so receivables,
-        // payments, and GST are faithfully synchronized rather than blocking the till.
+        // Policy: POS shops run with allow_negative_stock on and every sale moves stock. A stock
+        // refusal means the site is misconfigured; it is surfaced and retried, never re-posted
+        // without update_stock (which would leave the sale out of the stock ledger for good).
         const errMsg = err instanceof Error ? err.message : String(err);
         if (errMsg.includes("needed in Warehouse") || errMsg.includes("Insufficient Stock") || errMsg.includes("NegativeStockError")) {
-          try {
-            const fallbackResponse = await this.client.call(
-              envResult.environment,
-              { tenantId, correlationId, causationId: sale.id },
-              {
-                method: "POST",
-                path: "/api/resource/Sales Invoice",
-                body: { ...invoiceDoc, update_stock: 0 },
-                idempotencyKey: sale.id,
-              }
-            );
-            const fbBody = fallbackResponse.body as { data?: { name?: string } & Record<string, unknown> };
-            if (fbBody?.data?.name) {
-              assertInrCurrencyGuard("Sales Invoice", fbBody.data.name, fbBody.data, correlationId);
-              invoiceId = fbBody.data.name;
-              await this.client.call(
-                envResult.environment,
-                { tenantId, correlationId, causationId: sale.id },
-                {
-                  method: "PUT",
-                  path: `/api/resource/Sales Invoice/${encodeURIComponent(invoiceId)}`,
-                  body: { docstatus: 1 },
-                }
-              );
-            } else {
-              throw err;
-            }
-          } catch {
-            throw err;
-          }
-        } else {
+          throw err;
+        }
+        {
           // Fallback lookup to defend against unique constraint races
           const fallbackDoc = await this.lookupInvoiceBySaleId(
             envResult.environment,
