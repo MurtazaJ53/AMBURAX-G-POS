@@ -1,5 +1,5 @@
 import { db } from "@/server/db";
-import { randomBytes, randomInt } from "node:crypto";
+import { randomBytes } from "node:crypto";
 import type { Prisma } from "@prisma/client";
 
 /**
@@ -64,64 +64,4 @@ export async function generateCleanSku(params: {
   // Fallback high-entropy candidate
   const fallbackSuffix = Date.now().toString(36).toUpperCase().slice(-6);
   return sanitizeCleanCode(`${prefix.slice(0, 24)}-${fallbackSuffix}`, 32);
-}
-
-/**
- * Calculates standard EAN-8 modulo 10 checksum digit.
- */
-export function calculateEan8CheckDigit(sevenDigits: string): string {
-  let sum = 0;
-  for (let i = 0; i < 7; i++) {
-    const digit = parseInt(sevenDigits[i]!, 10);
-    // Odd positions weighted 3, even weighted 1
-    sum += i % 2 === 0 ? digit * 3 : digit;
-  }
-  const mod = sum % 10;
-  return mod === 0 ? "0" : (10 - mod).toString();
-}
-
-/**
- * Generates a clean, unique Barcode:
- * - Strictly [A-Z0-9-]
- * - Barcodes must NOT contain product name text or spaces
- * - Defaults to standardized EAN-8 sequence (20xxxxxC) for in-store thermal labels
- * - Checks both product_variants.barcode AND variant_barcodes tables
- * - Retries on collision
- */
-export async function generateCleanBarcode(params: {
-  tenantId: string;
-  client?: Prisma.TransactionClient | typeof db;
-  maxAttempts?: number;
-}): Promise<string> {
-  const { tenantId, client, maxAttempts = 20 } = params;
-  const prisma = client || db;
-
-  for (let attempt = 0; attempt < maxAttempts; attempt++) {
-    // Standard thermal label EAN-8 prefix "20" + 5 random digits + checksum
-    const randomSuffix = randomInt(0, 99999).toString().padStart(5, "0");
-    const payload7 = `20${randomSuffix}`;
-    const checkDigit = calculateEan8CheckDigit(payload7);
-    const candidate = `${payload7}${checkDigit}`;
-
-    // Verify against both variant_barcodes and product_variants
-    const [inVariantBarcodes, inProductVariants] = await Promise.all([
-      prisma.variantBarcode.findFirst({
-        where: { tenantId, barcode: candidate },
-        select: { id: true },
-      }),
-      prisma.productVariant.findFirst({
-        where: { tenantId, barcode: candidate },
-        select: { id: true },
-      }),
-    ]);
-
-    if (!inVariantBarcodes && !inProductVariants) {
-      return candidate;
-    }
-  }
-
-  // Fallback 12-digit clean numeric string
-  const timestampPart = Date.now().toString().slice(-8);
-  const randomTail = randomInt(10, 99).toString();
-  return sanitizeCleanCode(`29${timestampPart}${randomTail}`, 32);
 }

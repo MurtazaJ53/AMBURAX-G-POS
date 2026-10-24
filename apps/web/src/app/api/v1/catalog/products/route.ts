@@ -6,7 +6,6 @@ import { logError } from "@/lib/safeLog";
 import { apiError, unauthorized, forbidden, serviceUnavailable } from "@/lib/apiError";
 import { resolvePosContext } from "@/server/sales/posContext";
 import { createProduct, createVariant } from "@/server/catalog/catalogService";
-import { generateUniqueShortBarcode } from "@/server/catalog/barcodeGenerator";
 import { GstTaxTreatment } from "@prisma/client";
 import { gstClassificationError } from "@/server/catalog/gstTaxTreatment";
 import { db } from "@/server/db";
@@ -120,10 +119,8 @@ export async function POST(req: NextRequest) {
           ? r.sku.trim()
           : `SKU-${Date.now().toString().slice(-6)}-${Math.random().toString(36).substring(2, 5).toUpperCase()}${i > 0 ? `-${i}` : ""}`;
 
-      const barcode =
-        r.barcode && r.barcode.trim().length > 0
-          ? r.barcode.trim()
-          : await generateUniqueShortBarcode(resolved.context.tenantId);
+      // Without a barcode the catalogue service draws the next in-store code.
+      const barcode = r.barcode?.trim() || null;
 
       preparedVariants.push({
         sku,

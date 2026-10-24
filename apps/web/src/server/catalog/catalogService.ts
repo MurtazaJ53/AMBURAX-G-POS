@@ -7,9 +7,14 @@ import { writeAuditLog } from "@/server/identity/audit";
 import { enqueueOutboxEvent } from "@/server/events/outbox";
 import { canManageCatalog } from "@/server/catalog/catalogRoles";
 import { gstClassificationError } from "@/server/catalog/gstTaxTreatment";
-import { generateUniqueShortBarcode } from "@/server/catalog/barcodeGenerator";
+import { nextTenantBarcode } from "@/server/catalog/barcodeGenerator";
 import { applyStockMovement } from "@/server/inventory/stockLedger";
-import { syncVariantDualWrite, DuplicateBarcodeError } from "@/server/catalog/variantDualWrite";
+import {
+  syncVariantDualWrite,
+  DuplicateBarcodeError,
+  isDuplicateBarcodeError,
+  isDuplicateSkuError,
+} from "@/server/catalog/variantDualWrite";
 import { randomUUID } from "node:crypto";
 
 
@@ -255,11 +260,15 @@ export async function createProduct(input: CreateProductInput): Promise<CreatePr
           throw new Error("INVALID_TAX_CLASSIFICATION");
         }
 
+        // No barcode supplied: draw the tenant's next in-store code in this transaction.
+        const suppliedBarcode = v.barcode?.trim() || null;
+        const barcode = suppliedBarcode ?? (await nextTenantBarcode(tx, input.actor.tenantId));
+
         const variantData: Record<string, unknown> = {
           tenantId: input.actor.tenantId,
           productId: product.id,
           sku: v.sku,
-          barcode: v.barcode,
+          barcode,
           size: v.size,
           colour: v.colour,
           costPriceMinor: v.costPriceMinor ?? null,
@@ -285,8 +294,8 @@ export async function createProduct(input: CreateProductInput): Promise<CreatePr
           variantId: variant.id,
           size: v.size,
           colour: v.colour,
-          barcode: v.barcode,
-          barcodeType: v.barcodeType,
+          barcode,
+          barcodeType: suppliedBarcode ? v.barcodeType : "INTERNAL",
         });
 
         // ProductVariantCreated must be enqueued BEFORE any stock movements so ERPNext creates the Item first!
@@ -413,10 +422,9 @@ export async function createProduct(input: CreateProductInput): Promise<CreatePr
       if (err.message === "INVALID_TAX_CLASSIFICATION" || err.message === "UNSPECIFIED_TAX_TREATMENT") {
         return { status: "invalid_tax_classification" };
       }
-      if (err.message.includes("product_unique_name_brand") || (err as any).code === "P2002") {
-        return { status: "duplicate_product_name" };
-      }
     }
+    const collision = uniqueCollision(err);
+    if (collision) return collision;
     throw err;
   }
 
@@ -643,7 +651,8 @@ export async function updateProduct(input: UpdateProductInput): Promise<UpdatePr
             const autoSku =
               v.sku?.trim() ||
               `SKU-${(input.name || existing.name).slice(0, 6).toUpperCase()}-${cleanSize || "STD"}-${randomUUID().slice(0, 4).toUpperCase()}`;
-            const autoBarcode = v.barcode?.trim() || (await generateUniqueShortBarcode(input.actor.tenantId));
+            const suppliedBarcode = v.barcode?.trim() || null;
+            const autoBarcode = suppliedBarcode ?? (await nextTenantBarcode(tx, input.actor.tenantId));
 
             const createdVar = await tx.productVariant.create({
               data: {
@@ -668,6 +677,7 @@ export async function updateProduct(input: UpdateProductInput): Promise<UpdatePr
               size: cleanSize,
               colour: cleanColour,
               barcode: autoBarcode,
+              ...(suppliedBarcode ? {} : { barcodeType: "INTERNAL" as const }),
             });
 
             // Apply opening stock if openingQty > 0 for this new variant
@@ -727,11 +737,8 @@ export async function updateProduct(input: UpdateProductInput): Promise<UpdatePr
       }
     }, { timeout: 30000, maxWait: 10000 });
   } catch (err: unknown) {
-    if (err instanceof Error) {
-      if (err.message.includes("product_unique_name_brand") || (err as any).code === "P2002") {
-        return { status: "duplicate_product_name" };
-      }
-    }
+    const collision = uniqueCollision(err);
+    if (collision) return collision;
     throw err;
   }
 
@@ -769,7 +776,7 @@ export interface CreateVariantInput {
 }
 
 export type CreateVariantResult =
-  | { status: "ok"; variantId: string }
+  | { status: "ok"; variantId: string; barcode: string | null }
   | { status: "invalid_tax_classification" }
   | { status: "duplicate_barcode"; barcode: string }
   | { status: "duplicate_sku"; sku: string }
@@ -819,16 +826,22 @@ export async function createVariant(input: CreateVariantInput): Promise<CreateVa
     if (existingBarcode) return { status: "duplicate_barcode", barcode: input.barcode };
   }
 
-  const variant = await db.$transaction(async (tx) => {
+  let variant: { id: string; barcode: string | null };
+  try {
+  variant = await db.$transaction(async (tx) => {
     // If product is draft or explicitly flagged draft, do not enqueue outbox event
     const isProductDraft = input.isDraft ?? product.isDraft;
+
+    // No barcode supplied: draw the tenant's next in-store code in this transaction.
+    const suppliedBarcode = input.barcode?.trim() || null;
+    const barcode = suppliedBarcode ?? (await nextTenantBarcode(tx, input.actor.tenantId));
 
     const v = await tx.productVariant.create({
       data: {
         tenantId: input.actor.tenantId,
         productId: input.productId,
         sku: input.sku,
-        barcode: input.barcode,
+        barcode,
         size: input.size,
         colour: input.colour,
         costPriceMinor: input.costPriceMinor ?? null,
@@ -845,9 +858,10 @@ export async function createVariant(input: CreateVariantInput): Promise<CreateVa
       variantId: v.id,
       size: input.size,
       colour: input.colour,
-      barcode: input.barcode,
+      barcode,
+      ...(suppliedBarcode ? {} : { barcodeType: "INTERNAL" as const }),
     });
-    
+
     // Apply opening stock movement if openingQty > 0
     if (input.openingQty && input.openingQty > 0) {
       const isSample = input.isFreeSample === true;
@@ -907,6 +921,14 @@ export async function createVariant(input: CreateVariantInput): Promise<CreateVa
     
     return v;
   }, { timeout: 30000, maxWait: 10000 });
+  } catch (err: unknown) {
+    // A concurrent create can take the same code or SKU after the pre-checks above passed.
+    if (isDuplicateBarcodeError(err)) {
+      return { status: "duplicate_barcode", barcode: err instanceof DuplicateBarcodeError ? err.barcode : input.barcode?.trim() ?? "" };
+    }
+    if (isDuplicateSkuError(err)) return { status: "duplicate_sku", sku: input.sku };
+    throw err;
+  }
 
   await writeAuditLog({
     tenantId: input.actor.tenantId,
@@ -916,7 +938,30 @@ export async function createVariant(input: CreateVariantInput): Promise<CreateVa
     metadata: { variantId: variant.id, productId: input.productId }
   });
 
-  return { status: "ok", variantId: variant.id };
+  return { status: "ok", variantId: variant.id, barcode: variant.barcode };
+}
+
+/**
+ * Maps a unique violation raised inside a catalogue transaction to the result the caller can
+ * show: a barcode or SKU collision is named as such, and only a clash on anything else (the
+ * product name/brand index) is reported as a duplicate product name.
+ */
+function uniqueCollision(
+  err: unknown,
+):
+  | { status: "duplicate_barcode"; barcode: string }
+  | { status: "duplicate_sku"; sku: string }
+  | { status: "duplicate_product_name" }
+  | null {
+  if (isDuplicateBarcodeError(err)) {
+    return { status: "duplicate_barcode", barcode: err instanceof DuplicateBarcodeError ? err.barcode : "" };
+  }
+  if (isDuplicateSkuError(err)) return { status: "duplicate_sku", sku: "" };
+  const message = err instanceof Error ? err.message : "";
+  if (message.includes("product_unique_name_brand") || (err as { code?: string } | null)?.code === "P2002") {
+    return { status: "duplicate_product_name" };
+  }
+  return null;
 }
 
 export interface UpdateVariantInput {

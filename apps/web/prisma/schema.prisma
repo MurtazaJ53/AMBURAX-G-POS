@@ -170,6 +170,7 @@ model Tenant {
   sizeGroupItems          SizeGroupItem[]
   variantAttributeValues  VariantAttributeValue[]
   variantBarcodes         VariantBarcode[]
+  barcodeSequence         TenantBarcodeSequence?
   tenantLoginPolicy       TenantLoginPolicy?
   trustedNetworks         TrustedNetwork[]
   breakGlassSessionGrants BreakGlassSessionGrant[]
@@ -3335,6 +3336,7 @@ enum BarcodeType {
   EAN13
   UPC
   QR
+  EAN8
 }
 
 model AttributeDefinition {
@@ -3450,4 +3452,17 @@ model VariantBarcode {
   @@unique([tenantId, barcode])
   @@index([tenantId, variantId])
   @@map("variant_barcodes")
+}
+
+/// The last in-store barcode number handed out to a tenant. Incremented with
+/// INSERT ... ON CONFLICT DO UPDATE inside the transaction that writes the variant, so the
+/// row lock serialises concurrent creates and no two variants get the same number.
+model TenantBarcodeSequence {
+  tenantId  String   @id
+  lastValue BigInt   @default(0)
+  updatedAt DateTime @default(now()) @updatedAt
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@map("tenant_barcode_sequences")
 }

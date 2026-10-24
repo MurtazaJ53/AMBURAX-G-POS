@@ -1090,27 +1090,9 @@ export function AddProductWizard({
                   <th className="py-2.5 px-3 min-w-[200px]">
                     <div className="flex items-center justify-between gap-1.5">
                       <span>Barcode</span>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          const cleanName = (name || "PRD").toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 3) || "PRD";
-                          setTableRows((prev) =>
-                            prev.map((r) => {
-                              const cleanSize = r.size.toUpperCase().replace(/[^A-Z0-9]/g, "") || "SZ";
-                              const cleanClr = r.colour.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 3) || "CLR";
-                              const autoBarcode = `BC-${cleanName}-${cleanSize}-${cleanClr}-${Math.floor(1000 + Math.random() * 9000)}`;
-                              return {
-                                ...r,
-                                barcode: autoBarcode,
-                              };
-                            })
-                          );
-                        }}
-                        className="rounded bg-sky-100 hover:bg-sky-200 px-1.5 py-0.5 text-[10px] font-semibold text-primary transition-colors whitespace-nowrap"
-                        title="Auto-fill custom barcodes for all rows now"
-                      >
-                        ⚡ Generate All
-                      </button>
+                      <span className="text-[10px] font-normal text-slate-500" title="Leave blank and a barcode is created when you save">
+                        blank = auto
+                      </span>
                     </div>
                   </th>
                   <th className="py-2.5 px-3">Cost (₹)</th>
@@ -1162,7 +1144,7 @@ export function AddProductWizard({
                           <input
                             type="text"
                             value={row.barcode}
-                            placeholder="Scan / Type Barcode"
+                            placeholder="Scan, type or leave blank"
                             onChange={(e) => {
                               const val = e.target.value;
                               setTableRows((prev) =>
@@ -1171,22 +1153,6 @@ export function AddProductWizard({
                             }}
                             className="w-36 rounded-md border border-slate-200 bg-white px-2 py-1 font-mono text-[11px] placeholder:text-slate-400 focus:border-primary focus:outline-none"
                           />
-                          <button
-                            type="button"
-                            title="Auto-generate in-store barcode"
-                            onClick={() => {
-                              const cleanName = (name || "PRD").toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 3) || "PRD";
-                              const cleanSize = row.size.toUpperCase().replace(/[^A-Z0-9]/g, "") || "SZ";
-                              const cleanClr = row.colour.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 3) || "CLR";
-                              const autoBarcode = `BC-${cleanName}-${cleanSize}-${cleanClr}-${Math.floor(1000 + Math.random() * 9000)}`;
-                              setTableRows((prev) =>
-                                prev.map((r, i) => (i === idx ? { ...r, barcode: autoBarcode } : r))
-                              );
-                            }}
-                            className="p-1 rounded-md text-slate-400 hover:text-primary hover:bg-slate-100"
-                          >
-                            <Sparkles className="h-3.5 w-3.5" />
-                          </button>
                           <button
                             type="button"
                             title="Scan Barcode via Camera"

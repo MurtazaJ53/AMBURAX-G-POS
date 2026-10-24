@@ -3,7 +3,7 @@ import { GstTaxTreatment, type TaxRateMode } from "@prisma/client";
 import { db } from "@/server/db";
 import { createProduct, createVariant } from "@/server/catalog/catalogService";
 import { canManageInventory } from "@/server/inventory/inventoryRoles";
-import { generateCleanBarcode, generateCleanSku } from "@/server/catalog/codeGenerators";
+import { generateCleanSku } from "@/server/catalog/codeGenerators";
 
 /**
  * Picking items on a purchase the way a shopkeeper thinks: by product name, then size and colour.
@@ -268,8 +268,8 @@ export async function quickCreateProduct(input: {
 
   const [first, ...rest] = combos;
   const firstPricing = getVariantPricing(first!.size, first!.colour);
-  // Clean EAN-8 auto-generation vs scanned barcode
-  const firstBarcode = firstPricing.barcode || (await generateCleanBarcode({ tenantId: actor.tenantId }));
+  // A scanned or typed barcode is kept as is; without one, the catalogue draws the next in-store code.
+  const firstBarcode = firstPricing.barcode?.trim() || null;
   const firstSku = await generateCleanSku({
     tenantId: actor.tenantId,
     productName: name,
@@ -340,7 +340,7 @@ export async function quickCreateProduct(input: {
     }
 
     const p = getVariantPricing(c.size, c.colour);
-    const variantBarcode = p.barcode || (await generateCleanBarcode({ tenantId: actor.tenantId }));
+    const variantBarcode = p.barcode?.trim() || null;
     const variantSku = await generateCleanSku({
       tenantId: actor.tenantId,
       productName: name,

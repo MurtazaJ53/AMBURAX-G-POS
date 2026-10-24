@@ -73,12 +73,6 @@ export function VariantForm(props: {
     setSkuValue(generated);
   }
 
-  function generateAutoBarcode() {
-    // 8-digit compact thermal barcode starting with 20
-    const random6 = Math.floor(100000 + Math.random() * 900000).toString();
-    setBarcodeValue(`20${random6}`);
-  }
-
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setIsSubmitting(true);
@@ -162,21 +156,13 @@ export function VariantForm(props: {
             />
           </div>
 
-          {/* Barcode Field with Auto-Generate, Machine Scanner, and Camera Scan */}
+          {/* Barcode: scanned, typed, or left blank for the next in-store code */}
           <div>
             <div className="flex items-center justify-between">
               <label htmlFor="barcode" className="block text-sm font-medium text-slate-700">
                 Barcode <span className="text-xs font-normal text-slate-500">(Thermal Code-128 / EAN)</span>
               </label>
               <div className="flex items-center gap-2.5">
-                <button
-                  type="button"
-                  onClick={generateAutoBarcode}
-                  className="inline-flex items-center gap-1 text-xs font-semibold text-primary hover:underline"
-                >
-                  <Sparkles className="h-3 w-3" />
-                  Auto
-                </button>
                 <button
                   type="button"
                   onClick={() => setCameraScannerOpen(true)}
@@ -193,7 +179,7 @@ export function VariantForm(props: {
                 name="barcode"
                 value={barcodeValue}
                 onChange={(e) => setBarcodeValue(e.target.value)}
-                placeholder="Scan or auto-generate short barcode…"
+                placeholder="Scan the tag, type it, or leave blank to create one"
                 className="block w-full rounded-md border border-slate-300 pl-3 pr-10 py-2 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
               />
               <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-3 text-slate-400">

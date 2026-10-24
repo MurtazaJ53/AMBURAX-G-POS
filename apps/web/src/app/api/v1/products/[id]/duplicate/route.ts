@@ -7,7 +7,6 @@ import { apiError, unauthorized, noStore, forbidden } from "@/lib/apiError";
 import { resolvePosContext } from "@/server/sales/posContext";
 import { canManageCatalog } from "@/server/catalog/catalogRoles";
 import { createProduct } from "@/server/catalog/catalogService";
-import { generateUniqueShortBarcode } from "@/server/catalog/barcodeGenerator";
 
 export const runtime = "nodejs";
 
@@ -56,11 +55,11 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       const sv = sourceProduct.variants[i]!;
       const tag = Math.random().toString(36).substring(2, 6).toUpperCase();
       const newSku = `SKU-${newName.slice(0, 4).toUpperCase().replace(/[^A-Z0-9]/g, "")}-${sv.size || "STD"}-${tag}`;
-      const newBarcode = await generateUniqueShortBarcode(tenantId);
 
       preparedVariants.push({
         sku: newSku,
-        barcode: newBarcode,
+        // A copy never shares the source's barcode; the catalogue draws a new one.
+        barcode: null,
         size: sv.size,
         colour: sv.colour,
         costPriceMinor: sv.costPriceMinor,

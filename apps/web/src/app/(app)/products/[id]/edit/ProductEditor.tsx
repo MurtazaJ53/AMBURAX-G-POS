@@ -198,13 +198,13 @@ export function ProductEditor({
           const cleanSize = sz.toUpperCase().replace(/[^A-Z0-9]/g, "") || "SZ";
           const cleanClr = clr.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 3) || "CLR";
           const rand = Math.random().toString(36).toUpperCase().replace(/[^A-Z0-9]/g, "").slice(2, 5);
-          const autoBarcode = `BC-${cleanName.slice(0, 3)}-${cleanSize}-${cleanClr}-${Math.floor(1000 + Math.random() * 9000)}`;
 
           const sibling = variants[0];
           additions.push({
             id: "", // Empty ID marks it as NEW variant to be created by updateProduct
             sku: `SKU-${cleanName}-${cleanSize}-${cleanClr}-${rand}`,
-            barcode: autoBarcode,
+            // Left blank: the server creates the next in-store barcode on save.
+            barcode: "",
             size: sz,
             colour: clr,
             costPrice: sibling?.costPrice || "",

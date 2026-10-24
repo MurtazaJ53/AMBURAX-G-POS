@@ -1,4 +1,5 @@
 import type { Prisma } from "@prisma/client";
+import { isValidGtin } from "@/lib/gtin";
 
 export class DuplicateBarcodeError extends Error {
   constructor(public readonly barcode: string) {
@@ -106,31 +107,65 @@ export async function ensureAttributeValue(
   }
 }
 
+export type VariantBarcodeKind = "INTERNAL" | "MANUFACTURER" | "EAN13" | "EAN8" | "UPC";
+
+/**
+ * What kind of code a typed or scanned barcode is. Codes are stored exactly as entered; this
+ * only labels them.
+ *
+ * GS1 reserves prefix 2 for in-store numbers (RCN-8 and RCN-13), so 8- and 13-digit codes
+ * starting with 2 are this shop's own, as are the older BC-/INT- codes. Other codes are
+ * recognised by length and check digit: EAN-8, UPC-A, EAN-13. Anything else is a supplier
+ * code in some other format.
+ */
+export function inferBarcodeType(barcode: string): VariantBarcodeKind {
+  const clean = barcode.trim();
+  if (/^2(\d{7}|\d{8}|\d{12})$/.test(clean) || clean.startsWith("BC-") || clean.startsWith("INT-")) {
+    return "INTERNAL";
+  }
+  if (isValidGtin(clean, 13)) return "EAN13";
+  if (isValidGtin(clean, 12)) return "UPC";
+  if (isValidGtin(clean, 8)) return "EAN8";
+  return "MANUFACTURER";
+}
+
+function uniqueViolationTarget(err: unknown): string | null {
+  const e = err as { code?: string; meta?: { target?: unknown } } | null;
+  if (e?.code !== "P2002") return null;
+  const target = e.meta?.target;
+  return Array.isArray(target) ? target.join(",") : String(target ?? "");
+}
+
+/**
+ * Whether an error is a barcode collision: our own DuplicateBarcodeError, or PostgreSQL's
+ * unique violation (Prisma P2002) on a `barcode` column, which a concurrent create can raise
+ * after the pre-checks passed.
+ */
+export function isDuplicateBarcodeError(err: unknown): boolean {
+  if (err instanceof DuplicateBarcodeError) return true;
+  const target = uniqueViolationTarget(err);
+  return target !== null && /barcode/i.test(target);
+}
+
+/** Same as isDuplicateBarcodeError, for the `sku` column. */
+export function isDuplicateSkuError(err: unknown): boolean {
+  const target = uniqueViolationTarget(err);
+  return target !== null && /(^|[,_])sku($|[,_])/i.test(target);
+}
+
 /**
  * Robust primary barcode synchronization:
  * - Demotes or deletes old primary barcode before setting new one (prevents one_primary index violation)
  * - Detects barcode collision across variants and throws DuplicateBarcodeError
  * - Cleans up internal barcode when user clears the barcode string
  */
-export function inferBarcodeType(barcode: string): "INTERNAL" | "MANUFACTURER" | "EAN13" {
-  const clean = barcode.trim();
-  if (/^\d{13}$/.test(clean)) {
-    return "EAN13";
-  }
-  // Check if it's an internal short code (e.g. 20xxxxxx or BC-...)
-  if (/^2\d{7,8}$/.test(clean) || clean.startsWith("BC-") || clean.startsWith("INT-")) {
-    return "INTERNAL";
-  }
-  return "MANUFACTURER";
-}
-
 export async function syncVariantBarcode(
   tx: Prisma.TransactionClient,
   params: {
     tenantId: string;
     variantId: string;
     barcode?: string | null;
-    type?: "INTERNAL" | "MANUFACTURER" | "EAN13";
+    type?: VariantBarcodeKind;
   }
 ): Promise<void> {
   const { tenantId, variantId } = params;
@@ -223,7 +258,7 @@ export async function syncVariantDualWrite(
     size?: string | null;
     colour?: string | null;
     barcode?: string | null;
-    barcodeType?: "INTERNAL" | "MANUFACTURER" | "EAN13";
+    barcodeType?: VariantBarcodeKind;
     definitions?: { sizeDefId: string; colourDefId: string };
   }
 ): Promise<void> {

@@ -7,7 +7,6 @@ import { apiError, unauthorized, noStore, forbidden } from "@/lib/apiError";
 import { resolvePosContext } from "@/server/sales/posContext";
 import { canManageInventory } from "@/server/inventory/inventoryRoles";
 import { createVariant } from "@/server/catalog/catalogService";
-import { generateUniqueShortBarcode } from "@/server/catalog/barcodeGenerator";
 import { searchPurchaseItems, type PurchaseVariantHit } from "@/server/purchasing/purchaseItems";
 
 export const runtime = "nodejs";
@@ -107,13 +106,13 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       const szPart = skuPart(cleanSize, 4) || "STD";
       const tag = Math.random().toString(36).slice(2, 6).toUpperCase();
       const generatedSku = [prodBase, clrPart, szPart, tag].filter(Boolean).join("-");
-      const generatedBarcode = barcode?.trim() || (await generateUniqueShortBarcode(c.tenantId));
+      const suppliedBarcode = barcode?.trim() || null;
 
       const vRes = await createVariant({
         actor: catalogActor,
         productId: parentProduct.id,
         sku: generatedSku,
-        barcode: generatedBarcode,
+        barcode: suppliedBarcode,
         size: cleanSize,
         colour: cleanColour,
         costPriceMinor: typeof costPriceMinor === "number" ? costPriceMinor : sibling?.costPriceMinor ?? null,
@@ -137,7 +136,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       createdVariants.push({
         variantId: vRes.variantId,
         sku: generatedSku,
-        barcode: generatedBarcode,
+        barcode: vRes.barcode,
         size: cleanSize,
         colour: cleanColour,
         priceMinor,

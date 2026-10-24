@@ -48,12 +48,13 @@ vi.mock("@/server/sales/posContext", () => ({
   resolvePosContext: (...args: unknown[]) => mockResolvePosContext(...args),
 }));
 
-vi.mock("@/server/catalog/variantDualWrite", () => ({
+vi.mock("@/server/catalog/variantDualWrite", async (importActual) => ({
+  ...(await importActual<typeof import("@/server/catalog/variantDualWrite")>()),
   syncVariantDualWrite: vi.fn(async () => {}),
   ensureSystemAttributeDefinitions: vi.fn(async () => ({ sizeDefId: "s", colourDefId: "c" })),
 }));
 vi.mock("@/server/catalog/barcodeGenerator", () => ({
-  generateUniqueShortBarcode: vi.fn(async () => "12345678"),
+  nextTenantBarcode: vi.fn(async () => "2100000000012"),
 }));
 
 const { createProduct, createVariant, updateVariant } = await import("@/server/catalog/catalogService");

@@ -6,7 +6,6 @@ import { logError } from "@/lib/safeLog";
 import { apiError, unauthorized, forbidden, serviceUnavailable } from "@/lib/apiError";
 import { resolvePosContext } from "@/server/sales/posContext";
 import { createVariant } from "@/server/catalog/catalogService";
-import { generateUniqueShortBarcode } from "@/server/catalog/barcodeGenerator";
 import { GstTaxTreatment } from "@prisma/client";
 import { gstClassificationError } from "@/server/catalog/gstTaxTreatment";
 
@@ -62,11 +61,8 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
         ? parsed.data.sku.trim()
         : `SKU-${Date.now().toString().slice(-6)}-${Math.random().toString(36).substring(2, 5).toUpperCase()}`;
 
-    // Auto-generate compact short barcode (Code-128 thermal friendly) if omitted
-    const barcodeToUse =
-      parsed.data.barcode && parsed.data.barcode.trim().length > 0
-        ? parsed.data.barcode.trim()
-        : await generateUniqueShortBarcode(resolved.context.tenantId);
+    // Without a barcode the catalogue service draws the next in-store code.
+    const barcodeToUse = parsed.data.barcode?.trim() || null;
 
     const result = await createVariant({
       actor: {
