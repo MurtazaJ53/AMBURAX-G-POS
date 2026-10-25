@@ -24,7 +24,13 @@ beforeEach(async () => {
   await db.storeMembership.create({
     data: { tenantId: IDS.tenantA, userId: IDS.staffA, storeId: IDS.storeA, role: "CASHIER" },
   });
+  // GST is charged only by a GST-registered business. Tenant A is registered in Maharashtra
+  // (state code 27), the same state as store A, so its sales are intra-state: CGST + SGST.
+  await db.tenant.update({ where: { id: IDS.tenantA }, data: { taxId: GSTIN_MH } });
 });
+
+/** A Maharashtra GSTIN that passes gstinProblem(). */
+const GSTIN_MH = "27AAPFU0939F1ZV";
 
 afterAll(async () => {
   await resetDatabase();
@@ -65,6 +71,17 @@ describe("bill discounts", () => {
     expect(row).toMatchObject({ discountReason: "Loyal customer", discountAuthorisedByUserId: IDS.staffA });
     const line = await db.saleItem.findFirstOrThrow({ where: { saleId: res.sale.id } });
     expect(line).toMatchObject({ lineTotalMinor: 100_000, lineDiscountMinor: 10_000, taxMinor: 4_286 });
+  });
+
+  it("charges no GST when the business has no GSTIN, even on a taxable item", async () => {
+    await db.tenant.update({ where: { id: IDS.tenantA }, data: { taxId: null } });
+    const res = await sell({ cashier: IDS.staffA, discountMinor: 10_000, discountReason: "Loyal customer" });
+    expect(res.status).toBe("ok");
+    if (res.status !== "ok") return;
+    expect(res.sale.totalMinor).toBe(90_000);
+    expect(res.sale.taxMinor).toBe(0);
+    const line = await db.saleItem.findFirstOrThrow({ where: { saleId: res.sale.id } });
+    expect(line.taxMinor).toBe(0);
   });
 
   it("refuses a cashier's discount above 10%, and writes nothing", async () => {
