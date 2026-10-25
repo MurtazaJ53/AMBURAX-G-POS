@@ -48,10 +48,15 @@ describe("ERPNext Catalog Sync (Outbox)", () => {
         colour: null,
         priceMinor: 1000,
         mrpMinor: null,
+        taxRateBp: 0,
+        taxTreatment: "NON_GST",
         isActive: true,
       },
     });
     if (created.status !== "ok") throw new Error("Failed to seed unresolved item");
+    // The catalogue no longer saves an UNSPECIFIED treatment, but rows from before that rule
+    // still carry one. Recreate such a legacy row directly.
+    await db.productVariant.update({ where: { id: created.variantId, tenantId }, data: { taxTreatment: "UNSPECIFIED" } });
 
     await expect(new ErpCatalogAdapter(transport).syncVariant(tenantId, created.variantId, "unresolved-tax"))
       .rejects.toMatchObject({ kind: "validation_failed" });
@@ -69,6 +74,8 @@ describe("ERPNext Catalog Sync (Outbox)", () => {
       data: {
         erpnextProvisionStatus: "PROVISIONED", erpnextCompanyId: "Amburax Retail",
         erpnextSiteId: "test-site.local",
+        // A taxable item can only be saved by a GST-registered business.
+        taxId: "27AAPFU0939F1ZV",
       },
     });
 

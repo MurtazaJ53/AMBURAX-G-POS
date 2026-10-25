@@ -40,21 +40,31 @@ export interface PurchaseProductHit {
   variants: PurchaseVariantHit[];
 }
 
-export async function searchPurchaseItems(params: { tenantId: string; storeId: string; q: string }): Promise<PurchaseProductHit[]> {
+export async function searchPurchaseItems(params: {
+  tenantId: string;
+  storeId: string;
+  q: string;
+  /** One known product, e.g. the one just created; `q` is then ignored. */
+  productId?: string;
+}): Promise<PurchaseProductHit[]> {
   const q = params.q.trim();
-  if (q.length < 2) return [];
+  if (!params.productId && q.length < 2) return [];
 
   const variants = await db.productVariant.findMany({
     where: {
       tenantId: params.tenantId,
       isActive: true,
       product: { isActive: true },
-      OR: [
-        { product: { name: { contains: q, mode: "insensitive" } } },
-        { product: { brand: { contains: q, mode: "insensitive" } } },
-        { sku: { contains: q, mode: "insensitive" } },
-        { barcode: { equals: q } },
-      ],
+      ...(params.productId
+        ? { productId: params.productId }
+        : {
+            OR: [
+              { product: { name: { contains: q, mode: "insensitive" } } },
+              { product: { brand: { contains: q, mode: "insensitive" } } },
+              { sku: { contains: q, mode: "insensitive" } },
+              { barcode: { equals: q } },
+            ],
+          }),
     },
     orderBy: [{ product: { name: "asc" } }, { size: "asc" }, { colour: "asc" }],
     take: 60,
@@ -366,7 +376,9 @@ export async function quickCreateProduct(input: {
       return { status: "invalid", reason: `Barcode ${variantResult.barcode} is already in use by another variant.` };
     }
   }
-  const hits = await searchPurchaseItems({ tenantId: actor.tenantId, storeId: input.storeId, q: `${base}-` });
+  // Load the new product by id. Searching by an SKU prefix found nothing once SKUs came from
+  // generateCleanSku ("COTTON-K-…" rather than "COTTONKU-…"), and the caller got no sizes back.
+  const hits = await searchPurchaseItems({ tenantId: actor.tenantId, storeId: input.storeId, q: "", productId: createdProductId });
   const product = hits.find((h) => h.productId === createdProductId) ?? {
     productId: createdProductId,
     name,

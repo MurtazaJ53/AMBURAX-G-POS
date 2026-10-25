@@ -18,6 +18,8 @@ async function provisionTenantForErp(tenantId: string, storeId: string) {
     data: {
       erpnextProvisionStatus: "PROVISIONED", erpnextCompanyId: "Amburax Retail",
       erpnextSiteId: "test-site.local",
+      // The seeded items are taxable, which only a GST-registered business can save.
+      taxId: "27AAPFU0939F1ZV",
     },
   });
 
@@ -82,7 +84,7 @@ describe("ERPNext Inventory Sync (Outbox)", () => {
     await resetDatabase();
     await seedTwoTenants();
 
-    transport = new FakeErpTransport();
+    transport = new FakeErpTransport().warehouseCompany("Amburax Retail");
     publisher = new ErpOutboxPublisher(
       new ErpSaleAdapter(transport),
       new ErpCatalogAdapter(transport),
@@ -110,14 +112,13 @@ describe("ERPNext Inventory Sync (Outbox)", () => {
       { sku: "TSH-M-BLU", name: "T-Shirt Blue M" }
     );
 
-    // Script the three calls the adapter will make:
-    //   1. GET  Stock Entry  — idempotency lookup  → not found
-    //   2. POST Stock Entry  — create draft         → STE-00001
-    //   3. PUT  Stock Entry  — submit               → STE-00001
+    // Script the two calls the adapter will make:
+    //   1. GET  Stock Entry  — idempotency lookup        → not found
+    //   2. POST Stock Entry  — create, submitted at once → STE-00001
+    // (A third, unused reply would stay queued and be handed to the next call.)
     transport.script(
       { kind: "respond", status: 200, body: { data: [] } },
-      { kind: "respond", status: 201, body: { data: { name: "STE-00001" } } },
-      { kind: "respond", status: 200, body: { data: { name: "STE-00001" } } }
+      { kind: "respond", status: 201, body: { data: { name: "STE-00001" } } }
     );
 
     const res = await receiveStock({
@@ -125,6 +126,8 @@ describe("ERPNext Inventory Sync (Outbox)", () => {
       storeId,
       variantId,
       quantity: 50,
+      // A receipt carries its cost: stock without one cannot be valued in ERPNext.
+      unitCostMinor: 1_200,
       reason: "Initial stock",
       requestKey: "req-rcv-1",
       correlationId: "corr-rcv-1",
@@ -167,8 +170,7 @@ describe("ERPNext Inventory Sync (Outbox)", () => {
 
     transport.script(
       { kind: "respond", status: 200, body: { data: [] } },
-      { kind: "respond", status: 201, body: { data: { name: "STE-00002" } } },
-      { kind: "respond", status: 200, body: { data: { name: "STE-00002" } } }
+      { kind: "respond", status: 201, body: { data: { name: "STE-00002" } } }
     );
 
     const res = await adjustStock({
@@ -214,11 +216,10 @@ describe("ERPNext Inventory Sync (Outbox)", () => {
       { sku: "TSH-S-RED", name: "T-Shirt Red S" }
     );
 
-    // First delivery: GET(not found) → POST → PUT
+    // First delivery: GET(not found) → POST (submitted at once)
     transport.script(
       { kind: "respond", status: 200, body: { data: [] } },
-      { kind: "respond", status: 201, body: { data: { name: "STE-00003" } } },
-      { kind: "respond", status: 200, body: { data: { name: "STE-00003" } } }
+      { kind: "respond", status: 201, body: { data: { name: "STE-00003" } } }
     );
 
     const res = await receiveStock({
@@ -226,6 +227,8 @@ describe("ERPNext Inventory Sync (Outbox)", () => {
       storeId,
       variantId,
       quantity: 20,
+      // A receipt carries its cost: stock without one cannot be valued in ERPNext.
+      unitCostMinor: 1_200,
       reason: "Restock",
       requestKey: "req-rcv-idem",
       correlationId: "corr-rcv-idem",

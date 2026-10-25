@@ -11,6 +11,8 @@ beforeEach(async () => {
   await seedTwoTenants();
   await seedCommerce();
   await db.uom.create({ data: { tenantId: IDS.tenantA, code: "PCS", name: "Pieces" } });
+  // New products here are taxable, which only a GST-registered business can save.
+  await db.tenant.update({ where: { id: IDS.tenantA }, data: { taxId: "27AAPFU0939F1ZV" } });
 });
 
 afterAll(async () => {
@@ -42,7 +44,8 @@ describe("purchase item picker", () => {
     // S, M, L (duplicate M dropped) x Blue, Black.
     expect(res.product.variants).toHaveLength(6);
     expect(new Set(res.product.variants.map((v) => v.sku)).size).toBe(6);
-    expect(res.product.variants.every((v) => v.sku.startsWith("COTTONKURT-"))).toBe(true);
+    // SKUs come from generateCleanSku: name cut to 8 characters, then size and colour.
+    expect(res.product.variants.every((v) => v.sku.startsWith("COTTON-K-"))).toBe(true);
     const found = await searchPurchaseItems({ tenantId: IDS.tenantA, storeId: IDS.storeA, q: "kurta" });
     expect(found[0]?.name).toBe("Cotton Kurta");
   });
