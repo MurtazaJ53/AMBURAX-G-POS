@@ -28,6 +28,9 @@ beforeEach(async () => {
   await db.storeMembership.create({
     data: { tenantId: IDS.tenantA, userId: IDS.staffA, storeId: IDS.storeA, role: "CASHIER" },
   });
+  // The profit figures below are net of the 5% GST on each sale, which only a GST-registered
+  // business charges. A Maharashtra GSTIN that passes gstinProblem().
+  await db.tenant.update({ where: { id: IDS.tenantA }, data: { taxId: "27AAPFU0939F1ZV" } });
   const s = await createSupplier({ tenantId: IDS.tenantA, actorUserId: IDS.ownerA, input: { name: "Mill One" } });
   if (s.status !== "ok") throw new Error("seed failed");
   supplierId = s.supplier.id;
