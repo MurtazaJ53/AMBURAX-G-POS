@@ -3,7 +3,7 @@ import { Prisma } from "@prisma/client";
 import { db } from "@/server/db";
 import { writeAuditLogTx } from "@/server/identity/audit";
 import { enqueueOutboxEvent } from "@/server/events/outbox";
-import { gstStateCode } from "@/lib/gstStates";
+import { gstStateCode, storeStateOutsideGstin } from "@/lib/gstStates";
 
 /**
  * Add another store to a business (screen 70). Owner only. The store joins the business's one
@@ -47,6 +47,9 @@ export async function addStore(input: AddStoreInput): Promise<AddStoreResult> {
   // The state decides CGST+SGST vs IGST on purchases, so it must be a real Indian state.
   if (!gstStateCode(state)) return { status: "validation_error", field: "state", reason: "Choose the store's state." };
   if (postalCode && !/^\d{6}$/.test(postalCode)) return { status: "validation_error", field: "postalCode", reason: "A PIN code is 6 digits." };
+  const tenant = await db.tenant.findUnique({ where: { id: input.actor.tenantId }, select: { taxId: true } });
+  const outside = storeStateOutsideGstin(tenant?.taxId, state);
+  if (outside) return { status: "validation_error", field: "state", reason: outside };
 
   const company = await db.company.findFirst({
     where: { tenantId: input.actor.tenantId },

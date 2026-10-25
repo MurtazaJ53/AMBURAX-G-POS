@@ -114,6 +114,12 @@ export async function POST(req: NextRequest) {
           { status: 409 },
         );
 
+      case "state_outside_gstin":
+        return NextResponse.json(
+          { error: { code: "state_outside_gstin", message: result.reason }, correlationId },
+          { status: 422 },
+        );
+
       case "ok":
         return NextResponse.json({ status: "ok", store: result.store, correlationId }, { status: 201 });
     }

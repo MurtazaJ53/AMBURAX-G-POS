@@ -134,6 +134,18 @@ describe("createFirstStore", () => {
     expect(mockTx.storeMembership.create).not.toHaveBeenCalled();
   });
 
+  it("refuses a first store outside a registered business's GSTIN state, and allows any state without a GSTIN", async () => {
+    mockDb.tenant.findUnique.mockResolvedValueOnce({ id: "tenant-1", onboardingStep: "OWNER_CREATED", taxId: "24ABCDE1234F1Z6" });
+    const refused = await createFirstStore(baseInput({ state: "Karnataka" }));
+    expect(refused).toMatchObject({ status: "state_outside_gstin", reason: expect.stringMatching(/registered in Gujarat/) });
+    expect(mockDb.$transaction).not.toHaveBeenCalled();
+
+    mockDb.tenant.findUnique.mockResolvedValueOnce({ id: "tenant-1", onboardingStep: "OWNER_CREATED", taxId: "24ABCDE1234F1Z6" });
+    expect((await createFirstStore(baseInput({ state: "Gujarat" }))).status).toBe("ok");
+    mockDb.tenant.findUnique.mockResolvedValueOnce({ id: "tenant-1", onboardingStep: "OWNER_CREATED", taxId: null });
+    expect((await createFirstStore(baseInput({ state: "Karnataka" }))).status).toBe("ok");
+  });
+
   it("the critical concurrency test: two simultaneous first-store attempts never both succeed", async () => {
     // Simulates two concurrent requests from the same owner (double-click / two tabs)
     // against the same tenant — only one claim can win.

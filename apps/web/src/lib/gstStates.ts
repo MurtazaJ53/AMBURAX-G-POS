@@ -102,6 +102,20 @@ export function gstStateCode(stateName: string | null | undefined): string | nul
   return STATE_CODES[ALIASES[key] ?? key] ?? null;
 }
 
+/**
+ * Why a GST-registered business can't open a store in this state, or null when it can. One GSTIN is
+ * one state, and one GSTIN is one ERPNext company: a store in another state needs its own GST
+ * registration, so it can't join this business. A business without a GSTIN can open stores anywhere.
+ */
+export function storeStateOutsideGstin(gstin: string | null | undefined, stateName: string): string | null {
+  const registered = gstinStateCode(gstin);
+  if (!registered) return null;
+  if (gstStateCode(stateName) === registered) return null;
+  const key = Object.keys(STATE_CODES).find((name) => STATE_CODES[name] === registered);
+  const home = key ? key.replace(/\b(?!and\b)[a-z]/g, (c) => c.toUpperCase()) : `state ${registered}`;
+  return `Your GSTIN is registered in ${home}, so every store in this business must be in ${home}. A store in another state needs its own GST registration and a separate business.`;
+}
+
 /** The state code a GSTIN belongs to, or null for a malformed one. */
 export function gstinStateCode(gstin: string | null | undefined): string | null {
   const code = gstin?.trim().slice(0, 2) ?? "";

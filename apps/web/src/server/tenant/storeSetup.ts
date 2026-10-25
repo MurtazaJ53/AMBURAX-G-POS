@@ -5,6 +5,7 @@ import { resolveSession } from "@/server/identity/session";
 import { isIpRateLimited, recordAttempt } from "@/server/identity/loginGuard";
 import { writeAuditLog } from "@/server/identity/audit";
 import { enqueueOutboxEvent } from "@/server/events/outbox";
+import { storeStateOutsideGstin } from "@/lib/gstStates";
 
 export interface CreateFirstStoreInput {
   sessionToken: string;
@@ -27,6 +28,7 @@ export type CreateFirstStoreResult =
   | { status: "rate_limited" }
   | { status: "already_completed" }
   | { status: "store_conflict" }
+  | { status: "state_outside_gstin"; reason: string }
   | { status: "ok"; store: { id: string; name: string; code: string } };
 
 /** Thrown inside the transaction when a concurrent request already claimed this tenant's store step. */
@@ -94,6 +96,9 @@ export async function createFirstStore(input: CreateFirstStoreInput): Promise<Cr
     // visit after the store already exists. Same safe response either way.
     return { status: "already_completed" };
   }
+
+  const outside = storeStateOutsideGstin(tenant.taxId, input.state);
+  if (outside) return { status: "state_outside_gstin", reason: outside };
 
   const code = input.code.trim().toUpperCase();
 
