@@ -52,3 +52,19 @@ Defects we know about and have chosen not to fix yet. Each entry says what fails
 A different test fails each time, usually because an element isn't found in time or an assertion runs before the screen settles. Examples seen: "never overrides the natural tab order", "clears the last scan message with Escape", "steps a quantity up and removes the line when it falls below one", and the close-shift button not being found.
 
 **Possibly caused by commit 99dd0e3** (passing the GST flag through the till): on the code after that commit, 4 of 18 runs had failures; on the code before it, 0 of 11. That commit changes nothing these tests can observe (they all render with `gstRegistered` true), and no mechanism has been found, so this may be machine load. Next step: run each side 30+ times on an idle machine before deciding.
+
+---
+
+## KI-3: Commerce orders never become sales
+
+**Opened:** 2026-10-25. **Status:** open, needs a design first (owner decision).
+
+Orders pulled from Flipkart (`pullFlipkartOrders` in `src/server/commerce/flipkart.ts`) create an `Order` with a SHIPPING `OrderAddress`, but no `Sale`. So there is no ERPNext invoice, no GST and no stock movement for them.
+
+**Needs a design before code:** when an order counts as a sale (placed, shipped or delivered); cancellations and returns; Flipkart commission and TCS.
+
+**Place of supply:** `buildGstInvoice` already takes an optional `deliveryStateCode` (other state gives IGST, same state gives CGST + SGST). The order-to-sale flow will supply it, for example `gstStateCode(shippingAddress.state)` stored on the sale. Then the adapters need one line each. The barcode session that owned them is finished, so whoever builds order-to-sale makes these changes:
+- `src/server/erp/saleAdapter.ts:202`: `buildGstInvoice({ lines: sale.items, supplierGstin, customerGstin: sale.customer?.gstin, deliveryStateCode: sale.deliveryStateCode, accounts })`
+- `src/server/erp/returnAdapter.ts:171`: pass the original sale's `deliveryStateCode` to its `buildGstInvoice` call in the same way.
+
+**Risk while open:** marketplace orders are missing from the books and from GST returns.

@@ -56,4 +56,21 @@ describe("GST on ERPNext invoices", () => {
     expect(exempt.taxes).toEqual([]);
     expect(exempt.items).toEqual([{ item_code: "e", qty: 1, rate: 50 }]);
   });
+
+  it("taxes a delivered order by its delivery state, and leaves walk-in sales as they were", () => {
+    const line = { variantId: "f", quantity: 1, unitPriceMinor: 11_800, lineDiscountMinor: 0, taxMinor: 1_800, lineTotalMinor: 11_800 };
+    const heads = (deliveryStateCode?: string | null, customerGstin?: string | null) =>
+      buildGstInvoice({ supplierGstin: SUPPLIER, customerGstin, deliveryStateCode, accounts, lines: [line] }).taxes.map((t) => t.description);
+
+    expect(heads("29")).toEqual(["IGST"]); // delivered to Karnataka
+    expect(heads("24")).toEqual(["CGST", "SGST"]); // delivered inside Gujarat
+    // Delivery state wins over the customer's GSTIN state.
+    expect(heads("24", "27AAAAA0000A1Z5")).toEqual(["CGST", "SGST"]);
+    expect(heads("29", "24AAAAA0000A1Z5")).toEqual(["IGST"]);
+    // No delivery state: exactly today's result.
+    expect(heads(undefined)).toEqual(["CGST", "SGST"]);
+    expect(heads(null, "27AAAAA0000A1Z5")).toEqual(["IGST"]);
+    expect(isInterState(SUPPLIER, null, "29")).toBe(true);
+    expect(isInterState(SUPPLIER, "27AAAAA0000A1Z5", undefined)).toBe(true);
+  });
 });

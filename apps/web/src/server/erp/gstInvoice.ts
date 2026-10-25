@@ -50,9 +50,17 @@ export function defaultGstAccounts(abbr: string): GstAccounts {
   return { cgst: `Output Tax CGST - ${abbr}`, sgst: `Output Tax SGST - ${abbr}`, igst: `Output Tax IGST - ${abbr}` };
 }
 
-/** Inter-state only when a business customer's GSTIN is from a different state than ours. */
-export function isInterState(supplierGstin: string, customerGstin: string | null | undefined): boolean {
-  const theirs = customerGstin?.trim().slice(0, 2);
+/**
+ * Inter-state when the place of supply is in a different state than ours. For goods delivered to
+ * the buyer that is the delivery state; otherwise only a business customer's GSTIN from another
+ * state makes it inter-state.
+ */
+export function isInterState(
+  supplierGstin: string,
+  customerGstin: string | null | undefined,
+  deliveryStateCode?: string | null,
+): boolean {
+  const theirs = deliveryStateCode?.trim() || customerGstin?.trim().slice(0, 2);
   return Boolean(theirs && /^\d{2}$/.test(theirs) && theirs !== supplierGstin.trim().slice(0, 2));
 }
 
@@ -60,6 +68,8 @@ export function buildGstInvoice(input: {
   lines: GstInvoiceLine[];
   supplierGstin: string;
   customerGstin?: string | null;
+  /** Two-digit GST state code of the delivery address, for goods delivered to the buyer. */
+  deliveryStateCode?: string | null;
   accounts: GstAccounts;
 }): { items: GstInvoiceItem[]; taxes: GstTaxRow[]; taxableMinor: number; taxMinor: number } {
   const items: GstInvoiceItem[] = [];
@@ -78,7 +88,7 @@ export function buildGstInvoice(input: {
 
   const taxes: GstTaxRow[] = [];
   if (taxMinor > 0) {
-    if (isInterState(input.supplierGstin, input.customerGstin)) {
+    if (isInterState(input.supplierGstin, input.customerGstin, input.deliveryStateCode)) {
       taxes.push({ charge_type: "Actual", account_head: input.accounts.igst, description: "IGST", tax_amount: taxMinor / 100 });
     } else {
       const cgst = Math.floor(taxMinor / 2);
