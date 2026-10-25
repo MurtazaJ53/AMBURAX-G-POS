@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { randomUUID } from "node:crypto";
 import { z } from "zod";
 import { registerBusiness } from "@/server/tenant/registrationService";
+import { GST_SCHEMES } from "@/server/catalog/gstSetup";
 import { clientIp } from "@/lib/request";
 import { logError } from "@/lib/safeLog";
 
@@ -13,6 +14,7 @@ const bodySchema = z.object({
   industry: z.string().trim().max(100).optional(),
   country: z.string().trim().min(2).max(100),
   taxId: z.string().trim().max(50).optional(),
+  gstScheme: z.enum(GST_SCHEMES).optional(),
   contactEmail: z.string().trim().email().max(255),
   contactPhone: z.string().trim().min(7).max(20),
   termsAccepted: z.literal(true, {
@@ -59,6 +61,7 @@ export async function POST(req: NextRequest) {
       industry: parsed.data.industry,
       country: parsed.data.country,
       taxId: parsed.data.taxId,
+      gstScheme: parsed.data.gstScheme,
       contactEmail: parsed.data.contactEmail,
       contactPhone: parsed.data.contactPhone,
       idempotencyKey: parsed.data.idempotencyKey,

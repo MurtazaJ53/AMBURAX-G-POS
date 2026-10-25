@@ -9,7 +9,7 @@ import { isIpRateLimited, recordAttempt } from "@/server/identity/loginGuard";
 import { writeAuditLog } from "@/server/identity/audit";
 import { seedDefaultCapabilities } from "@/server/capability/capabilityService";
 import { seedGarmentMasters } from "@/server/catalog/seedGarmentMasters";
-import { gstinProblem } from "@/server/catalog/gstSetup";
+import { gstinProblem, gstSchemeProblem, type GstScheme } from "@/server/catalog/gstSetup";
 
 export type BusinessType = "RETAIL" | "WHOLESALE" | "MANUFACTURING" | "SERVICES" | "DISTRIBUTION" | "OTHER";
 
@@ -19,6 +19,8 @@ export interface RegisterBusinessInput {
   industry?: string;
   country: string;
   taxId?: string;
+  /** Only REGULAR is supported; COMPOSITION is refused until Bills of Supply exist. */
+  gstScheme?: GstScheme;
   contactEmail: string;
   contactPhone: string;
   idempotencyKey: string;
@@ -58,7 +60,7 @@ function isUniqueViolation(err: unknown, field: string): boolean {
  */
 export async function registerBusiness(input: RegisterBusinessInput): Promise<RegisterBusinessResult> {
   if (input.taxId && input.taxId.trim()) {
-    const problem = gstinProblem(input.taxId);
+    const problem = gstSchemeProblem(input.gstScheme) ?? gstinProblem(input.taxId);
     if (problem) {
       return { status: "validation_error", reason: problem };
     }

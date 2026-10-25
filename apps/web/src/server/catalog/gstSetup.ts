@@ -6,6 +6,7 @@ import { enqueueOutboxEvent } from "@/server/events/outbox";
 import { TENANT_GST_REGISTERED_EVENT } from "@/server/erp/companyGstAdapter";
 import { gstClassificationError } from "@/server/catalog/gstTaxTreatment";
 import { withRateMode } from "@/server/catalog/catalogService";
+import { storesOutsideGstin } from "@/lib/gstStates";
 
 /**
  * GST setup (owner decisions 2026-10-16).
@@ -39,6 +40,17 @@ export function gstinProblem(raw: string): string | null {
   return null;
 }
 
+export const GST_SCHEMES = ["REGULAR", "COMPOSITION"] as const;
+export type GstScheme = (typeof GST_SCHEMES)[number];
+
+export const COMPOSITION_NOT_SUPPORTED =
+  "Composition scheme isn't supported yet: composition dealers must issue a Bill of Supply and pay tax differently. Contact support.";
+
+/** Why this GST scheme can't be used, or null. Only the regular scheme is supported. */
+export function gstSchemeProblem(scheme: GstScheme | undefined): string | null {
+  return scheme === "COMPOSITION" ? COMPOSITION_NOT_SUPPORTED : null;
+}
+
 type Owner = { tenantId: string; userId: string; tenantRole: "OWNER" | "STAFF" };
 
 export type TurnOnGstResult =
@@ -48,9 +60,9 @@ export type TurnOnGstResult =
   | { status: "invalid"; reason: string };
 
 /** Register the business for GST from today. Owner only; once. */
-export async function turnOnGst(input: { actor: Owner; gstin: string }): Promise<TurnOnGstResult> {
+export async function turnOnGst(input: { actor: Owner; gstin: string; scheme?: GstScheme }): Promise<TurnOnGstResult> {
   if (input.actor.tenantRole !== "OWNER") return { status: "forbidden" };
-  const problem = gstinProblem(input.gstin);
+  const problem = gstSchemeProblem(input.scheme) ?? gstinProblem(input.gstin);
   if (problem) return { status: "invalid", reason: problem };
   const gstin = input.gstin.trim().toUpperCase();
   const correlationId = randomUUID();
@@ -58,6 +70,10 @@ export async function turnOnGst(input: { actor: Owner; gstin: string }): Promise
   const result = await db.$transaction(async (tx) => {
     const tenant = await tx.tenant.findUnique({ where: { id: input.actor.tenantId }, select: { taxId: true } });
     if (tenant?.taxId?.trim()) return { status: "already_registered" as const };
+    // One GSTIN is one state: every existing store must already be in it.
+    const stores = await tx.store.findMany({ where: { tenantId: input.actor.tenantId }, select: { name: true, state: true }, orderBy: { name: "asc" } });
+    const outside = storesOutsideGstin(gstin, stores);
+    if (outside) return { status: "invalid" as const, reason: outside };
     await tx.tenant.update({ where: { id: input.actor.tenantId }, data: { taxId: gstin } });
     // Option A: "no GST" products must be given a GST type before they sell again.
     const moved = await tx.productVariant.updateMany({

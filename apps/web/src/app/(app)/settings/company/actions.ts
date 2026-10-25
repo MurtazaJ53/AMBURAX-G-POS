@@ -39,7 +39,11 @@ export async function turnOnGstAction(_prev: GstState, formData: FormData): Prom
   const c = resolved.context;
   if (formData.get("confirm") !== "yes") return { status: "error", message: "Tick the box to confirm you are GST-registered from today." };
   try {
-    const res = await turnOnGst({ actor: { tenantId: c.tenantId, userId: c.userId, tenantRole: c.tenantRole }, gstin: formData.get("gstin")?.toString() ?? "" });
+    const res = await turnOnGst({
+      actor: { tenantId: c.tenantId, userId: c.userId, tenantRole: c.tenantRole },
+      gstin: formData.get("gstin")?.toString() ?? "",
+      scheme: formData.get("scheme") === "COMPOSITION" ? "COMPOSITION" : "REGULAR",
+    });
     if (res.status === "forbidden") return { status: "error", message: "Only the owner can turn on GST." };
     if (res.status === "already_registered") return { status: "error", message: "GST is already on for this business." };
     if (res.status === "invalid") return { status: "error", message: res.reason };

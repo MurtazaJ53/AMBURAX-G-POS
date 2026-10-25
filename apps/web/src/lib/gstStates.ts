@@ -111,9 +111,27 @@ export function storeStateOutsideGstin(gstin: string | null | undefined, stateNa
   const registered = gstinStateCode(gstin);
   if (!registered) return null;
   if (gstStateCode(stateName) === registered) return null;
-  const key = Object.keys(STATE_CODES).find((name) => STATE_CODES[name] === registered);
-  const home = key ? key.replace(/\b(?!and\b)[a-z]/g, (c) => c.toUpperCase()) : `state ${registered}`;
+  const home = stateNameForCode(registered);
   return `Your GSTIN is registered in ${home}, so every store in this business must be in ${home}. A store in another state needs its own GST registration and a separate business.`;
+}
+
+/**
+ * Why a business can't take this GSTIN while it has these stores, or null when every store is in
+ * the GSTIN's state. Same rule as storeStateOutsideGstin, for stores that already exist.
+ */
+export function storesOutsideGstin(gstin: string, stores: { name: string; state: string }[]): string | null {
+  const registered = gstinStateCode(gstin);
+  if (!registered) return null;
+  const outside = stores.filter((s) => gstStateCode(s.state) !== registered);
+  if (outside.length === 0) return null;
+  const home = stateNameForCode(registered);
+  const list = outside.map((s) => `${s.name} (${s.state})`).join(", ");
+  return `Your GSTIN is registered in ${home}, but ${list} ${outside.length === 1 ? "is" : "are"} in another state. Every store in a GST-registered business must be in ${home}; a store in another state needs its own GST registration and a separate business.`;
+}
+
+function stateNameForCode(code: string): string {
+  const key = Object.keys(STATE_CODES).find((name) => STATE_CODES[name] === code);
+  return key ? key.replace(/\b(?!and\b)[a-z]/g, (c) => c.toUpperCase()) : `state ${code}`;
 }
 
 /** The state code a GSTIN belongs to, or null for a malformed one. */

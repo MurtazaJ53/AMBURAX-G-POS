@@ -94,6 +94,16 @@ describe("registerBusiness", () => {
     );
   });
 
+  it("refuses the composition scheme at sign-up, before touching the database", async () => {
+    const result = await registerBusiness(baseInput({ taxId: "24ABCDE1234F1Z6", gstScheme: "COMPOSITION" }));
+    expect(result).toEqual({
+      status: "validation_error",
+      reason: "Composition scheme isn't supported yet: composition dealers must issue a Bill of Supply and pay tax differently. Contact support.",
+    });
+    expect(mockDb.$transaction).not.toHaveBeenCalled();
+    expect((await registerBusiness(baseInput({ taxId: "24ABCDE1234F1Z6", gstScheme: "REGULAR" }))).status).toBe("ok");
+  });
+
   it("creates exactly one tenant and one onboarding session on a clean registration", async () => {
     const result = await registerBusiness(baseInput());
     expect(result.status).toBe("ok");

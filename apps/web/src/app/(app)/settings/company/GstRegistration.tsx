@@ -49,6 +49,17 @@ export function GstRegistration() {
             className="amb-focus mt-1 block min-h-11 w-full max-w-xs rounded-lg border border-slate-300 bg-white px-3 font-mono text-sm uppercase tracking-wider text-slate-900"
           />
         </label>
+        <label className="block text-sm font-medium text-slate-700">
+          GST scheme
+          <select
+            name="scheme"
+            defaultValue="REGULAR"
+            className="amb-focus mt-1 block min-h-11 w-full max-w-xs rounded-lg border border-slate-300 bg-white px-3 text-sm text-slate-900"
+          >
+            <option value="REGULAR">Regular</option>
+            <option value="COMPOSITION">Composition</option>
+          </select>
+        </label>
         <label className="flex items-start gap-2 text-sm text-slate-700">
           <input type="checkbox" name="confirm" value="yes" className="mt-1 h-4 w-4" />
           <span>

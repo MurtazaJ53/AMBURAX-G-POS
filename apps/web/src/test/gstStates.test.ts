@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { gstinStateCode, gstStateCode, storeStateOutsideGstin } from "@/lib/gstStates";
+import { gstinStateCode, gstStateCode, storeStateOutsideGstin, storesOutsideGstin } from "@/lib/gstStates";
 
 describe("GST state codes", () => {
   it("maps full names, abbreviations and common spellings", () => {
@@ -36,5 +36,17 @@ describe("GST state codes", () => {
     expect(storeStateOutsideGstin(null, "Maharashtra")).toBeNull();
     expect(storeStateOutsideGstin("", "Maharashtra")).toBeNull();
     expect(storeStateOutsideGstin("XXABCDE1234F1Z5", "Maharashtra")).toBeNull();
+  });
+
+  it("names every existing store outside a new GSTIN's state", () => {
+    const gujarat = "24ABCDE1234F1Z6";
+    expect(storesOutsideGstin(gujarat, [{ name: "Main", state: "Gujarat" }])).toBeNull();
+    expect(
+      storesOutsideGstin(gujarat, [
+        { name: "Main", state: "Gujarat" },
+        { name: "Pune", state: "Maharashtra" },
+        { name: "Delhi", state: "Delhi" },
+      ]),
+    ).toMatch(/^Your GSTIN is registered in Gujarat, but Pune \(Maharashtra\), Delhi \(Delhi\) are in another state\./);
   });
 });
