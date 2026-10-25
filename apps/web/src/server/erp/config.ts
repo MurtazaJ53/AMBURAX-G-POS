@@ -143,25 +143,28 @@ export class EnvErpCredentialProvider implements ErpCredentialProvider {
 }
 
 /**
- * Credentials for provisioning only (TenantProvisioner): the site's URL, as above, with the
- * least-privilege "AMBURAX Provisioner" user's keys, `ERP_PROVISIONER_KEY` / `_SECRET`.
+ * Credentials for provisioning only (TenantProvisioner, including the daily fiscal-year renewal):
+ * the site's URL, as above, with that site's least-privilege "AMBURAX Provisioner" user's keys,
+ * `ERP_SITE_<SITEID>_PROVISIONER_KEY` / `_PROVISIONER_SECRET`. Each site has its own provisioner
+ * user, so each site has its own pair.
  *
- * Never falls back to the integration keys. Provisioning with the wrong identity would either
- * fail obscurely or, worse, succeed with rights the integration user was deliberately denied.
+ * Never falls back to the integration keys or to another site's keys. Provisioning with the wrong
+ * identity would either fail obscurely or, worse, succeed with rights that user was denied.
  */
 export class ProvisionerErpCredentialProvider implements ErpCredentialProvider {
   async credentialsFor(environment: ErpEnvironment): Promise<ErpCredentials> {
     const slug = environment.siteId.toUpperCase().replace(/[^A-Z0-9]/g, "_");
     const baseUrl = process.env[`ERP_SITE_${slug}_URL`];
-    const apiKey = process.env["ERP_PROVISIONER_KEY"];
-    const apiSecret = process.env["ERP_PROVISIONER_SECRET"];
+    const apiKey = process.env[`ERP_SITE_${slug}_PROVISIONER_KEY`];
+    const apiSecret = process.env[`ERP_SITE_${slug}_PROVISIONER_SECRET`];
 
     if (!apiKey || !apiSecret) {
       throw new ErpError({
         kind: "configuration_error",
         message:
-          "Provisioning credentials are not configured: set ERP_PROVISIONER_KEY and ERP_PROVISIONER_SECRET " +
-          "(the AMBURAX Provisioner user's API keys). Provisioning never uses the integration keys.",
+          `Provisioning credentials are not configured for site ${environment.siteId}: set ` +
+          `ERP_SITE_${slug}_PROVISIONER_KEY and ERP_SITE_${slug}_PROVISIONER_SECRET (that site's AMBURAX ` +
+          "Provisioner user's API keys). Provisioning never uses the integration keys or another site's keys.",
       });
     }
     if (!baseUrl) {

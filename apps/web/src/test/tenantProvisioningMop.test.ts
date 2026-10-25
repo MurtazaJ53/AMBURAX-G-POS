@@ -35,8 +35,8 @@ describe("TenantProvisioner - Mode of Payment Setup (Fix 1)", () => {
     process.env["ERP_SITE_TEST_SITE_LOCAL_URL"] = "http://test-site.local";
     process.env["ERP_SITE_TEST_SITE_LOCAL_KEY"] = "test-key";
     process.env["ERP_SITE_TEST_SITE_LOCAL_SECRET"] = "test-secret";
-    process.env["ERP_PROVISIONER_KEY"] = "prov-key";
-    process.env["ERP_PROVISIONER_SECRET"] = "prov-secret";
+    process.env["ERP_SITE_TEST_SITE_LOCAL_PROVISIONER_KEY"] = "prov-key";
+    process.env["ERP_SITE_TEST_SITE_LOCAL_PROVISIONER_SECRET"] = "prov-secret";
   });
 
   it("provisions a leaf Bank account and configures Cash, UPI, and Credit Card for THIS company only", async () => {
@@ -363,5 +363,29 @@ describe("TenantProvisioner - runs as the provisioner user", () => {
     await new TenantProvisioner(t, { kind: "existing", ensureSite: async () => ({ status: "ready", siteId: "test-site.local" }) })
       .provision("tenant-1", "corr-creds");
     expect([...keys]).toEqual(["prov-key"]);
+  });
+});
+
+describe("TenantProvisioner - fiscal-year renewal uses each shop's own site keys", () => {
+  it("renews two shops on two sites with each site's provisioner key", async () => {
+    process.env["ERP_SITE_OTHER_SITE_LOCAL_URL"] = "http://other-site.local";
+    process.env["ERP_SITE_OTHER_SITE_LOCAL_PROVISIONER_KEY"] = "prov-key-other";
+    process.env["ERP_SITE_OTHER_SITE_LOCAL_PROVISIONER_SECRET"] = "prov-secret-other";
+    (mockDb.tenant as any).findMany = vi.fn().mockResolvedValue([
+      { id: "t-a", erpnextSiteId: "test-site.local", erpnextCompanyId: "Acme A" },
+      { id: "t-b", erpnextSiteId: "other-site.local", erpnextCompanyId: "Acme B" },
+    ]);
+    mockDb.company.findFirst.mockImplementation(async ({ where }: any) => ({ code: where.tenantId === "t-a" ? "AA" : "AB" }));
+    const keyByUrl = new Map<string, Set<string>>();
+    const t = new FakeErpTransport();
+    t.send = async (_req, creds) => {
+      if (!keyByUrl.has(creds.baseUrl)) keyByUrl.set(creds.baseUrl, new Set());
+      keyByUrl.get(creds.baseUrl)!.add(creds.apiKey);
+      return { status: 200, body: { data: { name: "mock" } } };
+    };
+    await new TenantProvisioner(t, { kind: "existing", ensureSite: async () => ({ status: "ready", siteId: "x" }) })
+      .renewFiscalYears(new Date("2026-10-25T00:00:00Z"));
+    expect([...(keyByUrl.get("http://test-site.local") ?? [])]).toEqual(["prov-key"]);
+    expect([...(keyByUrl.get("http://other-site.local") ?? [])]).toEqual(["prov-key-other"]);
   });
 });
