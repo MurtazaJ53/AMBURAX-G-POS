@@ -53,6 +53,38 @@ export interface DispatchResult {
   published: number;
   failed: number;
   deadLettered: number;
+  /** Claims this pass lost to another dispatcher before it could record a result. */
+  lostClaims: number;
+}
+
+/**
+ * Claim lease while a publish runs. The claim pushes `nextAttemptAt` at least 30 s ahead; a
+ * publish is several ERPNext calls of up to 15 s each, so it can outlast that. While one runs,
+ * a heartbeat keeps `nextAttemptAt` at least LEASE_MS ahead, so no other dispatcher can claim
+ * the row. If this process stalls or dies, the heartbeat stops and the lease expires on its own.
+ */
+export const LEASE_MS = 30_000;
+export const HEARTBEAT_MS = 10_000;
+
+type Clock = Date | (() => Date) | undefined;
+
+/** The claim clock: a caller's (tests) or the database's, the same one claimDueEvents uses. */
+function clockSql(now: Clock) {
+  if (now === undefined) return Prisma.sql`(clock_timestamp() AT TIME ZONE 'UTC')`;
+  return Prisma.sql`${typeof now === "function" ? now() : now}`;
+}
+
+/**
+ * Extend a claim's lease, only while this dispatcher still holds it. The claim token is the
+ * row's `attempts` at claim time: any later claim increments it, so a stale holder's renewal
+ * matches nothing. GREATEST keeps a longer retry backoff from being shortened.
+ */
+async function renewLease(row: ClaimedRow, leaseMs: number, now: Clock): Promise<void> {
+  await db.$executeRaw`
+    UPDATE "outbox_events"
+       SET "nextAttemptAt" = GREATEST("nextAttemptAt", ${clockSql(now)} + make_interval(secs => ${leaseMs}::double precision / 1000))
+     WHERE "id" = ${row.id} AND "attempts" = ${row.attempts} AND "publishedAt" IS NULL
+  `;
 }
 
 /**
@@ -199,27 +231,65 @@ export async function dispatchOutboxOnce(params?: {
   batchSize?: number;
   tenantId?: string;
   publisher?: OutboxPublisher;
-  now?: Date;
+  /** Tests only: a fixed time, or a function read at claim and at every lease renewal. */
+  now?: Clock;
+  /** Lease renewal interval while a publish runs; 0 turns renewal off (tests). */
+  heartbeatMs?: number;
+  leaseMs?: number;
 }): Promise<DispatchResult> {
   // Resolved per call, not captured at module load: the transport is a deployment
   // decision, and an unconfigured one must throw rather than quietly succeed.
   const publisher = params?.publisher ?? resolveOutboxPublisher();
+  const heartbeatMs = params?.heartbeatMs ?? HEARTBEAT_MS;
+  const leaseMs = params?.leaseMs ?? LEASE_MS;
   const rows = await claimDueEvents({
     batchSize: params?.batchSize,
     tenantId: params?.tenantId,
-    now: params?.now,
+    now: typeof params?.now === "function" ? params.now() : params?.now,
   });
 
-  const result: DispatchResult = { claimed: rows.length, published: 0, failed: 0, deadLettered: 0 };
+  const result: DispatchResult = { claimed: rows.length, published: 0, failed: 0, deadLettered: 0, lostClaims: 0 };
+
+  /** Publish while renewing the claim's lease, so a slow publish is never claimed twice. */
+  async function publishUnderLease(row: ClaimedRow): Promise<void> {
+    const timer =
+      heartbeatMs > 0
+        ? setInterval(() => {
+            renewLease(row, leaseMs, params?.now).catch((err) =>
+              logError("outbox: lease renewal failed", err, { eventId: row.id }),
+            );
+          }, heartbeatMs)
+        : null;
+    try {
+      await publisher.publish(toPublishable(row));
+    } finally {
+      if (timer) clearInterval(timer);
+    }
+  }
+
+  // Results are recorded only while this pass still holds the claim (same `attempts`, not yet
+  // published). A dispatcher that stalled past its lease must not overwrite the outcome of
+  // the dispatcher that took the row over.
+  const stillOurs = (row: ClaimedRow) => ({ id: row.id, attempts: row.attempts, publishedAt: null });
+  function claimLost(row: ClaimedRow, stage: string) {
+    result.lostClaims += 1;
+    logError("outbox: claim lost before the result was recorded", new Error(stage), {
+      eventId: row.id,
+      eventType: row.eventType,
+      tenantId: row.tenantId,
+      attempts: row.attempts,
+    });
+  }
 
   for (const row of rows) {
     try {
-      await publisher.publish(toPublishable(row));
-      await db.outboxEvent.update({
-        where: { id: row.id },
+      await publishUnderLease(row);
+      const written = await db.outboxEvent.updateMany({
+        where: stillOurs(row),
         data: { publishedAt: new Date(), lastError: null },
       });
-      result.published += 1;
+      if (written.count === 1) result.published += 1;
+      else claimLost(row, "published");
     } catch (err) {
       // Classify Permanent vs. Transient Errors per reviewer specification:
       // Permanent errors (statutory validation failures, fiscal year setup errors, unsupported config):
@@ -239,13 +309,17 @@ export async function dispatchOutboxOnce(params?: {
       const isUnrecoverable = !isMissingItemDependency && (isMissingWarehouse || isMissingValuation || isFiscalYearError || isStatutoryValidationError || isPermanentConfig || (err instanceof ErpError && !err.retryable));
       const exhausted = isUnrecoverable || row.attempts >= MAX_ATTEMPTS;
 
-      await db.outboxEvent.update({
-        where: { id: row.id },
+      const written = await db.outboxEvent.updateMany({
+        where: stillOurs(row),
         data: {
           lastError: safeErrorText(err),
           ...(exhausted ? { deadLetteredAt: new Date() } : {}),
         },
       });
+      if (written.count === 0) {
+        claimLost(row, "failed");
+        continue;
+      }
 
       logError("outbox: publish failed", err, {
         eventId: row.id,

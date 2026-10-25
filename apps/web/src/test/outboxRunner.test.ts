@@ -17,7 +17,7 @@ import { describe, expect, it, vi, beforeEach } from "vitest";
 const mockDb = {
   $queryRaw: vi.fn(),
   $disconnect: vi.fn(async () => {}),
-  outboxEvent: { update: vi.fn() },
+  outboxEvent: { updateMany: vi.fn() },
 };
 
 vi.mock("@/server/db", () => ({ db: mockDb }));
@@ -78,7 +78,7 @@ function envWith(overrides: Record<string, string | undefined> = {}): NodeJS.Pro
 beforeEach(() => {
   vi.clearAllMocks();
   mockDb.$queryRaw.mockResolvedValue([]);
-  mockDb.outboxEvent.update.mockResolvedValue({});
+  mockDb.outboxEvent.updateMany.mockResolvedValue({ count: 1 });
 });
 
 describe("transport configuration", () => {
@@ -148,7 +148,7 @@ describe("runner startup safety", () => {
     ).rejects.toBeInstanceOf(NoEventTransportConfiguredError);
 
     expect(mockDb.$queryRaw).not.toHaveBeenCalled();
-    expect(mockDb.outboxEvent.update).not.toHaveBeenCalled();
+    expect(mockDb.outboxEvent.updateMany).not.toHaveBeenCalled();
   });
 
   it("the worker entry point exits 78 rather than 0 when there is no transport", async () => {
@@ -240,7 +240,7 @@ describe("runner loop", () => {
     expect(summary.cycles).toBe(2);
 
     // The row is marked with an error but NOT with publishedAt — it stays retryable.
-    const update = mockDb.outboxEvent.update.mock.calls[0]![0] as { data: Record<string, unknown> };
+    const update = mockDb.outboxEvent.updateMany.mock.calls[0]![0] as { data: Record<string, unknown> };
     expect(update.data).not.toHaveProperty("publishedAt");
     expect(update.data).not.toHaveProperty("deadLetteredAt");
     expect(update.data.lastError).toContain("transport down");
@@ -259,7 +259,7 @@ describe("runner loop", () => {
 
     expect(summary.published).toBe(0);
     expect(summary.failed).toBe(1);
-    const update = mockDb.outboxEvent.update.mock.calls[0]![0] as { data: Record<string, unknown> };
+    const update = mockDb.outboxEvent.updateMany.mock.calls[0]![0] as { data: Record<string, unknown> };
     expect(update.data).not.toHaveProperty("publishedAt");
     expect(String(update.data.lastError)).toContain("No outbox event transport is configured");
   });
@@ -275,7 +275,7 @@ describe("runner loop", () => {
     const summary = await runOutboxWorker({ publisher, maxCycles: 1, sleep: noSleep });
 
     expect(summary.deadLettered).toBe(1);
-    const update = mockDb.outboxEvent.update.mock.calls[0]![0] as { data: Record<string, unknown> };
+    const update = mockDb.outboxEvent.updateMany.mock.calls[0]![0] as { data: Record<string, unknown> };
     expect(update.data).toHaveProperty("deadLetteredAt");
     expect(update.data).not.toHaveProperty("publishedAt");
   });

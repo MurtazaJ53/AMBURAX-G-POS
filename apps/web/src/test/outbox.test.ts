@@ -11,7 +11,7 @@ import { describe, expect, it, vi, beforeEach } from "vitest";
 
 const mockDb = {
   $queryRaw: vi.fn(),
-  outboxEvent: { update: vi.fn() },
+  outboxEvent: { updateMany: vi.fn() },
 };
 
 vi.mock("@/server/db", () => ({ db: mockDb }));
@@ -55,7 +55,7 @@ function claimedRow(overrides: Record<string, unknown> = {}) {
 
 beforeEach(() => {
   vi.clearAllMocks();
-  mockDb.outboxEvent.update.mockResolvedValue({});
+  mockDb.outboxEvent.updateMany.mockResolvedValue({ count: 1 });
 });
 
 describe("enqueueOutboxEvent — envelope", () => {
@@ -205,7 +205,7 @@ describe("dispatchOutboxOnce", () => {
     const result = await dispatchOutboxOnce({ publisher });
 
     expect(result).toMatchObject({ claimed: 1, published: 1, failed: 0, deadLettered: 0 });
-    const update = mockDb.outboxEvent.update.mock.calls[0]![0] as {
+    const update = mockDb.outboxEvent.updateMany.mock.calls[0]![0] as {
       where: { id: string };
       data: Record<string, unknown>;
     };
@@ -244,7 +244,7 @@ describe("dispatchOutboxOnce", () => {
     const result = await dispatchOutboxOnce({ publisher });
 
     expect(result).toMatchObject({ claimed: 1, published: 0, failed: 1, deadLettered: 0 });
-    const data = mockDb.outboxEvent.update.mock.calls[0]![0].data as Record<string, unknown>;
+    const data = mockDb.outboxEvent.updateMany.mock.calls[0]![0].data as Record<string, unknown>;
     expect(data.publishedAt).toBeUndefined();
     expect(String(data.lastError)).toContain("transport down");
     expect(data.deadLetteredAt).toBeUndefined();
@@ -261,7 +261,7 @@ describe("dispatchOutboxOnce", () => {
     const result = await dispatchOutboxOnce({ publisher });
 
     expect(result.deadLettered).toBe(1);
-    const data = mockDb.outboxEvent.update.mock.calls[0]![0].data as Record<string, unknown>;
+    const data = mockDb.outboxEvent.updateMany.mock.calls[0]![0].data as Record<string, unknown>;
     expect(data.deadLetteredAt).toBeInstanceOf(Date);
   });
 
@@ -275,7 +275,7 @@ describe("dispatchOutboxOnce", () => {
 
     await dispatchOutboxOnce({ publisher });
 
-    const data = mockDb.outboxEvent.update.mock.calls[0]![0].data as Record<string, unknown>;
+    const data = mockDb.outboxEvent.updateMany.mock.calls[0]![0].data as Record<string, unknown>;
     expect(String(data.lastError)).not.toContain("BUS_SECRET_PW");
     expect(String(data.lastError)).not.toContain("bususer");
   });
@@ -304,8 +304,8 @@ describe("dispatchOutboxOnce", () => {
 
     const result = await dispatchOutboxOnce({ publisher });
 
-    expect(result).toEqual({ claimed: 0, published: 0, failed: 0, deadLettered: 0 });
+    expect(result).toEqual({ claimed: 0, published: 0, failed: 0, deadLettered: 0, lostClaims: 0 });
     expect(publisher.publish).not.toHaveBeenCalled();
-    expect(mockDb.outboxEvent.update).not.toHaveBeenCalled();
+    expect(mockDb.outboxEvent.updateMany).not.toHaveBeenCalled();
   });
 });

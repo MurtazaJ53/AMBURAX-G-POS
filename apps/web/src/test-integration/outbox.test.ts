@@ -541,6 +541,65 @@ describe("the runner, against real PostgreSQL — audit finding F-01", () => {
     expect(await db.outboxEvent.count({ where: { publishedAt: null } })).toBe(0);
   });
 
+  /**
+   * A publish that outlasts the retry gap. The claim clock is driven by the test: 90 s of it pass
+   * (three times the first 30 s backoff) while the publish is held open, then a second
+   * dispatcher tries to claim.
+   */
+  async function slowPublishScenario(heartbeatMs: number) {
+    const id = await enqueueDueEvent(`slow-${heartbeatMs}`);
+    let clock = new Date(Date.now() + 10);
+    let release!: () => void;
+    const held = new Promise<void>((resolve) => (release = resolve));
+    const calls: string[] = [];
+    const pause = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+    const slow = dispatchOutboxOnce({
+      now: () => clock,
+      heartbeatMs,
+      publisher: {
+        publish: async (event: { eventId: string }) => {
+          calls.push(`A:${event.eventId}`);
+          await held;
+        },
+      },
+    });
+    for (let i = 0; i < 100 && calls.length === 0; i += 1) await pause(10);
+    for (let step = 0; step < 3; step += 1) {
+      clock = new Date(clock.getTime() + 30_000);
+      await pause(80);
+    }
+
+    const other = await dispatchOutboxOnce({
+      now: clock,
+      heartbeatMs: 0,
+      publisher: { publish: async (event: { eventId: string }) => void calls.push(`B:${event.eventId}`) },
+    });
+    release();
+    const first = await slow;
+    const row = await db.outboxEvent.findUniqueOrThrow({ where: { id } });
+    return { id, calls, first, other, row };
+  }
+
+  it("does not let a second dispatcher claim an event while a slow publish is still running", async () => {
+    const { id, calls, first, other, row } = await slowPublishScenario(20);
+    expect(other.claimed).toBe(0);
+    expect(calls).toEqual([`A:${id}`]);
+    expect(first).toMatchObject({ published: 1, lostClaims: 0 });
+    expect(row.publishedAt).not.toBeNull();
+  });
+
+  it("when a holder stalls past its lease, the takeover's result stands and the stale holder's is discarded", async () => {
+    // Renewal off: this is the dispatcher that hung. Its lease runs out, another takes the row,
+    // and the hung one's late success must not be recorded over the new owner's claim.
+    const { id, calls, first, other, row } = await slowPublishScenario(0);
+    expect(other).toMatchObject({ claimed: 1, published: 1 });
+    expect(calls).toEqual([`A:${id}`, `B:${id}`]);
+    expect(first).toMatchObject({ published: 0, lostClaims: 1 });
+    expect(row.attempts).toBe(2);
+    expect(row.publishedAt).not.toBeNull();
+  });
+
   it("refuses to run with no transport configured, leaving every event PENDING", async () => {
     // The honesty requirement, proved against the database rather than a mock: an
     // unconfigured system must not claim, must not burn attempts, and must not publish.
