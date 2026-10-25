@@ -2,7 +2,7 @@ import { logError } from "@/lib/safeLog";
 import { randomUUID } from "node:crypto";
 import { db } from "@/server/db";
 import { ErpClient, type ErpCallContext } from "@/server/erp/client";
-import { EnvErpCredentialProvider, type ErpEnvironment } from "@/server/erp/config";
+import { ProvisionerErpCredentialProvider, type ErpEnvironment } from "@/server/erp/config";
 import { ErpError } from "@/server/erp/errors";
 import { HttpErpTransport } from "@/server/erp/httpTransport";
 import type { ErpTransport } from "@/server/erp/transport";
@@ -129,7 +129,8 @@ export class TenantProvisioner {
     transport?: ErpTransport,
     private sites: SiteProvisioner = defaultSiteProvisioner(),
   ) {
-    this.client = new ErpClient(transport ?? new HttpErpTransport(), new EnvErpCredentialProvider(), {});
+    // Provisioning runs as the AMBURAX Provisioner user, never the integration user (see config.ts).
+    this.client = new ErpClient(transport ?? new HttpErpTransport(), new ProvisionerErpCredentialProvider(), {});
   }
 
   private async get(env: ErpEnvironment, ctx: ErpCallContext, path: string) {

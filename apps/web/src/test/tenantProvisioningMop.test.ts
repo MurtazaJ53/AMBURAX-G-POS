@@ -35,6 +35,8 @@ describe("TenantProvisioner - Mode of Payment Setup (Fix 1)", () => {
     process.env["ERP_SITE_TEST_SITE_LOCAL_URL"] = "http://test-site.local";
     process.env["ERP_SITE_TEST_SITE_LOCAL_KEY"] = "test-key";
     process.env["ERP_SITE_TEST_SITE_LOCAL_SECRET"] = "test-secret";
+    process.env["ERP_PROVISIONER_KEY"] = "prov-key";
+    process.env["ERP_PROVISIONER_SECRET"] = "prov-secret";
   });
 
   it("provisions a leaf Bank account and configures Cash, UPI, and Credit Card for THIS company only", async () => {
@@ -337,5 +339,29 @@ describe("TenantProvisioner - Mode of Payment re-run keeps the owner's choice", 
     const created = calls.find((c) => c.method === "POST" && c.body?.mode_of_payment === "UPI");
     expect(created?.path).toBe("/api/resource/Mode of Payment");
     expect(created?.body.accounts).toEqual([{ company: "Acme Fashion", default_account: "Bank - AF" }]);
+  });
+});
+
+describe("TenantProvisioner - runs as the provisioner user", () => {
+  it("sends only the provisioner keys to ERPNext, never the integration keys", async () => {
+    mockDb.tenant.findUniqueOrThrow.mockResolvedValue({
+      id: "tenant-1", name: "Acme Fashion", slug: "acme-fashion", taxId: null,
+      erpnextSiteId: "test-site.local", erpnextCompanyId: "Acme Fashion",
+    });
+    mockDb.company.upsert.mockResolvedValue({ id: "comp-1" });
+    mockDb.store.updateMany.mockResolvedValue({ count: 0 });
+    mockDb.store.findMany.mockResolvedValue([]);
+    const keys = new Set<string>();
+    const t = new FakeErpTransport();
+    t.send = async (req, creds) => {
+      keys.add(creds.apiKey);
+      if (req.method === "GET" && decodeURIComponent(req.path).includes("/Company/Acme")) {
+        return { status: 200, body: { data: { name: "Acme Fashion", abbr: "AF" } } };
+      }
+      return { status: 200, body: { data: { name: "mock" } } };
+    };
+    await new TenantProvisioner(t, { kind: "existing", ensureSite: async () => ({ status: "ready", siteId: "test-site.local" }) })
+      .provision("tenant-1", "corr-creds");
+    expect([...keys]).toEqual(["prov-key"]);
   });
 });
