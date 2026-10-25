@@ -84,3 +84,4 @@ backups/
 
 # ERPNext stack secrets (infra/erpnext/.env.erpnext.example is the template)
 infra/erpnext/.env.erpnext
+!infra/erpnext/.env.erpnext.example
