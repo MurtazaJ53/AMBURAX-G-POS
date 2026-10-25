@@ -108,12 +108,23 @@ describe("listStockLevels status filter", () => {
     -4,
   ];
 
-  async function stock(tenantId: string, storeId: string, sku: string, quantity: number) {
-    const product = await db.product.create({ data: { tenantId, name: `Product ${sku}` } });
-    const variant = await db.productVariant.create({
-      data: { tenantId, productId: product.id, sku, priceMinor: 100 },
+  /**
+   * One product, variant and stock level per SKU, written in three bulk inserts: 113 rows one at
+   * a time could outlast the hook timeout on a busy machine, and a timed-out hook keeps writing
+   * into the next test's data.
+   */
+  async function stockAll(rows: Array<{ tenantId: string; storeId: string; sku: string; quantity: number }>) {
+    // Product names are unique per tenant after normalisation, which drops punctuation:
+    // "A-20" and "A2-0" would both become "a20". Spell the separator out.
+    await db.product.createMany({
+      data: rows.map((r) => ({ id: `p-${r.sku}`, tenantId: r.tenantId, name: `Product ${r.sku.replace(/-/g, " dash ")}` })),
     });
-    await db.stockLevel.create({ data: { tenantId, storeId, variantId: variant.id, quantity } });
+    await db.productVariant.createMany({
+      data: rows.map((r) => ({ id: `v-${r.sku}`, tenantId: r.tenantId, productId: `p-${r.sku}`, sku: r.sku, priceMinor: 100 })),
+    });
+    await db.stockLevel.createMany({
+      data: rows.map((r) => ({ tenantId: r.tenantId, storeId: r.storeId, variantId: `v-${r.sku}`, quantity: r.quantity })),
+    });
   }
 
   beforeEach(async () => {
@@ -132,9 +143,11 @@ describe("listStockLevels status filter", () => {
         isDefault: false,
       },
     });
-    for (const [i, q] of DEMO_SPLIT.entries()) await stock(IDS.tenantA, IDS.storeA, `A-${i}`, q);
-    for (const [i, q] of [50, 5, 0, -2].entries()) await stock(IDS.tenantA, "store_A2", `A2-${i}`, q);
-    for (const [i, q] of [80, 3, 0, -1].entries()) await stock(IDS.tenantB, IDS.storeB, `B-${i}`, q);
+    await stockAll([
+      ...DEMO_SPLIT.map((q, i) => ({ tenantId: IDS.tenantA, storeId: IDS.storeA, sku: `A-${i}`, quantity: q })),
+      ...[50, 5, 0, -2].map((q, i) => ({ tenantId: IDS.tenantA, storeId: "store_A2", sku: `A2-${i}`, quantity: q })),
+      ...[80, 3, 0, -1].map((q, i) => ({ tenantId: IDS.tenantB, storeId: IDS.storeB, sku: `B-${i}`, quantity: q })),
+    ]);
   });
 
   const list = (status: string) =>
