@@ -341,3 +341,68 @@ export async function createDocument(
   }
   return name;
 }
+
+/** ERPNext method that renames a cancelled invoice's tracking id (scripts/ops/erpnext). */
+export const RETIRE_CANCELLED_METHOD = "/api/method/amburax_retire_cancelled_id";
+
+/**
+ * Move a cancelled document's AMBURAX tracking id out of the way so the record can be synced
+ * again, keeping ERPNext's unique constraint on that field.
+ *
+ * The cancelled document stays (GST audit trail); its id becomes "<id>-CANCELLED-<n>", n the
+ * next number no other document uses. ERPNext refuses REST edits to cancelled documents, so the
+ * rename is done by the `amburax_retire_cancelled_id` server method. The document is read back
+ * afterwards, and anything other than the expected id on a still-cancelled document stops the
+ * sync with an error, so a new document is never created next to one that still holds the id.
+ */
+export async function retireCancelledTrackingId(
+  client: ErpClient,
+  env: ErpEnvironment,
+  ctx: ErpCallContext,
+  params: { doctype: "Sales Invoice"; fieldname: "amburax_sale_id"; docName: string; baseId: string },
+): Promise<string> {
+  const { doctype, fieldname, docName, baseId } = params;
+  const prefix = `${baseId}-CANCELLED-`;
+
+  const usedFilters = JSON.stringify([[fieldname, "like", `${prefix}%`]]);
+  const used = await client.call(env, ctx, {
+    method: "GET",
+    path: `/api/resource/${doctype}?filters=${encodeURIComponent(usedFilters)}&fields=${encodeURIComponent(JSON.stringify([fieldname]))}&limit_page_length=0`,
+  });
+  const usedRows = (used.body as { data?: Array<Record<string, unknown>> })?.data ?? [];
+  const highest = usedRows.reduce((max, row) => {
+    const n = Number(String(row[fieldname] ?? "").slice(prefix.length));
+    return Number.isInteger(n) && n > max ? n : max;
+  }, 0);
+  const value = `${prefix}${highest + 1}`;
+
+  try {
+    await client.call(env, ctx, {
+      method: "POST",
+      path: RETIRE_CANCELLED_METHOD,
+      body: { doctype, name: docName, fieldname, base_id: baseId, value },
+    });
+  } catch (error) {
+    const reason = error instanceof Error ? error.message : String(error);
+    throw new ErpError({
+      // A missing method is a site setup gap, not weather: stop rather than retry forever.
+      kind: error instanceof ErpError && error.kind !== "not_found" ? error.kind : "configuration_error",
+      message: `Cannot re-sync ${baseId}: renaming cancelled ${doctype} ${docName} failed (${reason}). Is amburax_retire_cancelled_id installed on this site? No new ${doctype} was created.`,
+      correlationId: ctx.correlationId,
+    });
+  }
+
+  const after = await client.call(env, ctx, {
+    method: "GET",
+    path: `/api/resource/${doctype}/${encodeURIComponent(docName)}`,
+  });
+  const doc = (after.body as { data?: Record<string, unknown> })?.data ?? {};
+  if (doc[fieldname] !== value || doc["docstatus"] !== 2) {
+    throw new ErpError({
+      kind: "conflict",
+      message: `Cannot re-sync ${baseId}: cancelled ${doctype} ${docName} still reads ${fieldname}=${String(doc[fieldname])} (docstatus ${String(doc["docstatus"])}) after the rename. No new ${doctype} was created.`,
+      correlationId: ctx.correlationId,
+    });
+  }
+  return value;
+}

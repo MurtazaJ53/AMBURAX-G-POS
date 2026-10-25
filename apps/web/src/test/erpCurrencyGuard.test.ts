@@ -24,6 +24,22 @@ vi.mock("@/server/erp/config", async (importOriginal) => {
   };
 });
 
+/**
+ * A client.call stand-in for an ERPNext holding one cancelled invoice (`docName`) under `baseId`:
+ * the lookup finds it, the rename method accepts, and reading it back shows the renamed id.
+ */
+function renameAwareErp(docName: string, baseId: string) {
+  return async (_env: unknown, _ctx: unknown, req: { method: string; path: string; body?: unknown }) => {
+    const path = decodeURIComponent(req.path);
+    if (req.method === "POST" && path === "/api/method/amburax_retire_cancelled_id") return { status: 200, body: {} };
+    if (req.method === "GET" && path === `/api/resource/Sales Invoice/${docName}`) {
+      return { status: 200, body: { data: { name: docName, docstatus: 2, amburax_sale_id: `${baseId}-CANCELLED-1` } } };
+    }
+    if (req.method === "GET" && path.includes('"like"')) return { status: 200, body: { data: [] } };
+    return { status: 200, body: { data: [{ name: docName, docstatus: 2, currency: "INR", conversion_rate: 1 }] } };
+  };
+}
+
 describe("ERP Currency Guard & Payload", () => {
   it("inrPricingPayload returns buying defaults", () => {
     const payload = inrPricingPayload("buying");
@@ -307,25 +323,11 @@ describe("ERP Currency Guard & Payload", () => {
     expect(putCall!.body.docstatus).toBe(1);
   });
 
-  it("ignores cancelled Sales Invoices (docstatus: 2) in lookup and creates a new one", async () => {
+  it("moves a cancelled Sales Invoice's id aside in lookup, so a new one can be created", async () => {
     const { ErpSaleAdapter } = await import("@/server/erp/saleAdapter");
     const adapter = new ErpSaleAdapter({} as any);
 
-    const mockClient = {
-      call: vi.fn().mockResolvedValue({
-        status: 200,
-        body: {
-          data: [
-            {
-              name: "ACC-SINV-CANCELLED-1",
-              docstatus: 2, // Cancelled
-              currency: "INR",
-              conversion_rate: 1,
-            },
-          ],
-        },
-      }),
-    };
+    const mockClient = { call: vi.fn().mockImplementation(renameAwareErp("ACC-SINV-CANCELLED-1", "sale-repost-1")) };
     (adapter as any).client = mockClient;
 
     const res = await (adapter as any).lookupInvoiceBySaleId(
@@ -335,8 +337,10 @@ describe("ERP Currency Guard & Payload", () => {
       "corr-test"
     );
 
-    // Cancelled invoice must be ignored (returns null) so fresh invoice is created
+    // The cancelled invoice stays, renamed; lookup reports none so a fresh invoice is created.
     expect(res).toBeNull();
+    const rename = mockClient.call.mock.calls.find((c: any[]) => c[2].path === "/api/method/amburax_retire_cancelled_id");
+    expect(rename?.[2].body).toMatchObject({ name: "ACC-SINV-CANCELLED-1", value: "sale-repost-1-CANCELLED-1" });
   });
 
   it("return sync uses return's own timestamp for posting_date and posting_time", async () => {
@@ -400,13 +404,9 @@ describe("ERP Currency Guard & Payload", () => {
     const returnAdapter = new ErpReturnAdapter({} as any);
     (returnAdapter as any).client = mockClient;
 
-    // Test directly lookupReturnInvoiceByReturnId with cancelled doc
-    mockClient.call.mockResolvedValueOnce({
-      status: 200,
-      body: {
-        data: [{ name: "ACC-SINV-CANCELLED-RET", docstatus: 2 }],
-      },
-    });
+    // Test directly lookupReturnInvoiceByReturnId with a cancelled doc: it is renamed aside first.
+    const cancelledReturnErp = renameAwareErp("ACC-SINV-CANCELLED-RET", "ret-1");
+    for (let i = 0; i < 4; i += 1) mockClient.call.mockImplementationOnce(cancelledReturnErp);
 
     const res = await (returnAdapter as any).lookupReturnInvoiceByReturnId(
       { siteId: "test", tenantId: "t1" },

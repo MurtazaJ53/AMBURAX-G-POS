@@ -4,6 +4,7 @@ import {
   assertWarehouseCompanyMatch,
   inrPricingPayload,
   assertInrCurrencyGuard,
+  retireCancelledTrackingId,
   erpDate,
   erpTime,
 } from "@/server/erp/documentSync";
@@ -72,6 +73,14 @@ export class ErpReturnAdapter {
       const docstatus = doc.docstatus ?? 0;
       // If found return invoice was cancelled (docstatus === 2), it is not a valid active invoice; return null so a fresh one is created
       if (docstatus === 2) {
+        // Cancelled: keep it for the audit trail, but move its id aside first. The id is unique in
+        // ERPNext, so a new invoice can only take it once the cancelled one no longer holds it.
+        await retireCancelledTrackingId(this.client, env, { tenantId, correlationId, causationId: returnId }, {
+          doctype: "Sales Invoice",
+          fieldname: "amburax_sale_id",
+          docName: doc.name,
+          baseId: returnId,
+        });
         return null;
       }
       // If found return invoice is still a draft (docstatus === 0), validate currency guard before returning/submitting
