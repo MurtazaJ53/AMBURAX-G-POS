@@ -28,8 +28,22 @@ export class FakeErpTransport implements ErpTransport {
   /** Credentials as seen by the transport, so a test can prove they never reach a log. */
   readonly credentialsSeen: ErpCredentials[] = [];
 
+  /** Warehouse-company lookups answered by warehouseCompany(), kept apart from `sent`. */
+  readonly warehouseLookups: ErpRequest[] = [];
+
   private queue: ScriptedOutcome[] = [];
   private fallback: ScriptedOutcome = { kind: "respond", status: 200, body: { message: "ok" } };
+  private warehouseOwner: string | null = null;
+
+  /**
+   * Answer every "which company owns this warehouse" lookup (the posting guard in
+   * assertWarehouseCompanyMatch) with `company`, outside the script. Tests written before that
+   * guard keep their scripted replies and their `sent` indexes unchanged.
+   */
+  warehouseCompany(company: string): this {
+    this.warehouseOwner = company;
+    return this;
+  }
 
   /** Queue one outcome per call, consumed in order. */
   script(...outcomes: ScriptedOutcome[]): this {
@@ -44,6 +58,14 @@ export class FakeErpTransport implements ErpTransport {
   }
 
   async send(request: ErpRequest, credentials: ErpCredentials): Promise<ErpResponse> {
+    if (
+      this.warehouseOwner !== null &&
+      request.method === "GET" &&
+      decodeURIComponent(request.path).startsWith("/api/resource/Warehouse/")
+    ) {
+      this.warehouseLookups.push(request);
+      return { status: 200, body: { data: { company: this.warehouseOwner } } };
+    }
     this.sent.push(request);
     this.credentialsSeen.push(credentials);
 

@@ -38,7 +38,7 @@ describe("ERPNext Customer Sync (Outbox)", () => {
     await resetDatabase();
     await seedTwoTenants();
 
-    transport = new FakeErpTransport();
+    transport = new FakeErpTransport().warehouseCompany("Amburax Retail");
     publisher = new ErpOutboxPublisher(
       new ErpSaleAdapter(transport),
       new ErpCatalogAdapter(transport),

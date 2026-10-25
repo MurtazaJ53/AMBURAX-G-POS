@@ -134,7 +134,7 @@ describe("ERPNext sync", () => {
   it("submits the Purchase Order, keeps its row names, and receipts cite them", async () => {
     const id = await order(10);
     // Unregistered supplier: no GST template lookup. Lookup, create, submit, then read rows back.
-    const transport = new FakeErpTransport().script(none, name("PUR-ORD-0001"), ok, {
+    const transport = new FakeErpTransport().warehouseCompany("Amburax Retail").script(none, name("PUR-ORD-0001"), ok, {
       kind: "respond",
       status: 200,
       body: { data: { name: "PUR-ORD-0001", items: [{ name: "poi-row-1", idx: 1 }] } },
@@ -150,7 +150,7 @@ describe("ERPNext sync", () => {
 
     const got = await receive(id, 4);
     if (got.status !== "ok") throw new Error("receive failed");
-    const receiptTransport = new FakeErpTransport().script(none, name("MAT-PRE-0009"), ok, none, name("ACC-PINV-0009"));
+    const receiptTransport = new FakeErpTransport().warehouseCompany("Amburax Retail").script(none, name("MAT-PRE-0009"), ok, none, name("ACC-PINV-0009"));
     await new ErpPurchaseAdapter(receiptTransport).syncReceipt(IDS.tenantA, got.receiptId, "corr-pr");
     const pr = receiptTransport.sent.find((r) => r.method === "POST" && r.path === "/api/resource/Purchase Receipt")!;
     expect((pr.body as { items: unknown[] }).items[0]).toMatchObject({

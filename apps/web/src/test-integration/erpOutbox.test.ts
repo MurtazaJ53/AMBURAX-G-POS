@@ -15,7 +15,7 @@ describe("ERPNext Vertical Slice (Outbox)", () => {
     await resetDatabase();
     await seedTwoTenants();
     await seedCommerce();
-    transport = new FakeErpTransport();
+    transport = new FakeErpTransport().warehouseCompany("Amburax Retail");
     publisher = new ErpOutboxPublisher(new ErpSaleAdapter(transport));
   });
 
@@ -91,16 +91,23 @@ describe("ERPNext Vertical Slice (Outbox)", () => {
     expect(publishedEvent?.publishedAt).not.toBeNull();
     expect(publishedEvent?.lastError).toBeNull();
 
-    // 5. Verify ERP transport received the correct payload
-    expect(transport.sent).toHaveLength(2);
-    
+    // 5. Verify ERP transport received the correct payload: lookup, create as draft, submit.
+    // The invoice is created as a draft so its currency can be checked before it is submitted.
+    expect(transport.sent).toHaveLength(3);
+
     // First call is GET (lookup)
     expect(transport.sent[0]!.method).toBe("GET");
-    
-    // Second call is POST (create)
+
+    // Second call is POST (create, as a draft)
     const call = transport.sent[1]!;
     expect(call.method).toBe("POST");
-    expect(call.path).toBe("/api/resource/Sales Invoice"); 
+    expect(call.path).toBe("/api/resource/Sales Invoice");
+    expect((call.body as { docstatus: number }).docstatus).toBe(0);
+
+    // Third call submits it
+    const submit = transport.sent[2]!;
+    expect(submit.method).toBe("PUT");
+    expect(submit.body).toEqual({ docstatus: 1 });
 
     // Wait, url.pathname might be URL encoded. Let's just check the body.
     const body = call.body as any;

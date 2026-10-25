@@ -18,7 +18,7 @@ describe("ERPNext Vertical Slice (Returns)", () => {
     await resetDatabase();
     await seedTwoTenants();
     await seedCommerce();
-    transport = new FakeErpTransport();
+    transport = new FakeErpTransport().warehouseCompany("Amburax Retail");
     publisher = new ErpOutboxPublisher(
       new ErpSaleAdapter(transport),
       undefined,

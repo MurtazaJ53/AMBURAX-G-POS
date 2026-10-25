@@ -287,7 +287,7 @@ describe("sync", () => {
     process.env["ERP_SITE_TEST_SITE_LOCAL_KEY"] = "test-key";
     process.env["ERP_SITE_TEST_SITE_LOCAL_SECRET"] = "test-secret";
 
-    const transport = new FakeErpTransport();
+    const transport = new FakeErpTransport().warehouseCompany("Amburax Retail");
     const publisher = new ErpOutboxPublisher(
       new ErpSaleAdapter(transport),
       new ErpCatalogAdapter(transport),

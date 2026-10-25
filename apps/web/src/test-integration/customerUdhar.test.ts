@@ -367,6 +367,8 @@ class RoutedTransport implements ErpTransport {
   readonly sent: ErpRequest[] = [];
   async send(request: ErpRequest): Promise<ErpResponse> {
     this.sent.push(request);
+    // The posting guard asks which company owns the store's warehouse.
+    if (request.method === "GET" && decodeURIComponent(request.path).startsWith("/api/resource/Warehouse/")) return { status: 200, body: { data: { company: "Amburax Retail" } } };
     if (request.method === "GET" && request.path.includes("/Customer")) return { status: 200, body: { data: [{ name: "CUST-A" }] } };
     if (request.method === "POST" && request.path.includes("Sales Invoice")) return { status: 200, body: { data: { name: "SINV-1" } } };
     return { status: 200, body: { data: [] } };
@@ -439,7 +441,11 @@ describe("sync", () => {
       .map((r) => r.body as Record<string, unknown>)
       .find((b) => b["amburax_sale_id"] === sale.id);
     expect(udhar).toBeDefined();
-    expect(udhar!["docstatus"]).toBe(1);
+    // Created as a draft (so its currency can be checked), then submitted by a separate call.
+    expect(udhar!["docstatus"]).toBe(0);
+    expect(
+      transport.sent.some((r) => r.method === "PUT" && r.path.includes("SINV-1") && (r.body as { docstatus?: number })?.docstatus === 1),
+    ).toBe(true);
     expect(udhar!["customer"]).toBe("CUST-A");
     expect(udhar!["payments"]).toEqual([{ mode_of_payment: "Cash", amount: 250 }]);
   });

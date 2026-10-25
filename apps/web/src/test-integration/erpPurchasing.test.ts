@@ -68,7 +68,7 @@ beforeEach(async () => {
   process.env["ERP_SITE_TEST_SITE_LOCAL_URL"] = "http://test-site.local";
   process.env["ERP_SITE_TEST_SITE_LOCAL_KEY"] = "test-key";
   process.env["ERP_SITE_TEST_SITE_LOCAL_SECRET"] = "test-secret";
-  transport = new FakeErpTransport();
+  transport = new FakeErpTransport().warehouseCompany("Amburax Retail");
 
   const s = await createSupplier({
     tenantId: IDS.tenantA,
