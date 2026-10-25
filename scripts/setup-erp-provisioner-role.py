@@ -25,6 +25,9 @@ REQUIRED_PERMISSIONS = {
     "Fiscal Year": ("read", "create", "write"),
     # Links Cash / UPI / Credit Card to this company's accounts (Mode of Payment Account rows).
     "Mode of Payment": ("read", "create", "write"),
+    # Not Warehouse or Address: a Warehouse is created whenever a store is added (ErpStoreAdapter)
+    # and the company Address whenever GST is switched on (ErpCompanyGstAdapter). That is day-to-day
+    # outbox work, done by the integration user, not one-time setup.
 }
 ALL_RIGHTS = ("read", "write", "create", "delete", "submit", "cancel", "amend")
 
