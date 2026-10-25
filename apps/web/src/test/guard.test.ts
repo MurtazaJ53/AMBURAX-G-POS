@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { assertWarehouseCompanyMatch, clearWarehouseCompanyCache } from "@/server/erp/documentSync";
 import { ErpError } from "@/server/erp/errors";
 import type { ErpTransport, ErpRequest, ErpResponse } from "@/server/erp/transport";
@@ -47,9 +47,17 @@ describe("assertWarehouseCompanyMatch Guard & 5-minute Cache", () => {
   const ctx = { tenantId: "t-test", correlationId: "corr-123" };
 
   beforeEach(() => {
+    // Dummy credentials of our own: the transport is mocked, so nothing is sent with them.
+    vi.stubEnv("ERP_SITE_FRONTEND_URL", "http://erp.test.invalid");
+    vi.stubEnv("ERP_SITE_FRONTEND_KEY", "test-key");
+    vi.stubEnv("ERP_SITE_FRONTEND_SECRET", "test-secret");
     clearWarehouseCompanyCache();
     transport = new MockTransport();
     client = new ErpClient(transport, new EnvErpCredentialProvider(), {});
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
   });
 
   it("1. Blocks when warehouseId is missing/null/empty", async () => {
