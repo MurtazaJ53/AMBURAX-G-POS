@@ -1,4 +1,4 @@
-import { afterAll, beforeEach, describe, expect, it } from "vitest";
+import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { db, resetDatabase, seedTwoTenants, IDS } from "./db";
 import { createSession, resolveSession } from "@/server/identity/session";
 import { hashPassword, verifyPassword } from "@/server/identity/password";
@@ -15,6 +15,11 @@ import {
   setOwnIdleTimeout,
   listAuditEntries,
 } from "@/server/identity/securityCenter";
+
+// Real bcryptjs at cost 12 runs several times per test here. On a busy machine during the full run
+// that can pass the 30 s default; alone these tests finish in seconds. Same headroom the
+// bcrypt-backed unit suites got in dbf1ba4. The hashing cost itself is not lowered.
+vi.setConfig({ testTimeout: 120_000, hookTimeout: 120_000 });
 
 /** A12 Store selection, A13 Security settings, A14 Sessions/devices — against real PostgreSQL. */
 

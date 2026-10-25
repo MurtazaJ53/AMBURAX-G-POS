@@ -1,4 +1,4 @@
-import { afterAll, beforeEach, describe, expect, it } from "vitest";
+import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { randomUUID } from "node:crypto";
 import { db, resetDatabase, seedTwoTenants, seedCommerce, IDS, COMMERCE_IDS, SEEDED_STOCK } from "./db";
 import { createSupplier } from "@/server/purchasing/suppliers";
@@ -10,6 +10,11 @@ import { hashPassword } from "@/server/identity/password";
 import { getSalesReport, resolveReportRange } from "@/server/reports/salesReport";
 import { getStockSignal } from "@/server/dashboard/dashboardQueries";
 import { findProjectionMismatches } from "@/server/inventory/stockLedger";
+
+// Real bcryptjs at cost 12 runs several times per test here. On a busy machine during the full run
+// that can pass the 30 s default; alone these tests finish in seconds. Same headroom the
+// bcrypt-backed unit suites got in dbf1ba4. The hashing cost itself is not lowered.
+vi.setConfig({ testTimeout: 120_000, hookTimeout: 120_000 });
 
 /**
  * Owner decisions 2026-10-14: weighted average cost, manager approval PIN, returns to supplier.

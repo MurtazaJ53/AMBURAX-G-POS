@@ -8,6 +8,11 @@ import { confirmPhoneCode, sendPhoneCode } from "@/server/khata/phoneVerificatio
 import { setCustomerCreditHold, setCustomerCreditMode } from "@/server/khata/customerCreditOverride";
 import { collectRepayment, getOpenBills } from "@/server/khata/repayment";
 
+// Real bcryptjs at cost 12 runs several times per test here. On a busy machine during the full run
+// that can pass the 30 s default; alone these tests finish in seconds. Same headroom the
+// bcrypt-backed unit suites got in dbf1ba4. The hashing cost itself is not lowered.
+vi.setConfig({ testTimeout: 120_000, hookTimeout: 120_000 });
+
 /** Khata end to end under the owner's Q5-Q10 decisions (2026-10-14), against real PostgreSQL. */
 
 const T = IDS.tenantA;
