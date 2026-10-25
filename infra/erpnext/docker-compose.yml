@@ -1,0 +1,173 @@
+# ERPNext dev stack (v16, site "frontend" on :8080, test site "scratch.local" on :8081).
+#
+# Rebuilt 2026-10-25 from `docker inspect` of the running containers: the original compose file
+# (D:\ERP-TEST\frappe_docker\pwd.yml, frappe_docker's "play with docker" file) no longer exists.
+# Images, commands, env, volumes, networks and ports match the running stack. No secrets here:
+# they come from .env.erpnext (gitignored; copy .env.erpnext.example).
+#
+#   docker compose -f infra/erpnext/docker-compose.yml --env-file infra/erpnext/.env.erpnext config
+#
+# The project name "frappe_docker" makes the volumes and network the existing ones
+# (frappe_docker_sites, frappe_docker_db-data, ...). Running `up` would recreate the containers;
+# frontend-scratch was started by hand with `docker run`, so remove that container before managing
+# it here.
+
+name: frappe_docker
+
+x-erpnext: &erpnext
+  image: frappe/erpnext:v16.28.0
+  restart: on-failure
+  volumes:
+    - sites:/home/frappe/frappe-bench/sites
+    - logs:/home/frappe/frappe-bench/logs
+  networks: [frappe_network]
+
+x-frontend-env: &frontend-env
+  BACKEND: backend:8000
+  SOCKETIO: websocket:9000
+  UPSTREAM_REAL_IP_ADDRESS: 127.0.0.1
+  UPSTREAM_REAL_IP_HEADER: X-Forwarded-For
+  UPSTREAM_REAL_IP_RECURSIVE: "off"
+  PROXY_READ_TIMEOUT: "120"
+  CLIENT_MAX_BODY_SIZE: 50m
+
+services:
+  backend:
+    <<: *erpnext
+    environment:
+      DB_HOST: db
+      DB_PORT: "3306"
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:?set in .env.erpnext}
+      MARIADB_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:?set in .env.erpnext}
+
+  # One-off: writes common_site_config.json (db and redis hosts). Exits.
+  configurator:
+    <<: *erpnext
+    restart: "no"
+    entrypoint: ["bash", "-c"]
+    command:
+      - >
+        ls -1 apps > sites/apps.txt;
+        bench set-config -g db_host $$DB_HOST;
+        bench set-config -gp db_port $$DB_PORT;
+        bench set-config -g redis_cache "redis://$$REDIS_CACHE";
+        bench set-config -g redis_queue "redis://$$REDIS_QUEUE";
+        bench set-config -g redis_socketio "redis://$$REDIS_QUEUE";
+        bench set-config -gp socketio_port $$SOCKETIO_PORT;
+    environment:
+      DB_HOST: db
+      DB_PORT: "3306"
+      REDIS_CACHE: redis-cache:6379
+      REDIS_QUEUE: redis-queue:6379
+      SOCKETIO_PORT: "9000"
+
+  # One-off: created the "frontend" site on first start. Exits. The passwords were literal in the
+  # original command; they now come from .env.erpnext.
+  create-site:
+    <<: *erpnext
+    restart: "no"
+    entrypoint: ["bash", "-c"]
+    command:
+      - >
+        wait-for-it -t 120 db:3306;
+        wait-for-it -t 120 redis-cache:6379;
+        wait-for-it -t 120 redis-queue:6379;
+        export start=`date +%s`;
+        until [[ -n `grep -hs ^ sites/common_site_config.json | jq -r ".db_host // empty"` ]] &&
+          [[ -n `grep -hs ^ sites/common_site_config.json | jq -r ".redis_cache // empty"` ]] &&
+          [[ -n `grep -hs ^ sites/common_site_config.json | jq -r ".redis_queue // empty"` ]];
+        do
+          echo "Waiting for sites/common_site_config.json to be created";
+          sleep 5;
+          if (( `date +%s`-start > 120 )); then
+            echo "could not find sites/common_site_config.json with required keys";
+            exit 1
+          fi
+        done;
+        echo "sites/common_site_config.json found";
+        bench new-site --mariadb-user-host-login-scope='%' --admin-password=$$ERP_ADMIN_PASSWORD
+        --db-root-username=root --db-root-password=$$DB_ROOT_PASSWORD --install-app erpnext --set-default frontend;
+    environment:
+      ERP_ADMIN_PASSWORD: ${ERP_ADMIN_PASSWORD:?set in .env.erpnext}
+      DB_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:?set in .env.erpnext}
+
+  db:
+    image: mariadb:11.8
+    restart: on-failure
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+      - --skip-character-set-client-handshake
+    environment:
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:?set in .env.erpnext}
+      MARIADB_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:?set in .env.erpnext}
+    volumes:
+      - db-data:/var/lib/mysql
+    networks: [frappe_network]
+
+  frontend:
+    <<: *erpnext
+    command: ["nginx-entrypoint.sh"]
+    environment:
+      <<: *frontend-env
+      FRAPPE_SITE_NAME_HEADER: frontend
+    ports: ["8080:8080"]
+    depends_on: [websocket]
+
+  # Test site only. Started by hand on 2026-10-25 (docker run, not compose); same as frontend
+  # except the site name and host port.
+  frontend-scratch:
+    <<: *erpnext
+    container_name: frappe_docker-frontend-scratch
+    command: ["nginx-entrypoint.sh"]
+    environment:
+      <<: *frontend-env
+      FRAPPE_SITE_NAME_HEADER: scratch.local
+    ports: ["8081:8080"]
+
+  queue-long:
+    <<: *erpnext
+    command: ["bench", "worker", "--queue", "long,default,short"]
+    environment:
+      FRAPPE_REDIS_CACHE: redis://redis-cache:6379
+      FRAPPE_REDIS_QUEUE: redis://redis-queue:6379
+
+  queue-short:
+    <<: *erpnext
+    command: ["bench", "worker", "--queue", "short,default"]
+    environment:
+      FRAPPE_REDIS_CACHE: redis://redis-cache:6379
+      FRAPPE_REDIS_QUEUE: redis://redis-queue:6379
+
+  redis-cache:
+    image: redis:6.2-alpine
+    restart: on-failure
+    ports: ["6379:6379"]
+    networks: [frappe_network]
+
+  redis-queue:
+    image: redis:6.2-alpine
+    restart: on-failure
+    volumes:
+      - redis-queue-data:/data
+    networks: [frappe_network]
+
+  scheduler:
+    <<: *erpnext
+    command: ["bench", "schedule"]
+
+  websocket:
+    <<: *erpnext
+    command: ["node", "/home/frappe/frappe-bench/apps/frappe/socketio.js"]
+    environment:
+      FRAPPE_REDIS_CACHE: redis://redis-cache:6379
+      FRAPPE_REDIS_QUEUE: redis://redis-queue:6379
+
+volumes:
+  db-data:
+  logs:
+  sites:
+  redis-queue-data:
+
+networks:
+  frappe_network:
