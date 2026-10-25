@@ -24,6 +24,10 @@ beforeEach(async () => {
   process.env["ERP_SITE_TEST_SITE_LOCAL_URL"] = "http://test-site.local";
   process.env["ERP_SITE_TEST_SITE_LOCAL_KEY"] = "test-key";
   process.env["ERP_SITE_TEST_SITE_LOCAL_SECRET"] = "test-secret";
+  // Provisioning runs as the site's AMBURAX Provisioner user, with its own keys (never the
+  // integration keys above).
+  process.env["ERP_SITE_TEST_SITE_LOCAL_PROVISIONER_KEY"] = "test-provisioner-key";
+  process.env["ERP_SITE_TEST_SITE_LOCAL_PROVISIONER_SECRET"] = "test-provisioner-secret";
 });
 
 afterAll(async () => {
@@ -80,8 +84,9 @@ describe("connecting a business", () => {
     const created = posts().map((r) => ({ path: r.path, body: r.body as Record<string, unknown> }));
     const of = (path: string) => created.filter((c) => c.path === path).map((c) => c.body);
 
+    // GST accounts, then the company's leaf bank account that Modes of Payment post to.
     expect(of("/api/resource/Account").map((b) => b["account_name"])).toEqual([
-      "Output Tax CGST", "Output Tax SGST", "Output Tax IGST", "Input Tax CGST", "Input Tax SGST", "Input Tax IGST",
+      "Output Tax CGST", "Output Tax SGST", "Output Tax IGST", "Input Tax CGST", "Input Tax SGST", "Input Tax IGST", "Bank",
     ]);
     expect(of("/api/resource/Account")[0]).toMatchObject({ parent_account: "Duties and Taxes - TAR", company: "Tenant A Retail", account_type: "Tax" });
     expect(of("/api/resource/Tax%20Category").map((b) => b["title"])).toEqual(["In-State", "Out-State"]);
