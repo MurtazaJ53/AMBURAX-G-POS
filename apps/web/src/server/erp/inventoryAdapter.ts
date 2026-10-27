@@ -1,5 +1,5 @@
 import { db } from "@/server/db";
-import { requireCompany, assertWarehouseCompanyMatch } from "@/server/erp/documentSync";
+import { requireCompany, assertWarehouseCompanyMatch, erpDate, erpTime } from "@/server/erp/documentSync";
 import { ErpClient } from "@/server/erp/client";
 import { resolveErpEnvironment, EnvErpCredentialProvider } from "@/server/erp/config";
 import type { ErpEnvironment } from "@/server/erp/config";
@@ -205,7 +205,10 @@ export class ErpInventoryAdapter {
       purpose,
       stock_entry_type: purpose,
       company,
-      posting_date: new Date().toISOString().split("T")[0],
+      // When the movement happened, in India time — not the UTC day the sync runs on.
+      posting_date: erpDate(movement.occurredAt),
+      posting_time: erpTime(movement.occurredAt),
+      set_posting_time: 1,
       remarks: buildRemarks(movement.id),
       docstatus: 1, // Submit immediately
       items: [lineItem],
