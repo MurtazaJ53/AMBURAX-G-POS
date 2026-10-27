@@ -97,6 +97,52 @@ export class ErpSaleAdapter {
     });
   }
 
+  /**
+   * Cancel the ERPNext invoice of a voided bill (event SaleVoided). Cancelling reverses the
+   * invoice's stock (it was posted with update_stock) and its ledger entries; the void's own stock
+   * movements are never synced separately, so nothing is reversed twice.
+   *
+   *   submitted (1) -> cancelled          draft (0) -> deleted
+   *   cancelled (2) or none -> nothing to do (a sale that never reached ERPNext has nothing to undo)
+   */
+  public async cancelInvoice(tenantId: string, saleId: string, correlationId: string): Promise<void> {
+    const sale = await db.sale.findUnique({ where: { id: saleId, tenantId }, select: { id: true, status: true } });
+    if (!sale) throw new Error(`Sale ${saleId} not found`);
+    if (sale.status !== "VOIDED") {
+      throw new ErpError({
+        kind: "validation_failed",
+        message: `Sale ${saleId} is not voided, so its ERPNext invoice is left as it is.`,
+        correlationId,
+      });
+    }
+
+    const envResult = await resolveErpEnvironment(tenantId);
+    if (envResult.status !== "ok") {
+      throw new ErpError({ kind: "configuration_error", message: `ERP environment not provisioned for tenant ${tenantId}.`, correlationId });
+    }
+    const env = envResult.environment;
+    const ctx = { tenantId, correlationId, causationId: saleId };
+
+    // Read the tracking id directly, cancelled invoices included: lookupInvoiceBySaleId would move
+    // a cancelled invoice's id aside to make room for a new invoice, which a void must never do.
+    const filters = encodeURIComponent(JSON.stringify([["amburax_sale_id", "=", saleId]]));
+    const fields = encodeURIComponent(JSON.stringify(["name", "docstatus"]));
+    const found = await this.client.call(env, ctx, { method: "GET", path: `/api/resource/Sales Invoice?filters=${filters}&fields=${fields}` });
+    const invoices = (found.body as { data?: Array<{ name: string; docstatus?: number }> })?.data ?? [];
+
+    for (const invoice of invoices) {
+      if (invoice.docstatus === 1) {
+        await this.client.call(env, ctx, {
+          method: "POST",
+          path: "/api/method/frappe.client.cancel",
+          body: { doctype: "Sales Invoice", name: invoice.name },
+        });
+      } else if ((invoice.docstatus ?? 0) === 0) {
+        await this.client.call(env, ctx, { method: "DELETE", path: `/api/resource/Sales Invoice/${encodeURIComponent(invoice.name)}` });
+      }
+    }
+  }
+
   private readonly checkedGstAccounts = new Map<string, GstAccounts>();
 
   /**

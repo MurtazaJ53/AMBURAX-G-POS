@@ -140,11 +140,12 @@ export async function cancelSale(input: CancelSaleInput) {
       });
     }
 
-    // 4. Outbox event for ERP reverse posting
+    // 4. Outbox event: cancel this sale's ERPNext invoice. Its own event, not SaleReturnCreated — a
+    // void has no SaleReturn row, so the return adapter could never find it.
     await enqueueOutboxEvent(tx, {
       tenantId: input.tenantId,
       storeId: input.storeId,
-      eventType: "SaleReturnCreated",
+      eventType: "SaleVoided",
       correlationId: randomUUID(),
       entityId: sale.id,
       actorUserId: input.actor.userId,

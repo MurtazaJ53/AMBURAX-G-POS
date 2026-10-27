@@ -70,6 +70,11 @@ export class ErpOutboxPublisher implements OutboxPublisher {
         throw new Error("SaleReturnCreated event missing entityId");
       }
       await this.returnAdapter.syncReturn(event.tenantId, event.entityId, event.correlationId);
+    } else if (event.eventType === "SaleVoided") {
+      if (!event.entityId) {
+        throw new Error("SaleVoided event missing entityId");
+      }
+      await this.saleAdapter.cancelInvoice(event.tenantId, event.entityId, event.correlationId);
     } else if (event.eventType === "SupplierCreated" || event.eventType === "SupplierUpdated") {
       if (!event.entityId) {
         throw new Error(`${event.eventType} event missing entityId`);

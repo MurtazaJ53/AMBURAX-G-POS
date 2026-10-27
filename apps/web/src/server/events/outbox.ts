@@ -37,6 +37,8 @@ export const OUTBOX_EVENT_TYPES = [
   "CustomerUpdated",
   "CustomerPaymentCollected",
   "SaleReturnCreated",
+  // A voided bill → its ERPNext Sales Invoice cancelled (a draft one deleted).
+  "SaleVoided",
   // ERPNext-first (2026-10-14): purchasing and transfers sync as their own ERPNext documents.
   "SupplierCreated",
   "SupplierUpdated",
