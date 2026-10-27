@@ -1,5 +1,5 @@
 import { db } from "@/server/db";
-import { requireCompany } from "@/server/erp/documentSync";
+import { requireCompany, erpDate } from "@/server/erp/documentSync";
 import { ErpClient } from "@/server/erp/client";
 import { resolveErpEnvironment, EnvErpCredentialProvider } from "@/server/erp/config";
 import type { ErpEnvironment } from "@/server/erp/config";
@@ -204,7 +204,8 @@ export class ErpKhataService {
     };
 
     const rawInvoices = Array.isArray(body?.data) ? body.data : [];
-    const today = new Date().toISOString().split("T")[0]!;
+    // India's date: ERPNext due dates are India dates, and the UTC date lags by a day until 05:30 IST.
+    const today = erpDate(new Date());
     const now = Date.now();
 
     let totalDueMinor = 0;
@@ -355,7 +356,7 @@ export class ErpKhataService {
 
     const amburaxCustById = new Map(customers.map((c) => [c.id, c]));
 
-    const today = new Date().toISOString().split("T")[0]!;
+    const today = erpDate(new Date());
     const now = Date.now();
 
     const ageing = {

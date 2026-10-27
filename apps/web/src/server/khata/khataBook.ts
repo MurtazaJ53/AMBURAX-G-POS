@@ -143,6 +143,18 @@ function initialCreditOf(s: { initialOnAccountMinor: number; totalMinor: number;
   return s.initialOnAccountMinor > 0 ? s.initialOnAccountMinor : Math.max(0, s.totalMinor - s.paidMinor);
 }
 
+const IST_OFFSET_MS = 330 * 60_000;
+
+/**
+ * Midnight IST on the 1st of the month `monthsBack` months before `now`'s India month (negative
+ * counts forward). India time, not the server's: a UTC server would otherwise put the first 5½
+ * hours of every month in the previous one.
+ */
+export function istMonthStart(now: Date, monthsBack: number): Date {
+  const ist = new Date(now.getTime() + IST_OFFSET_MS);
+  return new Date(Date.UTC(ist.getUTCFullYear(), ist.getUTCMonth() - monthsBack, 1) - IST_OFFSET_MS);
+}
+
 export async function getKhataBook(params: GetKhataBookParams): Promise<KhataBook> {
   if (!params.tenantId?.trim()) throw new KhataScopeError("tenantId");
   if (!params.companyId?.trim()) throw new KhataScopeError("companyId");
@@ -485,11 +497,11 @@ export async function getKhataBook(params: GetKhataBookParams): Promise<KhataBoo
   // Six calendar months, oldest first
   const trend: KhataBook["trend"] = [];
   for (let i = 5; i >= 0; i--) {
-    const start = new Date(now.getFullYear(), now.getMonth() - i, 1);
-    const end = new Date(now.getFullYear(), now.getMonth() - i + 1, 1);
+    const start = istMonthStart(now, i);
+    const end = istMonthStart(now, i - 1);
     const inMonth = (d: Date) => d >= start && d < end;
     trend.push({
-      month: start.toLocaleString("en-IN", { month: "short" }),
+      month: start.toLocaleString("en-IN", { month: "short", timeZone: "Asia/Kolkata" }),
       givenMinor: sales
         .filter((s) => inMonth(s.completedAt))
         .reduce((s, u) => s + initialCreditOf(u), 0),
@@ -497,7 +509,7 @@ export async function getKhataBook(params: GetKhataBookParams): Promise<KhataBoo
     });
   }
 
-  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+  const monthStart = istMonthStart(now, 0);
   const totalDueMinor = book.reduce((s, c) => s + c.dueMinor, 0);
 
   return {
