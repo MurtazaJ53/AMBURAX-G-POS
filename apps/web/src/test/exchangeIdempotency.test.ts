@@ -60,6 +60,16 @@ describe("exchange idempotency", () => {
     );
   });
 
+  it("writes the replacement sale in the exchange's own transaction, so a failure after the return undoes both", async () => {
+    vi.mocked(createSale).mockResolvedValueOnce({ status: "validation_error", reason: "Out of stock." } as never);
+    await expect(processExchange(input)).rejects.toMatchObject({ code: "SALE_CREATION_FAILED" });
+    // The return was written first, inside the transaction...
+    expect(mockTx.saleReturn.create).toHaveBeenCalledTimes(1);
+    // ...and the sale was attempted in that same transaction, which the error then rolls back.
+    expect(createSale).toHaveBeenCalledWith(expect.objectContaining({ tx: mockTx }));
+    expect(mockDb.$transaction).toHaveBeenCalledTimes(1);
+  });
+
   it("returns the first exchange for a repeated key and creates nothing new", async () => {
     mockDb.saleReturn.findUnique.mockResolvedValue({ id: "ret-1", totalRefundMinor: 100_000, amburaxExchangeId: `EXC-${input.idempotencyKey}` });
     mockDb.sale.findFirst.mockResolvedValue({ id: "sale-2", totalMinor: 120_000 });

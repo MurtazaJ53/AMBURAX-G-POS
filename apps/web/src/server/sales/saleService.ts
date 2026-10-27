@@ -111,6 +111,16 @@ export interface CreateSaleInput {
   payments?: SalePaymentInput[];
   onAccountMinor?: number;
   correlationId: string;
+  /**
+   * Write the sale inside the caller's transaction instead of its own, so it commits or rolls
+   * back together with the caller's other writes (an exchange's return). Omit it to sell alone.
+   */
+  tx?: Prisma.TransactionClient;
+}
+
+/** Run `fn` in the caller's transaction when there is one, otherwise in a new one. */
+function inTransaction<T>(tx: Prisma.TransactionClient | undefined, fn: (tx: Prisma.TransactionClient) => Promise<T>): Promise<T> {
+  return tx ? fn(tx) : db.$transaction(fn);
 }
 
 export type CreateSaleResult =
@@ -541,7 +551,7 @@ export async function createSale(input: CreateSaleInput): Promise<CreateSaleResu
   const paidMinor = requiredPayment;
 
   try {
-    const sale = await db.$transaction(async (tx) => {
+    const sale = await inTransaction(input.tx, async (tx) => {
       // Re-verify customer eligibility and available credit inside the transaction with locking.
       if (input.customerId) {
         // SELECT FOR UPDATE locks the customer row across tills to serialize concurrent credit consumption.

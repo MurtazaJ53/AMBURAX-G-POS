@@ -160,9 +160,11 @@ export async function processExchange(input: ProcessExchangeInput) {
       });
     }
 
-    // B. Create the replacement sale
+    // B. Create the replacement sale in this same transaction: if it fails, the return above is
+    // rolled back with it, so a customer's return is never recorded without its replacement.
     const correlationId = randomUUID();
     const saleRes = await createSale({
+      tx,
       tenantId: input.tenantId,
       storeId: input.storeId,
       cashierUserId: input.actor.userId,
