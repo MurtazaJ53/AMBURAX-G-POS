@@ -38,6 +38,12 @@ interface CatalogItem {
   stockQuantity: number | null;
 }
 
+/** The message to show for a failed exchange: API errors arrive as { error: { code, message } }. */
+export function exchangeErrorMessage(data: unknown): string {
+  const message = (data as { error?: { message?: unknown } } | null)?.error?.message;
+  return typeof message === "string" && message.trim() ? message : "Exchange transaction failed.";
+}
+
 export function ExchangeClient({
   saleId,
   billNumber,
@@ -145,7 +151,7 @@ export function ExchangeClient({
 
       const data = await res.json();
       if (!res.ok) {
-        setError(data?.message || "Exchange transaction failed.");
+        setError(exchangeErrorMessage(data));
         return;
       }
 
