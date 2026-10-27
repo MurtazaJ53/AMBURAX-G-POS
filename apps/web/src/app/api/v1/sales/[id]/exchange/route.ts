@@ -32,6 +32,8 @@ const exchangeSchema = z.object({
     reference: z.string().trim().optional(),
   }),
   reason: z.string().trim().min(3).max(200),
+  // Client-generated once per exchange and reused on retry, so a repeat returns the first exchange.
+  idempotencyKey: z.string().uuid(),
 });
 
 export async function POST(
@@ -72,6 +74,7 @@ export async function POST(
       newLines: parsed.data.newLines,
       settlement: parsed.data.settlement,
       reason: parsed.data.reason,
+      idempotencyKey: parsed.data.idempotencyKey,
     });
 
     return NextResponse.json({ status: "ok", exchange: result, correlationId });

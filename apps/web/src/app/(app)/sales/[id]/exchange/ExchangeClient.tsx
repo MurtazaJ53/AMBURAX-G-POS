@@ -67,6 +67,9 @@ export function ExchangeClient({
   const [reason, setReason] = useState("Customer requested item exchange / size swap");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // One key per exchange on this screen: a double tap or a retry after a timeout sends the same
+  // key, so the server returns the first exchange instead of recording a second one.
+  const [idempotencyKey] = useState(() => crypto.randomUUID());
   const [successExchange, setSuccessExchange] = useState<any | null>(null);
 
   // Search debounce
@@ -136,6 +139,7 @@ export function ExchangeClient({
           newLines: replacementCart.map((c) => ({ variantId: c.item.variantId, quantity: c.quantity })),
           settlement: { method },
           reason: reason.trim(),
+          idempotencyKey,
         }),
       });
 

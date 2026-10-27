@@ -38,6 +38,8 @@ export interface ProcessExchangeInput {
     reference?: string;
   };
   reason: string;
+  /** Client-generated once per exchange, so a double tap or a network retry returns the first one. */
+  idempotencyKey: string;
 }
 
 /**
@@ -60,6 +62,10 @@ export async function processExchange(input: ProcessExchangeInput) {
   if (input.returnItems.length === 0 || input.newLines.length === 0) {
     throw new ExchangeDomainError("INVALID_INPUT", "An exchange requires at least one returned item and one replacement item.");
   }
+
+  const exchangeId = `EXC-${input.idempotencyKey}`;
+  const replay = await findExchange(input.tenantId, exchangeId);
+  if (replay) return replay;
 
   // 1. Fetch original sale
   const originalSale = await db.sale.findUnique({
@@ -107,9 +113,9 @@ export async function processExchange(input: ProcessExchangeInput) {
     totalReturnCreditMinor += itemRefundMinor;
   }
 
-  const exchangeId = `EXC-${randomUUID()}`;
-
-  // 2. Transact the Return, the Replacement Sale, and the Net Settlement
+  // 2. Transact the Return, the Replacement Sale, and the Net Settlement. A concurrent request with
+  // the same key loses on SaleReturn's (tenantId, idempotencyKey) unique constraint; the catch below
+  // returns the winner's exchange instead.
   const result = await db.$transaction(async (tx) => {
     // A. Generate Sale Return
     const saleReturn = await tx.saleReturn.create({
@@ -204,7 +210,32 @@ export async function processExchange(input: ProcessExchangeInput) {
       newSaleTotalMinor,
       netDifferenceMinor,
     };
+  }).catch(async (err) => {
+    if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002") {
+      const winner = await findExchange(input.tenantId, exchangeId);
+      if (winner) return winner;
+    }
+    throw err;
   });
 
   return result;
+}
+
+/** The exchange already recorded under this id, rebuilt from its return and replacement sale. */
+async function findExchange(tenantId: string, exchangeId: string) {
+  const saleReturn = await db.saleReturn.findUnique({
+    where: { tenantId_idempotencyKey: { tenantId, idempotencyKey: exchangeId } },
+  });
+  if (!saleReturn) return null;
+  const newSale = await db.sale.findFirst({ where: { tenantId, idempotencyKey: `NEW_SALE_${exchangeId}` } });
+  if (!newSale) return null;
+  return {
+    exchangeId,
+    saleReturn,
+    newSale,
+    returnCreditMinor: saleReturn.totalRefundMinor,
+    newSaleTotalMinor: newSale.totalMinor,
+    netDifferenceMinor: newSale.totalMinor - saleReturn.totalRefundMinor,
+    replayed: true as const,
+  };
 }
