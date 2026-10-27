@@ -132,11 +132,23 @@ export class ErpSaleAdapter {
 
     for (const invoice of invoices) {
       if (invoice.docstatus === 1) {
-        await this.client.call(env, ctx, {
-          method: "POST",
-          path: "/api/method/frappe.client.cancel",
-          body: { doctype: "Sales Invoice", name: invoice.name },
-        });
+        try {
+          await this.client.call(env, ctx, {
+            method: "POST",
+            path: "/api/method/frappe.client.cancel",
+            body: { doctype: "Sales Invoice", name: invoice.name },
+          });
+        } catch (err) {
+          // ERPNext won't cancel an invoice that a payment is linked to. Retrying can't change that,
+          // and the payment is the owner's to unlink: never unlink or cancel it from here.
+          const linked = err instanceof ErpError ? /linked with Payment Entry\s+(\S+)/.exec(err.message) : null;
+          if (!linked) throw err;
+          throw new ErpError({
+            kind: "validation_failed",
+            message: `Payment ${linked[1]} is linked to Sales Invoice ${invoice.name}; unlink it in ERPNext, then retry.`,
+            correlationId,
+          });
+        }
       } else if ((invoice.docstatus ?? 0) === 0) {
         await this.client.call(env, ctx, { method: "DELETE", path: `/api/resource/Sales Invoice/${encodeURIComponent(invoice.name)}` });
       }

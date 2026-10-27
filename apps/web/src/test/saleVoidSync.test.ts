@@ -104,3 +104,44 @@ describe("cancelling the ERPNext invoice of a voided bill", () => {
     expect(writes).toEqual([]);
   });
 });
+
+describe("a voided bill whose invoice has a payment linked", () => {
+  beforeEach(() => mockDb.sale.findUnique.mockResolvedValue(voided));
+
+  // ERPNext refuses with LinkExistsError (HTTP 417). Retrying can't help, so the event must fail at
+  // once with a reason the owner can act on, and the payment must never be touched by us.
+  function linkedPaymentErp() {
+    const writes: ErpRequest[] = [];
+    const transport = {
+      async send(request: ErpRequest): Promise<ErpResponse> {
+        if (request.method === "GET") return { status: 200, body: { data: [{ name: "SINV-0005", docstatus: 1 }] } };
+        writes.push(request);
+        return {
+          status: 417,
+          body: {
+            exc_type: "LinkExistsError",
+            _server_messages: JSON.stringify([
+              JSON.stringify({
+                message:
+                  'Cannot delete or cancel because Sales Invoice <a href="/app/sales-invoice/SINV-0005">SINV-0005</a> is linked with Payment Entry <a href="/app/payment-entry/ACC-PAY-2026-00007">ACC-PAY-2026-00007</a>',
+              }),
+            ]),
+          },
+        };
+      },
+    };
+    return { transport, writes };
+  }
+
+  it("fails without retry, naming the payment to unlink", async () => {
+    const { transport, writes } = linkedPaymentErp();
+    const failure = await new ErpSaleAdapter(transport).cancelInvoice("t-1", "sale-1", "c-1").catch((e) => e);
+    expect(failure.retryable).toBe(false);
+    expect(failure.message).toBe(
+      "Payment ACC-PAY-2026-00007 is linked to Sales Invoice SINV-0005; unlink it in ERPNext, then retry.",
+    );
+    // Only the cancel was attempted: nothing was sent to the Payment Entry.
+    expect(writes).toHaveLength(1);
+    expect(writes.some((w) => w.path.includes("Payment Entry"))).toBe(false);
+  });
+});
