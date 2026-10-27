@@ -21,7 +21,9 @@ export const runtime = "nodejs";
  * The resulting status is computed from the lines. There is no status field in this body.
  */
 const fulfilSchema = z.object({
-  expectedVersion: z.number().int().positive().optional(),
+  // Required: recording fulfilment adds quantities, so without the version a retried request would
+  // count the same goods twice. A stale version is refused as a conflict.
+  expectedVersion: z.number().int().positive(),
   lines: z
     .array(
       z.object({
