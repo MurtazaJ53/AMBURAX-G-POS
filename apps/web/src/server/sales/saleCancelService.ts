@@ -5,6 +5,7 @@ import { writeAuditLog } from "@/server/identity/audit";
 import { enqueueOutboxEvent } from "@/server/events/outbox";
 import { applyStockMovement, movementKey } from "@/server/inventory/stockLedger";
 import { verifyApprovalPin, listApprovers } from "@/server/identity/approvalPin";
+import { erpDate } from "@/server/erp/documentSync";
 
 export class CancelDomainError extends Error {
   constructor(public code: string, message: string) {
@@ -75,12 +76,9 @@ export async function cancelSale(input: CancelSaleInput) {
 
   const isOwnerOrManager = input.actor.tenantRole === "OWNER" || input.actor.membershipRole === "STORE_MANAGER";
 
-  // Check if same day
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const saleDate = new Date(sale.completedAt);
-  saleDate.setHours(0, 0, 0, 0);
-  const isSameDay = saleDate.getTime() === today.getTime();
+  // Same day = the same date in India, the shop's day, not the server's (a UTC server would put a
+  // bill rung up after midnight IST on the previous day).
+  const isSameDay = erpDate(sale.completedAt) === erpDate(new Date());
 
   // If not manager/owner, or if not same-day, manager PIN approval is strictly required
   let approverName = null;
