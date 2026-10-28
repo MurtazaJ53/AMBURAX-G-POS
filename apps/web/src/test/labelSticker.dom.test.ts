@@ -5,12 +5,6 @@ import { createRoot, type Root } from "react-dom/client";
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
-// lucide-react is hoisted to the repo root and resolves another React copy; stub the icons.
-vi.mock("lucide-react", () => {
-  const icon = () => null;
-  return Object.fromEntries(["AlertTriangle", "Barcode", "Printer", "X", "Plus", "Minus"].map((n) => [n, icon]));
-});
-
 const { LabelSticker } = await import("@/app/(app)/products/[id]/BarcodeLabelModal");
 const { LABEL_SIZES, labelOriginPx, layoutLabelBarcode } = await import("@/client/hardware/labelLayout");
 

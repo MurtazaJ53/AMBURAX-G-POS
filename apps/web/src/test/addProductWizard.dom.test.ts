@@ -9,16 +9,6 @@ import { act } from "react";
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
-// lucide-react is hoisted to the repo root, where it resolves a different React copy; its
-// elements would be rejected by this React, so icons render as nothing here.
-vi.mock("lucide-react", () => {
-  const icon = () => null;
-  const names = [
-    "Check", "ChevronRight", "ChevronLeft", "Sparkles", "Layers", "Percent", "Barcode", "Building2", "Tag",
-    "AlertCircle", "Plus", "Trash2", "Camera", "Printer", "Package", "RotateCcw", "ExternalLink", "AlertTriangle",
-  ];
-  return Object.fromEntries(names.map((n) => [n, icon]));
-});
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push: vi.fn(), refresh: vi.fn() }) }));
 vi.mock("@/app/(app)/products/_components/ProductImagePicker", () => ({ ProductImagePicker: () => null }));
 vi.mock("@/client/hardware/CameraBarcodeScannerModal", () => ({ CameraBarcodeScannerModal: () => null }));

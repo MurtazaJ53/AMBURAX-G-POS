@@ -5,11 +5,6 @@ import { createRoot, type Root } from "react-dom/client";
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
-vi.mock("lucide-react", () => {
-  const icon = () => null;
-  return Object.fromEntries(["AlertTriangle", "Barcode", "Printer", "X", "Plus", "Minus"].map((n) => [n, icon]));
-});
-
 const { BarcodeLabelModal } = await import("@/app/(app)/products/[id]/BarcodeLabelModal");
 
 let container: HTMLDivElement;

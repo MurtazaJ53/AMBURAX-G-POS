@@ -20,23 +20,11 @@ function toPosix(value: string): string {
   return value.split(path.sep).join("/");
 }
 
-/**
- * This package's own React.
- *
- * The repository is an npm workspace and an unrelated root dependency pulls React 18 into the
- * hoisted `node_modules`. Testing Library resolves from there, which would render this app's
- * React 19 tree with React DOM 18 and fail in a way that reads as a component bug rather than
- * a resolution one.
- */
-const LOCAL_REACT = toPosix(path.resolve(import.meta.dirname, "./node_modules/react"));
-const LOCAL_REACT_DOM = toPosix(path.resolve(import.meta.dirname, "./node_modules/react-dom"));
-
 export default defineConfig({
   plugins: [react()],
   resolve: {
-    // Array form, because the subpaths matter. Testing Library imports `react-dom/client` and
-    // the JSX transform imports `react/jsx-runtime`; an alias keyed on the bare package name
-    // does not match either, so half the tree would still resolve to the hoisted copy.
+    // The workspace has exactly one React (19, hoisted to the root `node_modules`), so no
+    // React aliasing is needed; `dedupe` below guards against a second copy creeping back.
     alias: [
       { find: /^@\/(.*)$/, replacement: `${toPosix(path.resolve(import.meta.dirname, "./src"))}/$1` },
       // `next/link` reads the App Router context, which exists only inside a running Next
@@ -52,10 +40,6 @@ export default defineConfig({
           path.resolve(import.meta.dirname, "./src/test-component/nextNavigationStub.ts"),
         ),
       },
-      { find: /^react$/, replacement: LOCAL_REACT },
-      { find: /^react\/(.*)$/, replacement: `${LOCAL_REACT}/$1` },
-      { find: /^react-dom$/, replacement: LOCAL_REACT_DOM },
-      { find: /^react-dom\/(.*)$/, replacement: `${LOCAL_REACT_DOM}/$1` },
     ],
     dedupe: ["react", "react-dom"],
   },
@@ -64,10 +48,7 @@ export default defineConfig({
     include: ["src/test-component/**/*.test.tsx"],
     setupFiles: ["./src/test-component/setup.ts"],
     globals: true,
-    // Testing Library lives in the hoisted workspace `node_modules`, and Vitest externalises
-    // anything there — it is loaded by Node's resolver, which never sees the aliases above.
-    // Inlining it puts it back through Vite, so it picks up this package's React rather than
-    // the hoisted React 18.
+    // Inlined so these packages go through Vite and pick up the `next/*` stubs above.
     server: {
       deps: {
         inline: [/@testing-library\//, /@radix-ui\//, /lucide-react/],
