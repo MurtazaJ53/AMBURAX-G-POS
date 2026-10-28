@@ -5,6 +5,7 @@ import { registerBusiness } from "@/server/tenant/registrationService";
 import { GST_SCHEMES } from "@/server/catalog/gstSetup";
 import { clientIp } from "@/lib/request";
 import { logError } from "@/lib/safeLog";
+import { withDbConnectionRetry } from "@/server/dbRetry";
 
 export const runtime = "nodejs";
 
@@ -55,20 +56,23 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const result = await registerBusiness({
-      businessName: parsed.data.businessName,
-      businessType: parsed.data.businessType,
-      industry: parsed.data.industry,
-      country: parsed.data.country,
-      taxId: parsed.data.taxId,
-      gstScheme: parsed.data.gstScheme,
-      contactEmail: parsed.data.contactEmail,
-      contactPhone: parsed.data.contactPhone,
-      idempotencyKey: parsed.data.idempotencyKey,
-      ip: clientIp(req),
-      userAgent: req.headers.get("user-agent"),
-      correlationId,
-    });
+    // One retry when the database is briefly unreachable (nothing ran, so it is safe).
+    const result = await withDbConnectionRetry(() =>
+      registerBusiness({
+        businessName: parsed.data.businessName,
+        businessType: parsed.data.businessType,
+        industry: parsed.data.industry,
+        country: parsed.data.country,
+        taxId: parsed.data.taxId,
+        gstScheme: parsed.data.gstScheme,
+        contactEmail: parsed.data.contactEmail,
+        contactPhone: parsed.data.contactPhone,
+        idempotencyKey: parsed.data.idempotencyKey,
+        ip: clientIp(req),
+        userAgent: req.headers.get("user-agent"),
+        correlationId,
+      }),
+    );
 
     if (result.status === "rate_limited") {
       return NextResponse.json(
