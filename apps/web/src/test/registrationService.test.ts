@@ -134,7 +134,7 @@ describe("registerBusiness", () => {
   it("creates the default Pieces (PCS) unit inside the same transaction, so a new shop can add products", async () => {
     await registerBusiness(baseInput());
     expect(mockTx.uom.upsert).toHaveBeenCalledTimes(1);
-    const arg = mockTx.uom.upsert.mock.calls[0][0] as unknown as {
+    const arg = (mockTx.uom.upsert.mock.calls as unknown as unknown[][])[0]?.[0] as {
       where: { tenantId_code: { tenantId: string; code: string } };
       create: { tenantId: string; code: string; name: string };
     };
