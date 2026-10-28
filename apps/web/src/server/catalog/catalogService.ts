@@ -224,6 +224,8 @@ export async function createProduct(input: CreateProductInput): Promise<CreatePr
       let firstCreatedVariantId = "";
       const createdVariants: Array<{ id: string; sku: string; barcode: string | null }> = [];
 
+      // Each opening-stock store is checked against the tenant once, not once per variant.
+      const storeBelongsToTenant = new Map<string, boolean>();
       for (let i = 0; i < rawVariants.length; i++) {
         const v = rawVariants[i]!;
 
@@ -325,10 +327,16 @@ export async function createProduct(input: CreateProductInput): Promise<CreatePr
           for (const loc of v.openingStock) {
             if (loc.quantity > 0) {
               // Verify store belongs to tenant
-              const storeExists = await tx.store.findFirst({
-                where: { id: loc.storeId, tenantId: input.actor.tenantId },
-                select: { id: true },
-              });
+              let storeExists = storeBelongsToTenant.get(loc.storeId);
+              if (storeExists === undefined) {
+                storeExists = Boolean(
+                  await tx.store.findFirst({
+                    where: { id: loc.storeId, tenantId: input.actor.tenantId },
+                    select: { id: true },
+                  }),
+                );
+                storeBelongsToTenant.set(loc.storeId, storeExists);
+              }
               if (!storeExists) {
                 throw new Error(`INVALID_STORE: Store ${loc.storeId} does not belong to tenant ${input.actor.tenantId}`);
               }

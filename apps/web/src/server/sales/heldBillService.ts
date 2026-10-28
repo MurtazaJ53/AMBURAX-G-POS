@@ -181,12 +181,14 @@ export async function resumeHeldBill(input: ResumeHeldBillInput) {
   
   // Decision 36: Recheck stock and prices on resume to prevent overselling or stale price ring
   const warnings: string[] = [];
+  // One read for every line's stock, not one per line.
+  const stockRows = await db.stockLevel.findMany({
+    where: { tenantId: input.tenantId, storeId: input.storeId, variantId: { in: resumedBill.items.map((i) => i.variantId) } },
+    select: { variantId: true, quantity: true },
+  });
+  const onHandByVariant = new Map(stockRows.map((r) => [r.variantId, r.quantity]));
   for (const item of resumedBill.items) {
-    const stock = await db.stockLevel.findUnique({
-      where: { storeId_variantId: { storeId: input.storeId, variantId: item.variantId } },
-      select: { quantity: true },
-    });
-    const onHand = stock?.quantity ?? 0;
+    const onHand = onHandByVariant.get(item.variantId) ?? 0;
     if (onHand < item.quantity) {
       warnings.push(`Item ${item.variant.sku} only has ${onHand} unit(s) available in stock (cart requested ${item.quantity}).`);
     }
