@@ -216,7 +216,7 @@ export async function convertLeadToOrder(params: {
   if (!lead) return { status: "error", reason: "Lead not found." };
 
   const store = params.storeId
-    ? await db.store.findUnique({ where: { id: params.storeId } })
+    ? await db.store.findFirst({ where: { id: params.storeId, tenantId: params.tenantId } })
     : await db.store.findFirst({ where: { tenantId: params.tenantId, isDefault: true } });
 
   if (!store) return { status: "error", reason: "No active store found to attribute wholesale order." };
