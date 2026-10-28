@@ -25,6 +25,7 @@ const mockTx = {
   attributeValue: { upsert: vi.fn(async () => ({ id: "val-1" })) },
   sizeGroup: { upsert: vi.fn(async () => ({ id: "grp-1" })) },
   sizeGroupItem: { upsert: vi.fn(async () => ({ id: "item-1" })) },
+  uom: { upsert: vi.fn(async () => ({ id: "uom-1" })) },
 };
 
 const mockDb = {
@@ -130,6 +131,17 @@ describe("registerBusiness", () => {
    * Not derived from businessType. A wholesaler who also runs a counter still gets RETAIL,
    * because RETAIL describes what actually works today, not what was ticked at signup.
    */
+  it("creates the default Pieces (PCS) unit inside the same transaction, so a new shop can add products", async () => {
+    await registerBusiness(baseInput());
+    expect(mockTx.uom.upsert).toHaveBeenCalledTimes(1);
+    const arg = mockTx.uom.upsert.mock.calls[0][0] as unknown as {
+      where: { tenantId_code: { tenantId: string; code: string } };
+      create: { tenantId: string; code: string; name: string };
+    };
+    expect(arg.where.tenantId_code).toEqual({ tenantId: "tenant-1", code: "PCS" });
+    expect(arg.create).toMatchObject({ tenantId: "tenant-1", code: "PCS", name: "Pieces" });
+  });
+
   it("grants RETAIL even to a tenant that registered as a wholesaler", async () => {
     await registerBusiness(baseInput({ businessType: "WHOLESALE" }));
     expect(mockTx.tenantCapability.createMany).toHaveBeenCalledWith({

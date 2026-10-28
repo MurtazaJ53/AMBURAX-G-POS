@@ -9,6 +9,7 @@ import { isIpRateLimited, recordAttempt } from "@/server/identity/loginGuard";
 import { writeAuditLog } from "@/server/identity/audit";
 import { seedDefaultCapabilities } from "@/server/capability/capabilityService";
 import { seedGarmentMasters } from "@/server/catalog/seedGarmentMasters";
+import { BASE_UOM_CODE } from "@/server/uom/uomService";
 import { gstinProblem, gstSchemeProblem, type GstScheme } from "@/server/catalog/gstSetup";
 
 export type BusinessType = "RETAIL" | "WHOLESALE" | "MANUFACTURING" | "SERVICES" | "DISTRIBUTION" | "OTHER";
@@ -125,6 +126,15 @@ export async function registerBusiness(input: RegisterBusinessInput): Promise<Re
         // Seed default capabilities and Garment Masters (Size/Colour definitions, presets, and size groups)
         await seedDefaultCapabilities(tx, tenant.id);
         await seedGarmentMasters(tx as unknown as Prisma.TransactionClient, tenant.id);
+
+        // Every product needs a base unit of measure, and the migration that seeded PCS only
+        // covered tenants that existed at the time. Without this a new shop cannot create a
+        // single product. Same transaction as the tenant: a shop never exists without it.
+        await tx.uom.upsert({
+          where: { tenantId_code: { tenantId: tenant.id, code: BASE_UOM_CODE } },
+          create: { tenantId: tenant.id, code: BASE_UOM_CODE, name: "Pieces", decimalPlaces: 0 },
+          update: {},
+        });
 
         const token = generateOpaqueToken();
         const expiresAt = new Date(Date.now() + env.ONBOARDING_SESSION_TTL_MINUTES * 60 * 1000);
