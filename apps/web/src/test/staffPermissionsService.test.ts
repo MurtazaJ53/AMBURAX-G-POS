@@ -6,6 +6,8 @@ const db = {
   store: { findMany: vi.fn(), findFirst: vi.fn() },
   auditLog: { findMany: vi.fn(), findFirst: vi.fn() },
   storeMembership: { findUnique: vi.fn(), update: vi.fn(), create: vi.fn() },
+  session: { updateMany: vi.fn() },
+  $transaction: vi.fn(),
 };
 vi.mock("@/server/db", () => ({ db }));
 const writeAuditLog = vi.fn();
@@ -17,6 +19,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   db.user.findFirst.mockResolvedValue({ tenantRole: "STAFF" });
   db.store.findFirst.mockResolvedValue({ id: "s1" });
+  db.$transaction.mockImplementation(async (fn: (tx: typeof db) => unknown) => fn(db));
 });
 
 describe("listTenantStaff", () => {
@@ -128,6 +131,20 @@ describe("updateStaffRole", () => {
 });
 
 describe("toggleStaffStatus", () => {
+  it("revokes every live session of a disabled user in the same transaction", async () => {
+    await svc.toggleStaffStatus({ tenantId: "t1", actorUserId: "o", targetUserId: "u1", active: false });
+    expect(db.$transaction).toHaveBeenCalledTimes(1);
+    expect(db.session.updateMany).toHaveBeenCalledWith({
+      where: { userId: "u1", tenantId: "t1", revokedAt: null },
+      data: { revokedAt: expect.any(Date) },
+    });
+  });
+
+  it("does not touch sessions when re-activating", async () => {
+    await svc.toggleStaffStatus({ tenantId: "t1", actorUserId: "o", targetUserId: "u1", active: true });
+    expect(db.session.updateMany).not.toHaveBeenCalled();
+  });
+
   it("disables and re-activates staff, never the owner", async () => {
     expect(await svc.toggleStaffStatus({ tenantId: "t1", actorUserId: "o", targetUserId: "u1", active: false })).toEqual({
       status: "ok",

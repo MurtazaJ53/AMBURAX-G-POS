@@ -267,9 +267,19 @@ export async function toggleStaffStatus(params: {
     return { status: "forbidden" };
   }
 
-  await db.user.update({
-    where: { id: params.targetUserId },
-    data: { status: params.active ? "ACTIVE" : "DISABLED" },
+  // Disabling must end the user's access now, not when their sessions expire: the status
+  // change and the revocation of every live session commit together.
+  await db.$transaction(async (tx) => {
+    await tx.user.update({
+      where: { id: params.targetUserId },
+      data: { status: params.active ? "ACTIVE" : "DISABLED" },
+    });
+    if (!params.active) {
+      await tx.session.updateMany({
+        where: { userId: params.targetUserId, tenantId: params.tenantId, revokedAt: null },
+        data: { revokedAt: new Date() },
+      });
+    }
   });
 
   await writeAuditLog({
