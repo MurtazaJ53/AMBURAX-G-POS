@@ -167,25 +167,21 @@ export async function updateStaffModulePermissions(params: {
 }
 
 export async function getUserAllowedModules(tenantId: string, userId: string): Promise<string[] | null> {
-  // Filter for this user
-  const logs = await db.auditLog.findMany({
+  // The `staff_module_permissions` records written by updateStaffModulePermissions are the only
+  // store of custom module access. Read this user's latest one directly — never a window of the
+  // tenant's recent entries, which drops older grants and revokes once others pile up.
+  const latest = await db.auditLog.findFirst({
     where: {
       tenantId,
       action: "staff_module_permissions",
+      metadata: { path: ["targetUserId"], equals: userId },
     },
     orderBy: { createdAt: "desc" },
-    take: 50,
     select: { metadata: true },
   });
 
-  for (const log of logs) {
-    const meta = log.metadata as { targetUserId?: string; allowedModules?: string[] } | null;
-    if (meta?.targetUserId === userId && Array.isArray(meta.allowedModules)) {
-      return meta.allowedModules;
-    }
-  }
-
-  return null;
+  const meta = latest?.metadata as { allowedModules?: unknown } | null | undefined;
+  return Array.isArray(meta?.allowedModules) ? (meta.allowedModules as string[]) : null;
 }
 
 export async function updateStaffRole(params: {

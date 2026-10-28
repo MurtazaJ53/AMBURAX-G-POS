@@ -83,14 +83,18 @@ describe("updateStaffModulePermissions", () => {
 });
 
 describe("getUserAllowedModules", () => {
-  it("returns this user's latest list, or null", async () => {
-    db.auditLog.findMany.mockResolvedValue([
-      { metadata: { targetUserId: "u2", allowedModules: ["reports"] } },
-      { metadata: { targetUserId: "u1", allowedModules: ["pos"] } },
-    ]);
+  it("reads this user's latest record directly, or null", async () => {
+    db.auditLog.findFirst.mockResolvedValue({ metadata: { targetUserId: "u1", allowedModules: ["pos"] } });
     expect(await svc.getUserAllowedModules("t1", "u1")).toEqual(["pos"]);
+    expect(db.auditLog.findFirst.mock.calls[0]![0].where).toEqual({
+      tenantId: "t1",
+      action: "staff_module_permissions",
+      metadata: { path: ["targetUserId"], equals: "u1" },
+    });
+    expect(db.auditLog.findFirst.mock.calls[0]![0]).not.toHaveProperty("take");
+    db.auditLog.findFirst.mockResolvedValue(null);
     expect(await svc.getUserAllowedModules("t1", "u9")).toBeNull();
-    expect(db.auditLog.findFirst).not.toHaveBeenCalled();
+    expect(db.auditLog.findMany).not.toHaveBeenCalled();
   });
 });
 
