@@ -316,9 +316,22 @@ export class TenantProvisioner {
    * Idempotent: a year that exists is left alone. The outbox worker runs it daily, which means
    * the next year is always there long before the 15 March deadline, and a missed day costs nothing.
    */
-  async renewFiscalYears(today = new Date(), correlationId = randomUUID()): Promise<{ checked: number }> {
+  async renewFiscalYears(
+    today = new Date(),
+    correlationId = randomUUID(),
+    /** Allow-list (the worker's `OUTBOX_TENANT_IDS`). Unset means every tenant. */
+    tenantIds?: readonly string[],
+  ): Promise<{ checked: number }> {
+    if (tenantIds && tenantIds.length === 0) return { checked: 0 };
     const tenants = await db.tenant.findMany({
-      where: { erpnextProvisionStatus: "PROVISIONED", erpnextSiteId: { not: null }, erpnextCompanyId: { not: null } },
+      where: {
+        erpnextProvisionStatus: "PROVISIONED",
+        erpnextSiteId: { not: null },
+        erpnextCompanyId: { not: null },
+        // A paused tenant gets no ERPNext writes from the worker, renewal included.
+        isSyncPaused: false,
+        ...(tenantIds ? { id: { in: [...tenantIds] } } : {}),
+      },
       select: { id: true, erpnextSiteId: true, erpnextCompanyId: true },
     });
     for (const t of tenants) {

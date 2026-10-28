@@ -33,7 +33,7 @@ const {
   NoEventTransportConfiguredError,
 } = await import("@/server/events/publisher");
 
-const { main, EXIT_NO_TRANSPORT } = await import("@/server/events/outboxWorker");
+const { main, EXIT_NO_TRANSPORT, parseTenantAllowList } = await import("@/server/events/outboxWorker");
 
 function claimedRow(overrides: Record<string, unknown> = {}) {
   return {
@@ -360,5 +360,27 @@ describe("graceful shutdown", () => {
     controller.abort();
     await pending;
     expect(Date.now() - started).toBeLessThan(1_000);
+  });
+});
+
+describe("tenant allow-list (bug 33)", () => {
+  it("reads OUTBOX_TENANT_IDS as a trimmed, de-duplicated list; blank means all tenants", () => {
+    expect(parseTenantAllowList({ OUTBOX_TENANT_IDS: " t-1, t-2 ,,t-1 " })).toEqual(["t-1", "t-2"]);
+    expect(parseTenantAllowList({ OUTBOX_TENANT_IDS: "  " })).toBeUndefined();
+    expect(parseTenantAllowList({})).toBeUndefined();
+  });
+
+  it("passes the allow-list through to the claim: an empty list claims nothing", async () => {
+    mockDb.$queryRaw.mockReset();
+    mockDb.$queryRaw.mockResolvedValue([]);
+    const publisher = { publish: vi.fn(async () => {}) };
+    const summary = await runOutboxWorker({
+      publisher: publisher as never,
+      tenantIds: [],
+      maxCycles: 1,
+      sleep: async () => {},
+    });
+    expect(summary.claimed).toBe(0);
+    expect(mockDb.$queryRaw).not.toHaveBeenCalled();
   });
 });

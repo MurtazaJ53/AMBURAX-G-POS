@@ -112,6 +112,11 @@ async function renewLease(row: ClaimedRow, leaseMs: number, now: Clock): Promise
 export async function claimDueEvents(params: {
   batchSize?: number;
   tenantId?: string;
+  /**
+   * Allow-list: claim only these tenants' events. Combined with `tenantId` when both are set.
+   * Paused tenants stay excluded either way. An empty list claims nothing — it never widens.
+   */
+  tenantIds?: readonly string[];
   now?: Date;
 }): Promise<ClaimedRow[]> {
   const batchSize = params.batchSize ?? 20;
@@ -121,7 +126,11 @@ export async function claimDueEvents(params: {
   // A caller-supplied `now` (tests) is used as given.
   const now = params.now ? Prisma.sql`${params.now}` : Prisma.sql`(clock_timestamp() AT TIME ZONE 'UTC')`;
   const tenantFilter = params.tenantId
-    ? Prisma.sql`AND "tenantId" = ${params.tenantId}`
+    ? Prisma.sql`AND o."tenantId" = ${params.tenantId}`
+    : Prisma.empty;
+  if (params.tenantIds && params.tenantIds.length === 0) return [];
+  const allowListFilter = params.tenantIds
+    ? Prisma.sql`AND o."tenantId" IN (${Prisma.join([...params.tenantIds])})`
     : Prisma.empty;
 
   const rows = await db.$queryRaw<ClaimedRow[]>`
@@ -145,6 +154,7 @@ export async function claimDueEvents(params: {
       WHERE o."publishedAt" IS NULL
         AND o."deadLetteredAt" IS NULL
         ${tenantFilter}
+        ${allowListFilter}
     ),
     -- Find the earliest sequence per tenant that is NOT yet due (waiting after a transient failure)
     blocked_tenants AS (
@@ -230,6 +240,8 @@ function safeErrorText(err: unknown): string {
 export async function dispatchOutboxOnce(params?: {
   batchSize?: number;
   tenantId?: string;
+  /** Allow-list of tenants this pass may claim for; see `claimDueEvents`. */
+  tenantIds?: readonly string[];
   publisher?: OutboxPublisher;
   /** Tests only: a fixed time, or a function read at claim and at every lease renewal. */
   now?: Clock;
@@ -245,6 +257,7 @@ export async function dispatchOutboxOnce(params?: {
   const rows = await claimDueEvents({
     batchSize: params?.batchSize,
     tenantId: params?.tenantId,
+    tenantIds: params?.tenantIds,
     now: typeof params?.now === "function" ? params.now() : params?.now,
   });
 

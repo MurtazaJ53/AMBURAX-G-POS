@@ -729,3 +729,33 @@ describe("the runner, against real PostgreSQL — audit finding F-01", () => {
     expect(summary.cycles).toBe(1);
   });
 });
+
+describe("tenant allow-list (bug 33)", () => {
+  async function enqueueFor(tenantId: string, storeId: string, entityId: string) {
+    await db.$transaction((tx) =>
+      enqueueOutboxEvent(tx, {
+        tenantId,
+        storeId,
+        eventType: "PosDeviceCreated",
+        correlationId: `corr-${entityId}`,
+        entityId,
+        payload: {},
+      }),
+    );
+  }
+
+  it("claims only the allow-listed tenants' events and still skips a paused tenant", async () => {
+    const { claimDueEvents } = await import("@/server/events/outboxDispatcher");
+    await enqueueFor(IDS.tenantA, IDS.storeA, "allow-a");
+    await enqueueFor(IDS.tenantB, IDS.storeB, "allow-b");
+
+    const onlyB = await claimDueEvents({ tenantIds: [IDS.tenantB], now: new Date(Date.now() + 1000) });
+    expect(onlyB.map((r) => r.tenantId)).toEqual([IDS.tenantB]);
+
+    await db.tenant.update({ where: { id: IDS.tenantA }, data: { isSyncPaused: true } });
+    const pausedA = await claimDueEvents({ tenantIds: [IDS.tenantA], now: new Date(Date.now() + 1000) });
+    expect(pausedA).toEqual([]);
+
+    expect(await claimDueEvents({ tenantIds: [], now: new Date(Date.now() + 1000) })).toEqual([]);
+  });
+});

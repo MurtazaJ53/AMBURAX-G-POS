@@ -40,6 +40,8 @@ export interface OutboxRunnerOptions {
   batchSize?: number;
   /** Restrict this runner to one tenant. Unset means all tenants. */
   tenantId?: string;
+  /** Restrict this runner to these tenants (allow-list). Unset means all tenants. */
+  tenantIds?: readonly string[];
   intervalMs?: number;
   errorBackoffMs?: number;
   /**
@@ -147,6 +149,7 @@ export async function runOutboxWorker(
       const result = await dispatchOutboxOnce({
         batchSize: options.batchSize,
         tenantId: options.tenantId,
+        tenantIds: options.tenantIds,
         publisher,
         now: options.now,
       });

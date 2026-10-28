@@ -12,9 +12,9 @@ import { TenantProvisioner } from "@/server/erp/tenantProvisioning";
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 /** Daily: every connected business gets its next financial year well before 1 April. */
-function startFiscalYearRenewal(): () => void {
+function startFiscalYearRenewal(tenantIds?: readonly string[]): () => void {
   const run = () =>
-    new TenantProvisioner().renewFiscalYears().catch((err) => logError("fiscal year renewal failed", err, {}));
+    new TenantProvisioner().renewFiscalYears(new Date(), undefined, tenantIds).catch((err) => logError("fiscal year renewal failed", err, {}));
   void run();
   const timer = setInterval(run, DAY_MS);
   timer.unref();
@@ -47,6 +47,17 @@ export const EXIT_FAILED = 1;
 /** sysexits.h EX_CONFIG. Distinguishable from a crash by any supervisor or CI step. */
 export const EXIT_NO_TRANSPORT = 78;
 
+/**
+ * `OUTBOX_TENANT_IDS`: a comma-separated allow-list of tenant ids this worker dispatches for.
+ * Unset or blank means every (unpaused) tenant. Paused tenants are excluded either way.
+ */
+export function parseTenantAllowList(env: Record<string, string | undefined> = process.env): string[] | undefined {
+  const raw = env.OUTBOX_TENANT_IDS?.trim();
+  if (!raw) return undefined;
+  const ids = raw.split(",").map((s) => s.trim()).filter((s) => s.length > 0);
+  return ids.length > 0 ? [...new Set(ids)] : undefined;
+}
+
 export async function main(): Promise<number> {
   let transport;
   try {
@@ -70,6 +81,10 @@ export async function main(): Promise<number> {
   }
 
   console.log(describeRunnerStartup(transport));
+  const tenantIds = parseTenantAllowList();
+  if (tenantIds) {
+    console.log(JSON.stringify({ level: "info", scope: "outbox runner: tenant allow-list", tenantCount: tenantIds.length }));
+  }
 
   // Graceful shutdown: the abort stops the loop at the next safe point and the in-flight
   // pass is allowed to finish. Nothing is lost either way — an event claimed but not
@@ -85,9 +100,9 @@ export async function main(): Promise<number> {
   process.once("SIGINT", () => stop("SIGINT"));
   process.once("SIGTERM", () => stop("SIGTERM"));
 
-  const stopRenewal = startFiscalYearRenewal();
+  const stopRenewal = startFiscalYearRenewal(tenantIds);
   try {
-    const summary = await runOutboxWorker({ signal: controller.signal });
+    const summary = await runOutboxWorker({ signal: controller.signal, tenantIds });
     console.log(JSON.stringify({ level: "info", scope: "outbox runner: stopped", ...summary }));
     return EXIT_OK;
   } catch (err) {
