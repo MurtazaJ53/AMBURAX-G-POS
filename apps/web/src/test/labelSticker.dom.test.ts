@@ -12,7 +12,7 @@ vi.mock("lucide-react", () => {
 });
 
 const { LabelSticker } = await import("@/app/(app)/products/[id]/BarcodeLabelModal");
-const { LABEL_SIZES, layoutLabelBarcode } = await import("@/client/hardware/labelLayout");
+const { LABEL_SIZES, labelOriginPx, layoutLabelBarcode } = await import("@/client/hardware/labelLayout");
 
 let container: HTMLDivElement;
 let root: Root;
@@ -77,37 +77,57 @@ describe("label price line", () => {
   });
 });
 
-describe("bug 12: barcode placement on the label", () => {
+describe("bug 12: every bar edge lands on a whole printer dot", () => {
   for (const sizeId of ["roll-38x25", "roll-50x25", "a4-65"] as const) {
     for (const dpi of [203, 300] as const) {
       for (const code of ["2100000000067", "2100000000098", "2100000000012"]) {
-        it(`${sizeId} at ${dpi} dpi, ${code}: bars start on a whole printer dot`, async () => {
+        it(`${sizeId} at ${dpi} dpi, ${code}`, async () => {
           const size = LABEL_SIZES[sizeId];
           const layout = layoutLabelBarcode(code, size, dpi);
           if (!layout.ok) throw new Error(layout.reason);
-          await act(async () => {
-            root.render(
-              createElement(LabelSticker, {
-                item: { id: "v1", sku: "S1", barcode: code, productName: "Linen", size: "M", colour: null, priceMinor: 99900 },
-                code,
-                layout,
-                size,
-                includeStoreName: false,
-                includeMrp: true,
-              }),
-            );
-          });
-          const svg = container.querySelector("svg") as SVGElement;
-          const block = svg.parentElement as HTMLElement;
-          // Centring with flexbox puts the barcode at a fractional dot, so 2-dot modules print
-          // 1, 3, 5 and 9 dots wide and some codes never scan. The block is placed explicitly.
-          expect(block.style.marginLeft).toMatch(/mm$/);
-          const leftMm = size.paddingMm + parseFloat(block.style.marginLeft);
-          const dots = (leftMm * dpi) / 25.4;
-          expect(Math.abs(dots - Math.round(dots))).toBeLessThan(1e-6);
-          // Still centred to within a dot.
-          const centred = (size.widthMm - layout.totalWidthMm) / 2;
-          expect(Math.abs(leftMm - centred)).toBeLessThanOrEqual(25.4 / dpi);
+          const columns = size.sheet ? size.sheet.columns : 1;
+          for (let col = 0; col < columns; col++) {
+            const originXPx = labelOriginPx(size, col).x;
+            expect(Number.isInteger(originXPx)).toBe(true);
+            await act(async () => {
+              root.render(
+                createElement(LabelSticker, {
+                  item: { id: "v1", sku: "S1", barcode: code, productName: "Linen", size: "M", colour: null, priceMinor: 99900 },
+                  code,
+                  layout,
+                  size,
+                  includeStoreName: false,
+                  includeMrp: true,
+                  originXPx,
+                }),
+              );
+            });
+            const svg = container.querySelector("svg") as SVGSVGElement;
+            // The box sits at a whole px inside a label edge that is itself at a whole px, so the
+            // browser has nothing to round; its user unit is exactly one printer dot.
+            expect(svg.style.left).toMatch(/^\d+px$/);
+            expect(svg.style.width).toMatch(/^\d+px$/);
+            const leftPx = parseFloat(svg.style.left);
+            const widthPx = parseFloat(svg.style.width);
+            const viewDots = Number(svg.getAttribute("viewBox")!.split(" ")[2]);
+            expect(viewDots / widthPx).toBeCloseTo(dpi / 96, 9);
+            const shift = Number(/translate\(([\d.e-]+)/.exec(svg.querySelector("g")!.getAttribute("transform")!)![1]);
+            const boxLeftDots = ((originXPx + leftPx) * dpi) / 96;
+            const rects = Array.from(svg.querySelectorAll("rect"));
+            expect(rects.length).toBeGreaterThan(20);
+            const perModule = dpi === 300 ? 3 : 2;
+            for (const r of rects) {
+              const x = Number(r.getAttribute("x"));
+              const w = Number(r.getAttribute("width"));
+              const start = boxLeftDots + shift + x;
+              expect(Math.abs(start - Math.round(start))).toBeLessThan(1e-6);
+              expect(w % perModule).toBe(0);
+              expect(x + w).toBeLessThanOrEqual(viewDots - shift);
+            }
+            // Still centred to within a px.
+            const centredPx = (((size.widthMm - layout.totalWidthMm) / 2) * 96) / 25.4;
+            expect(Math.abs(leftPx - centredPx)).toBeLessThanOrEqual(0.5);
+          }
         });
       }
     }

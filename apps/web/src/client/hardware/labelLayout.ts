@@ -84,11 +84,6 @@ export function moduleWidthMm(dpi: PrinterDpi): number {
   return (dotsPerModule(dpi) * 25.4) / dpi;
 }
 
-/** Round a length to a whole number of printer dots. */
-export function snapToDot(mm: number, dpi: PrinterDpi): number {
-  return (Math.round((mm * dpi) / 25.4) * 25.4) / dpi;
-}
-
 export type LabelBarcodeLayout =
   | {
       ok: true;
@@ -98,12 +93,7 @@ export type LabelBarcodeLayout =
       moduleWidthMm: number;
       /** Bars plus both quiet zones. */
       totalWidthMm: number;
-      /**
-       * Where the barcode (quiet zone included) starts, from the label's left edge: centred, then
-       * snapped to a whole printer dot. Centring alone lands on a fractional dot, and 2-dot modules
-       * then print 1 or 3 dots wide, which some codes can't survive at 203 dpi.
-       */
-      leftMm: number;
+      dpi: PrinterDpi;
     }
   | { ok: false; reason: string };
 
@@ -127,7 +117,66 @@ export function layoutLabelBarcode(value: string, size: LabelSize, dpi: PrinterD
     quietZoneModules: quiet,
     moduleWidthMm: moduleMm,
     totalWidthMm,
-    leftMm: snapToDot((size.widthMm - totalWidthMm) / 2, dpi),
+    dpi,
+  };
+}
+
+/** CSS lays out in px of 1/96 inch; a browser snaps boxes to whole px when it prints. */
+export const CSS_PX_PER_INCH = 96;
+
+export function mmToPx(mm: number): number {
+  return (mm * CSS_PX_PER_INCH) / 25.4;
+}
+
+/**
+ * Where the barcode box starts inside its label, in whole CSS px from the label's left edge:
+ * centred, rounded to a px so the browser has nothing left to snap. The bars inside are then
+ * aligned to printer dots by barcodeBarsInDots.
+ */
+export function barcodeLeftPx(layout: Extract<LabelBarcodeLayout, { ok: true }>, size: LabelSize): number {
+  return Math.round(mmToPx((size.widthMm - layout.totalWidthMm) / 2));
+}
+
+/**
+ * The bars in printer dots, for a barcode box whose left edge sits at page x `boxLeftPx` (CSS px,
+ * from the page's left edge). A px is 203/96 or 300/96 dots, never a whole number, so the box edge
+ * falls between dots; `shiftDots` (0 to under 1) moves the bars to the next whole dot. Every bar
+ * then starts and ends on a whole dot of the page, and every module is exactly dotsPerModule dots:
+ * the printer never rounds a bar, so 2-dot modules can't come out 1 or 3 dots wide.
+ */
+export function barcodeBarsInDots(
+  layout: Extract<LabelBarcodeLayout, { ok: true }>,
+  boxLeftPx: number,
+): { shiftDots: number; bars: Array<{ x: number; w: number }>; widthDots: number } {
+  const perModule = dotsPerModule(layout.dpi);
+  const leftDots = (boxLeftPx * layout.dpi) / CSS_PX_PER_INCH;
+  // Tolerate float noise so an edge already on a dot isn't pushed a whole dot along.
+  const shiftDots = Math.max(0, Math.ceil(leftDots - 1e-6) - leftDots);
+  const bars: Array<{ x: number; w: number }> = [];
+  let run = 0;
+  for (let i = 0; i <= layout.modules.length; i++) {
+    if (layout.modules[i] === "1") {
+      run++;
+    } else if (run > 0) {
+      bars.push({ x: (layout.quietZoneModules + i - run) * perModule, w: run * perModule });
+      run = 0;
+    }
+  }
+  return { shiftDots, bars, widthDots: (layout.modules.length + 2 * layout.quietZoneModules) * perModule };
+}
+
+/**
+ * Top-left corner of label `index` on its page, in whole CSS px. A roll label is its own page; an
+ * A4 sheet's grid is placed by px rather than by CSS grid in mm, so each label's origin is known
+ * exactly and its barcode can be aligned to printer dots.
+ */
+export function labelOriginPx(size: LabelSize, index: number): { x: number; y: number } {
+  if (!size.sheet) return { x: 0, y: 0 };
+  const col = index % size.sheet.columns;
+  const row = Math.floor(index / size.sheet.columns);
+  return {
+    x: Math.round(mmToPx(size.sheet.marginLeftMm + col * (size.widthMm + size.sheet.columnGapMm))),
+    y: Math.round(mmToPx(size.sheet.marginTopMm + row * size.heightMm)),
   };
 }
 

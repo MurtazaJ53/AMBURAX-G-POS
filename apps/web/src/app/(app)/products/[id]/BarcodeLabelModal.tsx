@@ -4,7 +4,11 @@ import { useEffect, useMemo, useState, type CSSProperties } from "react";
 import { createPortal } from "react-dom";
 import { AlertTriangle, Barcode, Printer, X, Plus, Minus } from "lucide-react";
 import {
+  CSS_PX_PER_INCH,
   LABEL_SIZES,
+  barcodeBarsInDots,
+  barcodeLeftPx,
+  labelOriginPx,
   layoutLabelBarcode,
   pageRule,
   sheetBoxHeightMm,
@@ -53,35 +57,35 @@ function writePrinterPrefs(prefs: { sizeId: LabelSizeId; dpi: PrinterDpi }) {
 }
 
 /**
- * Bars drawn in modules, sized in millimetres. One module is a whole number of printer dots
- * (see labelLayout), so the printer never has to round a bar.
+ * Bars drawn in printer dots: the SVG's user unit is one dot, and every bar edge lands on a whole
+ * dot of the page (see barcodeBarsInDots). Sized in px, a whole number of them, placed at a whole
+ * px, so the browser has nothing to round either.
  */
-function LabelBarcodeSvg({ layout, heightMm }: { layout: Extract<LabelBarcodeLayout, { ok: true }>; heightMm: number }) {
-  const rects: Array<{ x: number; w: number }> = [];
-  let x = layout.quietZoneModules;
-  let run = 0;
-  for (let i = 0; i <= layout.modules.length; i++) {
-    if (layout.modules[i] === "1") {
-      run++;
-    } else if (run > 0) {
-      rects.push({ x: x - run, w: run });
-      run = 0;
-    }
-    x++;
-  }
-  const totalModules = layout.modules.length + 2 * layout.quietZoneModules;
+function LabelBarcodeSvg(props: {
+  layout: Extract<LabelBarcodeLayout, { ok: true }>;
+  heightMm: number;
+  /** Where this box starts, CSS px from the page's left edge. */
+  pageLeftPx: number;
+  leftPx: number;
+}) {
+  const { layout } = props;
+  const { shiftDots, bars, widthDots } = barcodeBarsInDots(layout, props.pageLeftPx);
+  const widthPx = Math.ceil(((widthDots + 1) * CSS_PX_PER_INCH) / layout.dpi);
+  const viewDots = (widthPx * layout.dpi) / CSS_PX_PER_INCH;
   return (
     <svg
       xmlns="http://www.w3.org/2000/svg"
-      viewBox={`0 0 ${totalModules} 1`}
+      viewBox={`0 0 ${viewDots} 1`}
       preserveAspectRatio="none"
-      shapeRendering="crispEdges"
-      style={{ width: `${layout.totalWidthMm}mm`, height: `${heightMm}mm`, display: "block" }}
+      data-shift-dots={shiftDots}
+      style={{ position: "absolute", left: `${props.leftPx}px`, top: 0, width: `${widthPx}px`, height: `${props.heightMm}mm`, display: "block" }}
       aria-hidden="true"
     >
-      {rects.map((r) => (
-        <rect key={r.x} x={r.x} y={0} width={r.w} height={1} fill="#000" />
-      ))}
+      <g transform={`translate(${shiftDots} 0)`}>
+        {bars.map((r) => (
+          <rect key={r.x} x={r.x} y={0} width={r.w} height={1} fill="#000" />
+        ))}
+      </g>
     </svg>
   );
 }
@@ -95,8 +99,11 @@ export function LabelSticker(props: {
   storeName?: string;
   includeStoreName: boolean;
   includeMrp: boolean;
+  /** The label's left edge, whole CSS px from the page's left edge (0 on a roll). */
+  originXPx?: number;
 }) {
   const { item: v, size } = props;
+  const barcodeLeftPxInLabel = barcodeLeftPx(props.layout, size);
   // Legal Metrology: a declared MRP is stated inclusive of all taxes. Small, so it fits a 38 mm roll.
   const taxNote: CSSProperties = { fontSize: "4.5pt", fontWeight: 500 };
   const line: CSSProperties = { whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", lineHeight: 1.15 };
@@ -130,18 +137,25 @@ export function LabelSticker(props: {
         <div style={{ ...line, fontSize: "7pt", fontWeight: 700, textTransform: "uppercase" }}>{v.productName}</div>
         {variantText && <div style={{ ...line, fontSize: "6pt", fontWeight: 600 }}>{variantText}</div>}
       </div>
-      <div
-        style={{
-          display: "flex",
-          flexDirection: "column",
-          alignItems: "center",
-          flexShrink: 0,
-          // Placed explicitly at a whole printer dot rather than centred by flexbox (see leftMm).
-          alignSelf: "flex-start",
-          marginLeft: `${props.layout.leftMm - size.paddingMm}mm`,
-        }}
-      >
-        <LabelBarcodeSvg layout={props.layout} heightMm={size.barHeightMm} />
+      <div style={{ flexShrink: 0, alignSelf: "stretch", display: "flex", flexDirection: "column", alignItems: "center" }}>
+        {/* Spans the label edge to edge (cancelling its padding), so the barcode is placed from
+            the label's own whole-px left edge, never from a padding that ends mid-px. */}
+        <div
+          style={{
+            position: "relative",
+            alignSelf: "stretch",
+            marginLeft: `-${size.paddingMm}mm`,
+            marginRight: `-${size.paddingMm}mm`,
+            height: `${size.barHeightMm}mm`,
+          }}
+        >
+          <LabelBarcodeSvg
+            layout={props.layout}
+            heightMm={size.barHeightMm}
+            leftPx={barcodeLeftPxInLabel}
+            pageLeftPx={(props.originXPx ?? 0) + barcodeLeftPxInLabel}
+          />
+        </div>
         <div style={{ fontFamily: "monospace", fontSize: "6.5pt", fontWeight: 700, letterSpacing: "0.08em", lineHeight: 1.1 }}>
           {props.code}
         </div>
@@ -266,9 +280,10 @@ export function BarcodeLabelModal(props: {
     writePrinterPrefs(next);
   }
 
-  const sticker = (label: PrintableLabel, key: string) => (
+  const sticker = (label: PrintableLabel, key: string, originXPx = 0) => (
     <LabelSticker
       key={key}
+      originXPx={originXPx}
       item={label.item}
       code={label.code}
       layout={label.layout}
@@ -299,19 +314,23 @@ export function BarcodeLabelModal(props: {
                 ? {
                     width: `${sheet.pageWidthMm}mm`,
                     height: `${sheetBoxHeightMm(size)}mm`,
-                    boxSizing: "border-box",
-                    paddingTop: `${sheet.marginTopMm}mm`,
-                    paddingLeft: `${sheet.marginLeftMm}mm`,
-                    display: "grid",
-                    gridTemplateColumns: `repeat(${sheet.columns}, ${size.widthMm}mm)`,
-                    gridAutoRows: `${size.heightMm}mm`,
-                    columnGap: `${sheet.columnGapMm}mm`,
-                    alignContent: "start",
+                    position: "relative",
                   }
                 : { width: `${size.widthMm}mm`, height: `${size.heightMm}mm` }
             }
           >
-            {page.map((label, idx) => sticker(label, `${pageIdx}-${idx}`))}
+            {sheet
+              ? // Each label at a whole-px corner (labelOriginPx), so its barcode can be aligned
+                // to printer dots from a known page position.
+                page.map((label, idx) => {
+                  const at = labelOriginPx(size, idx);
+                  return (
+                    <div key={`${pageIdx}-${idx}`} style={{ position: "absolute", left: `${at.x}px`, top: `${at.y}px` }}>
+                      {sticker(label, "label", at.x)}
+                    </div>
+                  );
+                })
+              : page.map((label, idx) => sticker(label, `${pageIdx}-${idx}`))}
           </div>
         ))}
       </div>,
