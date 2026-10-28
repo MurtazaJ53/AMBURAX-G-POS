@@ -12,10 +12,17 @@ export interface IdentityNotifier {
   }): Promise<void>;
 }
 
-const SHOW_PLAINTEXT = process.env.NODE_ENV !== "production";
+/**
+ * Codes, reset links and destinations are printed only on an explicit opt-in on a
+ * non-production server. "Not production" alone is not enough: a staging or misconfigured
+ * server without NODE_ENV=production would otherwise write live login codes into its logs.
+ */
+function showPlaintext(): boolean {
+  return process.env.NODE_ENV !== "production" && process.env.LOG_OTP_FOR_DEV === "1";
+}
 
 function devOnly(value: string): string {
-  return SHOW_PLAINTEXT ? value : "[redacted]";
+  return showPlaintext() ? value : "[redacted]";
 }
 
 class ConsoleIdentityNotifier implements IdentityNotifier {
