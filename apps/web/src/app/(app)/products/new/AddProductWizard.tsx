@@ -116,7 +116,9 @@ export function AddProductWizard({
     baseUomId: uoms[0]?.id || "",
     imageUrl: "",
     gstApplicable: gstRegistered,
-    hsnCode: "61091000",
+    // No default: one code (e.g. 61091000, knitted T-shirts) is wrong for most garments, and a
+    // prefilled value is easily kept by mistake and printed on every invoice.
+    hsnCode: "",
     taxRateBp: 500,
     taxRateMode: "APPAREL_SLAB" as "FIXED" | "APPAREL_SLAB",
     taxInclusive: false,

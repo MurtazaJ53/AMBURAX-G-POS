@@ -33,6 +33,7 @@ export const IMPORT_FIELDS: Record<ImportKind, ImportField[]> = {
     { key: "price", label: "Selling price (incl. GST)", required: true, aliases: ["price", "selling price", "sale price", "rate", "sp", "mrp price", "retail price"], example: "999" },
     { key: "mrp", label: "MRP", aliases: ["mrp", "max retail price"], example: "1299" },
     { key: "gstType", label: "GST type", aliases: ["gst type", "tax type", "taxability", "tax category"], example: "taxable" },
+    { key: "hsn", label: "HSN code", aliases: ["hsn", "hsn code", "hsn/sac", "hsn sac", "sac"], example: "62052000" },
     { key: "exemptionRef", label: "Exemption reference", aliases: ["exemption reference", "exemption ref", "exemption notification", "exemption", "notification"], example: "" },
     { key: "gstRate", label: "GST %", aliases: ["gst %", "gst rate", "tax %", "tax rate", "gst", "igst %"], example: "5" },
     { key: "cost", label: "Cost (excl. GST)", aliases: ["cost", "purchase price", "cost price", "pp", "purchase rate"], example: "550" },

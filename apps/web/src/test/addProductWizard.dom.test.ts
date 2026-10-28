@@ -194,4 +194,13 @@ describe("AddProductWizard", () => {
       expect((container.querySelector("#gstApplicable") as HTMLInputElement).checked).toBe(true);
     });
   });
+
+  describe("bug 21: HSN code", () => {
+    it("is not silently prefilled with the knitted T-shirt code", async () => {
+      await render(baseProps({ gstRegistered: true }));
+      await typeInto(inputByPlaceholder("e.g. Slim Fit Denim Cotton Shirt"), "Linen Shirt");
+      await click(buttonByText(/^Next: Tax/));
+      expect(inputByPlaceholder("e.g. 61091000").value).toBe("");
+    });
+  });
 });

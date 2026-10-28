@@ -110,4 +110,25 @@ describe("product import", () => {
       expect(IMPORT_FIELDS.products.map((f) => f.key)).toContain("exemptionRef");
     });
   });
+
+  describe("bug 21: HSN codes", () => {
+    beforeEach(() => mockDb.tenant.findUnique.mockResolvedValue({ taxId: "27AAAPL1234C1ZV" }));
+
+    it("imports a row's HSN code onto the product", async () => {
+      await importRows([{ name: "Linen Shirt", price: "1499", gstRate: "5", hsn: "6205 2000" }]);
+      expect((vi.mocked(createProduct).mock.calls[0]![0] as unknown as { hsnCode: string | null }).hsnCode).toBe("62052000");
+    });
+
+    it("refuses an HSN code that isn't 4 to 8 digits", async () => {
+      const res = await importRows([{ name: "Linen Shirt", price: "1499", gstRate: "5", hsn: "62X" }]);
+      const err = (res as { outcome: { errors: { reason: string }[] } }).outcome.errors[0]!;
+      expect(err.reason).toMatch(/HSN/);
+      expect(createProduct).not.toHaveBeenCalled();
+    });
+
+    it("offers an HSN column", async () => {
+      const { IMPORT_FIELDS } = await import("@/server/imports/importFields");
+      expect(IMPORT_FIELDS.products.map((f) => f.key)).toContain("hsn");
+    });
+  });
 });

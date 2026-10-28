@@ -184,6 +184,11 @@ async function importProducts(actor: Actor, storeId: string, batchId: string, ro
       });
       continue;
     }
+    const hsnRaw = row.hsn?.replace(/[\s.]/g, "") ?? "";
+    if (hsnRaw && !/^\d{4,8}$/.test(hsnRaw)) {
+      out.errors.push({ row: n, reason: "HSN code should be 4 to 8 digits, like 6205 or 62052000." });
+      continue;
+    }
     if (gst.treatment === "UNSPECIFIED") {
       out.errors.push({ row: n, reason: "Give this row a GST % (like 5) or a GST type (non-GST, nil, zero or slab)." });
       continue;
@@ -238,6 +243,7 @@ async function importProducts(actor: Actor, storeId: string, batchId: string, ro
         imageUrl: null,
         isActive: true,
         baseUomId: uom.id,
+        hsnCode: hsnRaw || null,
         correlationId,
         firstVariant: { sku, barcode: row.barcode?.trim() || null, size, colour, priceMinor: price, mrpMinor, isActive: true, ...tax },
       });
