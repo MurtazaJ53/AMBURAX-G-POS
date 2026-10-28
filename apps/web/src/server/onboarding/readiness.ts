@@ -40,7 +40,7 @@ import { logError } from "@/lib/safeLog";
  */
 export type ReadinessLevel = "READY" | "PENDING" | "ATTENTION" | "NOT_CONFIGURED" | "UNAVAILABLE";
 
-export type ReadinessKey = "business" | "owner" | "store" | "team" | "pos" | "inventory" | "payments" | "bank" | "negative_stock";
+export type ReadinessKey = "business" | "owner" | "store" | "team" | "pos" | "inventory" | "payments" | "erpnext" | "bank" | "negative_stock";
 
 export interface ReadinessItem {
   key: ReadinessKey;
@@ -146,12 +146,16 @@ export async function getOnboardingReadiness(params: {
     storeItem(store),
     teamItem(memberCount, invitations),
     posItem(devices),
-    inventoryItem(store, tenant.erpnextProvisionStatus),
+    inventoryItem(),
     paymentsItem(),
+    erpnextItem(tenant.erpnextProvisionStatus),
   ];
 
-  // Only a connected business has a placeholder bank account to replace.
-  if (tenant.erpnextProvisionStatus === "PROVISIONED") {
+  // Only a connected business has a placeholder bank account to replace; before that the bank
+  // link is listed as the step that follows connecting, without asking ERPNext anything.
+  if (tenant.erpnextProvisionStatus !== "PROVISIONED") {
+    items.push(bankBeforeConnectItem());
+  } else {
     const bank = bankItem(await readBankLink(params.tenantId));
     if (bank) items.push(bank);
     const negative = negativeStockItem(await readNegativeStock(params.tenantId));
@@ -322,53 +326,75 @@ function posItem(
 }
 
 /**
- * Stock is ERPNext-authoritative (ERPNEXT_COVERAGE.md). A Store row existing means Amburax
- * knows about the location; it does NOT mean a stock ledger exists to sell against. No
- * ERPNext adapter is built, so `erpnextProvisionStatus` sits at NOT_PROVISIONED and this
- * reports UNAVAILABLE — a platform gap the merchant cannot act on, not a task for them.
+ * Stock is counted in AMBURAX itself (StockLevel / StockMovement): receipts, sales, returns and
+ * stock takes all move it, and the till shows it on every scan. It works from day one, with or
+ * without ERPNext, so it is ready and never blocks a sale.
  */
-function inventoryItem(
-  store: { erpnextProvisionStatus: string } | null,
-  tenantProvisionStatus: string,
-): ReadinessItem {
-  const provisioned =
-    store?.erpnextProvisionStatus === "PROVISIONED" && tenantProvisionStatus === "PROVISIONED";
-
-  if (provisioned) {
-    return {
-      key: "inventory",
-      label: "Inventory",
-      level: "READY",
-      detail: "Your stock location is connected and ready.",
-      blocksSale: false,
-      action: null,
-    };
-  }
-
+function inventoryItem(): ReadinessItem {
   return {
     key: "inventory",
     label: "Inventory",
-    level: "UNAVAILABLE",
-    detail:
-      "Stock isn't connected yet. Your store is saved, but the inventory system that tracks stock and prices is still being set up on our side — nothing for you to do.",
-    blocksSale: true,
+    level: "READY",
+    detail: "Stock is counted as you receive and sell. Add products and record a stock receipt to start.",
+    blocksSale: false,
+    action: null,
+  };
+}
+
+/** The till takes cash, UPI and card payments (SalePayment). Nothing to set up first. */
+function paymentsItem(): ReadinessItem {
+  return {
+    key: "payments",
+    label: "Payments",
+    level: "READY",
+    detail: "The till takes cash, UPI and card payments.",
+    blocksSale: false,
     action: null,
   };
 }
 
 /**
- * There is no payment model, no gateway adapter, and no terminal integration anywhere in the
- * codebase. Reporting anything other than UNAVAILABLE here — including a "configure payments"
- * link to a screen that does not exist — would be the fabricated readiness the spec forbids.
+ * The connection to ERPNext, the accounting system. Sales work without it (they queue and are
+ * sent once connected), so it never blocks a sale, but the owner should see where it stands.
  */
-function paymentsItem(): ReadinessItem {
+function erpnextItem(status: string): ReadinessItem {
+  const base = { key: "erpnext" as const, label: "ERPNext connection", blocksSale: false };
+  switch (status) {
+    case "PROVISIONED":
+      return { ...base, level: "READY", detail: "Your business is connected to ERPNext.", action: null };
+    case "PROVISIONING":
+      return {
+        ...base,
+        level: "PENDING",
+        detail: "Connecting to ERPNext. This can take a few minutes; you can keep selling meanwhile.",
+        action: null,
+      };
+    case "FAILED":
+      return {
+        ...base,
+        level: "ATTENTION",
+        detail: "Connecting to ERPNext didn't finish. Try again from Company settings.",
+        action: { label: "Try connecting again", href: "/settings/company" },
+      };
+    default:
+      return {
+        ...base,
+        level: "NOT_CONFIGURED",
+        detail: "Not connected yet. Sales are kept and sent to ERPNext once you connect.",
+        action: { label: "Connect to ERPNext", href: "/settings/company" },
+      };
+  }
+}
+
+/** Before connecting there is no ERPNext bank account to check; the step is listed as next. */
+function bankBeforeConnectItem(): ReadinessItem {
   return {
-    key: "payments",
-    label: "Payments",
-    level: "UNAVAILABLE",
+    key: "bank",
+    label: "Link your real bank account",
+    level: "NOT_CONFIGURED",
     detail:
-      "Payment methods aren't available yet. Card, UPI and cash handling arrive with the checkout release.",
-    blocksSale: true,
+      "After connecting to ERPNext, choose the bank account that UPI and card payments are recorded in.",
+    blocksSale: false,
     action: null,
   };
 }

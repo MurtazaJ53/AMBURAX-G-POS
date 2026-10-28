@@ -193,20 +193,19 @@ describe("operational readiness vs onboarding completion", () => {
     expect(r.operationalReady).toBe(false);
   });
 
-  it("stays false while ERPNext stock is unprovisioned, even with an active terminal", async () => {
+  it("is ready with an active terminal even before ERPNext is connected (bug 18)", async () => {
     mockDb.posDevice.findMany.mockResolvedValue([activeDevice()]);
     const r = await readiness();
-    expect(item(r, "inventory").level).toBe("UNAVAILABLE");
-    expect(r.operationalReady).toBe(false);
+    expect(item(r, "inventory").level).toBe("READY");
+    expect(item(r, "erpnext").level).toBe("NOT_CONFIGURED");
+    expect(r.operationalReady).toBe(true);
   });
 
-  it("never reports payments as configured — no payment system exists", async () => {
+  it("reports payments as working: the till takes cash, UPI and card (bug 18)", async () => {
     const payments = item(await readiness(), "payments");
-    expect(payments.level).toBe("UNAVAILABLE");
-    expect(payments.blocksSale).toBe(true);
-    // UNAVAILABLE items offer no action: telling a merchant to configure something the
-    // platform cannot do yet would be a lie.
-    expect(payments.action).toBeNull();
+    expect(payments.level).toBe("READY");
+    expect(payments.blocksSale).toBe(false);
+    expect(payments.detail).not.toMatch(/aren't available|checkout release/i);
   });
 
   it("offers no action link on any UNAVAILABLE item", async () => {
@@ -428,10 +427,31 @@ describe("completeOnboarding", () => {
   });
 });
 
+describe("ERPNext connection item (bug 18)", () => {
+  it.each([
+    ["NOT_PROVISIONED", "NOT_CONFIGURED"],
+    ["PROVISIONING", "PENDING"],
+    ["FAILED", "ATTENTION"],
+    ["PROVISIONED", "READY"],
+  ])("maps %s to %s and never blocks a sale", async (status, level) => {
+    setTenant("POS_CONFIGURED", status);
+    getBankLinkStatus.mockResolvedValue("linked");
+    listNegativeStock.mockResolvedValue([]);
+    const erp = item(await readiness(), "erpnext");
+    expect(erp.level).toBe(level);
+    expect(erp.blocksSale).toBe(false);
+  });
+
+  it("links to the connect screen when not connected", async () => {
+    const erp = item(await readiness(), "erpnext");
+    expect(erp.action).toEqual({ label: "Connect to ERPNext", href: "/settings/company" });
+  });
+});
+
 describe("bank account link — the placeholder from provisioning", () => {
-  it("is not shown, and ERPNext is not asked, before the business is connected", async () => {
+  it("is listed as a later step, without asking ERPNext, before the business is connected (bug 18)", async () => {
     const r = await readiness();
-    expect(r.items.some((i) => i.key === "bank")).toBe(false);
+    expect(item(r, "bank")).toMatchObject({ level: "NOT_CONFIGURED", blocksSale: false });
     expect(getBankLinkStatus).not.toHaveBeenCalled();
   });
 
