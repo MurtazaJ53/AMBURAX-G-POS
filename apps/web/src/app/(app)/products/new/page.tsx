@@ -124,6 +124,10 @@ export default async function NewProductPage(props: {
     }),
   ]);
 
+  // A shop without a GSTIN can't charge GST; the wizard must not offer it.
+  const tenant = await db.tenant.findUnique({ where: { id: tenantId }, select: { taxId: true } });
+  const gstRegistered = Boolean(tenant?.taxId?.trim());
+
   const categories = categoryRows.map((r) => r.category).filter((c): c is string => Boolean(c));
   const brands = brandRows.map((r) => r.brand).filter((b): b is string => Boolean(b));
 
@@ -136,6 +140,7 @@ export default async function NewProductPage(props: {
         sizeGroups={sizeGroups}
         categories={categories}
         brands={brands}
+        gstRegistered={gstRegistered}
       />
     </div>
   );

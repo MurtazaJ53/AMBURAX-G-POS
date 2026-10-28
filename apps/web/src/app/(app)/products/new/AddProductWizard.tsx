@@ -66,6 +66,8 @@ interface AddProductWizardProps {
   sizeGroups: SizeGroupOption[];
   categories?: string[];
   brands?: string[];
+  /** Whether the business has a GSTIN. A shop without one can only sell non-GST goods. */
+  gstRegistered?: boolean;
 }
 
   export interface VariantGridRow {
@@ -99,6 +101,7 @@ export function AddProductWizard({
   sizeGroups,
   categories = [],
   brands = [],
+  gstRegistered = true,
 }: AddProductWizardProps) {
   const router = useRouter();
   const [currentStep, setCurrentStep] = useState(1);
@@ -112,7 +115,7 @@ export function AddProductWizard({
     brand: "",
     baseUomId: uoms[0]?.id || "",
     imageUrl: "",
-    gstApplicable: true,
+    gstApplicable: gstRegistered,
     hsnCode: "61091000",
     taxRateBp: 500,
     taxRateMode: "APPAREL_SLAB" as "FIXED" | "APPAREL_SLAB",
@@ -173,7 +176,8 @@ export function AddProductWizard({
   const setImageUrl = (val: string) => setWizardDraft((p) => ({ ...p, imageUrl: val }));
 
   // --- Step 2: Tax & GST ---
-  const gstApplicable = wizardDraft.gstApplicable;
+  // A restored draft can't turn GST on for a shop that has no GSTIN: the server refuses it.
+  const gstApplicable = gstRegistered && wizardDraft.gstApplicable;
   const setGstApplicable = (val: boolean) => setWizardDraft((p) => ({ ...p, gstApplicable: val }));
 
   const hsnCode = wizardDraft.hsnCode;
@@ -771,6 +775,14 @@ export function AddProductWizard({
             <p className="text-xs text-slate-500">Configure Indian GST rules, Garment Slab, and HSN code.</p>
           </div>
 
+          {!gstRegistered && (
+            <p className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-xs text-slate-700">
+              This business has no GSTIN, so its products are saved as non-GST. Add a GSTIN in
+              Settings → Company to charge GST.
+            </p>
+          )}
+
+          {gstRegistered && (
           <div className="space-y-4">
             <div className="flex items-center gap-3">
               <input
@@ -843,6 +855,7 @@ export function AddProductWizard({
               </div>
             )}
           </div>
+          )}
 
           <div className="flex justify-between pt-4 border-t border-slate-100">
             <button type="button" onClick={() => setCurrentStep(1)} className={buttonClass("secondary")}>

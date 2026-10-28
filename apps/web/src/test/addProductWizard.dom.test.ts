@@ -163,4 +163,35 @@ describe("AddProductWizard", () => {
       expect(select.textContent).toContain("Pieces (PCS)");
     });
   });
+
+  describe("bug 8: a shop without a GSTIN", () => {
+    it("is not offered GST, and saves its products as non-GST", async () => {
+      await goToReview(baseProps({ gstRegistered: false }));
+      respondToSave(201, { productId: "p1", variants: [] });
+      await click(buttonByText(/Save Product/));
+      const fetchMock = vi.mocked(fetch);
+      const post = fetchMock.mock.calls.find(([, i]) => i?.method === "POST");
+      const body = JSON.parse(String(post![1]!.body));
+      expect(body.hsnCode).toBeNull();
+      for (const v of body.variants) {
+        expect(v.taxTreatment).toBe("NON_GST");
+        expect(v.taxRateBp).toBe(0);
+      }
+    });
+
+    it("shows no GST switch on the tax step", async () => {
+      await render(baseProps({ gstRegistered: false }));
+      await typeInto(inputByPlaceholder("e.g. Slim Fit Denim Cotton Shirt"), "Linen Shirt");
+      await click(buttonByText(/^Next: Tax/));
+      expect(container.querySelector("#gstApplicable")).toBeNull();
+      expect(container.textContent).toMatch(/no GSTIN/i);
+    });
+
+    it("a GST-registered shop still gets GST on by default", async () => {
+      await render(baseProps({ gstRegistered: true }));
+      await typeInto(inputByPlaceholder("e.g. Slim Fit Denim Cotton Shirt"), "Linen Shirt");
+      await click(buttonByText(/^Next: Tax/));
+      expect((container.querySelector("#gstApplicable") as HTMLInputElement).checked).toBe(true);
+    });
+  });
 });
