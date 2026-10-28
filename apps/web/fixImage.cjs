@@ -1,1 +1,0 @@
-const { PrismaClient } = require('@prisma/client'); const prisma = new PrismaClient(); async function main() { await prisma.product.updateMany({ where: { name: 'Casual Crossbody Bag' }, data: { imageUrl: null } }); console.log('Fixed'); } main().then(() => prisma.$disconnect());
