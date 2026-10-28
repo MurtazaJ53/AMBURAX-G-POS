@@ -269,6 +269,9 @@ function stockPill(quantity: number | null | undefined, reserved?: number | null
   return { text: `In Stock (${quantity})`, className: "border-emerald-200 bg-emerald-50 text-emerald-700", dot: "bg-emerald-500", reservedPill };
 }
 
+/** How long an empty, loading grid waits before saying so and offering a retry. */
+const SLOW_LOAD_MS = 6000;
+
 /** Cash a customer is likely to hand over: the total rounded up to the next 100, 500 and 1,000. */
 function tenderSuggestions(totalMinor: number): number[] {
   const total = totalMinor / 100;
@@ -576,6 +579,18 @@ export function PosTerminal(props: {
   };
   const searchError = settled ? search.error : null;
   const searching = !settled;
+
+  // A slow first load showed only grey placeholders and "0 items". After a few seconds of an
+  // empty, loading grid, say so and offer a retry that re-runs the catalogue requests.
+  const [slowLoad, setSlowLoad] = useState(false);
+  useEffect(() => {
+    if (!(searching && results.length === 0)) {
+      setSlowLoad(false);
+      return;
+    }
+    const timer = setTimeout(() => setSlowLoad(true), SLOW_LOAD_MS);
+    return () => clearTimeout(timer);
+  }, [searching, results.length]);
 
   const addToCart = useCallback((hit: CatalogHit, overridePriceMinor?: number, batchChoice?: "old" | "new") => {
     setCartNotice(null);
@@ -1386,6 +1401,18 @@ export function PosTerminal(props: {
                   </p>
                 )}
 
+                {slowLoad && (
+                  <div role="status" className="mb-3 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-amber-200 bg-amber-50 p-3 text-[13px] text-amber-900">
+                    <span>Still loading the products. This is taking longer than usual.</span>
+                    <button
+                      type="button"
+                      onClick={() => setCatalogVersion((v) => v + 1)}
+                      className="amb-press min-h-11 rounded-lg border border-amber-300 bg-white px-3 font-semibold text-amber-900 hover:bg-amber-100"
+                    >
+                      Retry
+                    </button>
+                  </div>
+                )}
                 {searching && results.length === 0 && (
                   <div className="grid grid-cols-[repeat(auto-fill,minmax(128px,1fr))] gap-3" aria-hidden="true">
                     {Array.from({ length: 10 }).map((_, i) => (
