@@ -17,6 +17,7 @@
     "db:seed:demo": "tsx prisma/seedDemo.ts",
     "test:integration": "vitest run --config vitest.integration.config.ts --no-file-parallelism",
     "outbox:work": "tsx src/server/events/outboxWorker.ts",
+    "tenants:cleanup-stranded": "tsx src/server/tenant/strandedSignupCleanup.ts",
     "db:up": "docker compose -f ../../docker-compose.yml up -d",
     "db:down": "docker compose -f ../../docker-compose.yml down",
     "db:reset": "docker compose -f ../../docker-compose.yml down -v && docker compose -f ../../docker-compose.yml up -d",
