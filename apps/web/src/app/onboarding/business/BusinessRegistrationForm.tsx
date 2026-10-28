@@ -118,13 +118,9 @@ export function BusinessRegistrationForm() {
           // still be resumed later via a fresh registration, so this is non-fatal.
         }
         setPhase({ kind: "success", businessName: data.businessName });
+        // No timed hard reload as a fallback: on a slow server it landed after the owner page
+        // had opened and wiped what the owner was typing. The success message links onward.
         router.push("/onboarding/owner");
-        // Fallback in case client router transitions are delayed
-        setTimeout(() => {
-          if (window.location.pathname === "/onboarding/business") {
-            window.location.href = "/onboarding/owner";
-          }
-        }, 1200);
         return;
       }
 
@@ -157,7 +153,10 @@ export function BusinessRegistrationForm() {
           className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800"
         >
           <span className="font-medium">{phase.businessName}</span> is registered. Taking you
-          to owner account setup…
+          to owner account setup…{" "}
+          <Link href="/onboarding/owner" className="font-semibold underline">
+            Continue
+          </Link>
         </div>
       </div>
     );

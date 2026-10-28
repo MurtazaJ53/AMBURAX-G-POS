@@ -44,6 +44,7 @@ export function OwnerAccountForm() {
   const [showConfirm, setShowConfirm] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<FormError | null>(null);
+  const [created, setCreated] = useState(false);
 
   useEffect(() => {
     // react-hooks/set-state-in-effect is suppressed on these two calls only.
@@ -116,13 +117,11 @@ export function OwnerAccountForm() {
           // Non-fatal — the token is single-step-use via the server-side onboardingStep
           // claim regardless of whether the client manages to clear its own copy.
         }
+        // No timed hard reload as a fallback (it could wipe the next page mid-typing); the
+        // router navigates, and a link is shown in case that is slow.
+        setCreated(true);
         router.push("/onboarding/store");
         router.refresh();
-        setTimeout(() => {
-          if (window.location.pathname === "/onboarding/owner") {
-            window.location.href = "/onboarding/store";
-          }
-        }, 1200);
         return;
       }
 
@@ -303,6 +302,14 @@ export function OwnerAccountForm() {
         >
           {submitting ? "Creating your account…" : "Continue"}
         </button>
+        {created && (
+          <p role="status" className="text-center text-sm text-emerald-800">
+            Account created.{" "}
+            <Link href="/onboarding/store" className="font-semibold underline">
+              Continue to store setup
+            </Link>
+          </p>
+        )}
       </fieldset>
     </form>
   );
