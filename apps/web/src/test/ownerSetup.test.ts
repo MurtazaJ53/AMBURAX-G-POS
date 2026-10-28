@@ -36,6 +36,13 @@ vi.mock("@/server/identity/loginGuard", () => ({
   recordAttempt: vi.fn(async () => {}),
 }));
 vi.mock("@/server/identity/audit", () => ({ writeAuditLog: vi.fn(async () => {}) }));
+// Real cost-12 bcrypt took seconds per call under a loaded full run and timed these tests out.
+// Nothing here checks the hash itself (password.ts owns that), so a cheap stand-in is enough.
+vi.mock("@/server/identity/password", () => ({
+  hashPassword: vi.fn(async (plain: string) => `test-hash:${plain.length}`),
+  verifyPassword: vi.fn(async () => true),
+  TIMING_SAFETY_DUMMY_HASH: "test-dummy-hash",
+}));
 vi.mock("@/server/identity/session", () => ({
   createSession: vi.fn(async ({ userId }: { userId: string }) => ({
     token: `session-for-${userId}`,
