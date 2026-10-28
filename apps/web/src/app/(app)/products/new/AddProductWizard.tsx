@@ -1383,6 +1383,18 @@ export function AddProductWizard({
             </div>
           </div>
 
+          {/* A refused save is reported here, beside the button that was pressed: the top-of-page
+              alert is scrolled out of sight on this long step. */}
+          {error && (
+            <div
+              role="alert"
+              className="flex items-center gap-2 rounded-xl border border-red-200 bg-red-50 p-3 text-xs font-semibold text-red-700"
+            >
+              <AlertCircle className="h-4 w-4 shrink-0" />
+              <span>{error}</span>
+            </div>
+          )}
+
           <div className="flex justify-between pt-4 border-t border-slate-100">
             <button type="button" onClick={() => setCurrentStep(4)} className={buttonClass("secondary")}>
               <ChevronLeft className="h-4 w-4 mr-1" /> Back to Matrix
