@@ -11,7 +11,9 @@ const IDLE: ConnectState = { status: "idle" };
 /** Not connected yet: the owner starts the connection (site, company, warehouses) here. */
 export function ConnectErp(props: { status: string; error: string | null }) {
   const [state, action, pending] = useActionState(connectErpAction, IDLE);
-  const working = props.status === "PROVISIONING";
+  // The request is queued before the tenant's status moves, so a successful request counts as
+  // "connecting" straight away instead of leaving the page saying "Not connected".
+  const working = props.status === "PROVISIONING" || state.status === "success";
   return (
     <div className="space-y-3 text-sm">
       <p className="flex flex-wrap items-center gap-2 text-slate-700">
