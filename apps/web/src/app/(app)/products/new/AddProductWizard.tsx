@@ -599,10 +599,11 @@ export function AddProductWizard({
 
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div className="sm:col-span-2">
-              <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+              <label htmlFor="wiz-name" className="block text-xs font-semibold text-slate-700 mb-1.5">
                 Product Name <span className="text-red-500">*</span>
               </label>
               <input
+                id="wiz-name"
                 type="text"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
@@ -675,8 +676,9 @@ export function AddProductWizard({
             </div>
 
             <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1.5">Category</label>
+              <label htmlFor="wiz-category" className="block text-xs font-semibold text-slate-700 mb-1.5">Category</label>
               <input
+                id="wiz-category"
                 type="text"
                 list="category-suggestions"
                 value={category}
@@ -692,8 +694,9 @@ export function AddProductWizard({
             </div>
 
             <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1.5">Brand / Label</label>
+              <label htmlFor="wiz-brand" className="block text-xs font-semibold text-slate-700 mb-1.5">Brand / Label</label>
               <input
+                id="wiz-brand"
                 type="text"
                 list="brand-suggestions"
                 value={brand}
@@ -709,8 +712,9 @@ export function AddProductWizard({
             </div>
 
             <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1.5">Base Unit (UOM)</label>
+              <label htmlFor="wiz-uom" className="block text-xs font-semibold text-slate-700 mb-1.5">Base Unit (UOM)</label>
               <select
+                id="wiz-uom"
                 value={baseUomId}
                 onChange={(e) => setBaseUomId(e.target.value)}
                 className="w-full rounded-xl border border-slate-200 bg-slate-50/50 px-3 py-2.5 text-sm font-medium text-slate-900 focus:border-primary focus:bg-white focus:outline-none focus:ring-2 focus:ring-primary/20"
@@ -802,8 +806,9 @@ export function AddProductWizard({
             {gstApplicable && (
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-3 pt-2">
                 <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1.5">HSN Code</label>
+                  <label htmlFor="wiz-hsn" className="block text-xs font-semibold text-slate-700 mb-1.5">HSN Code</label>
                   <input
+                id="wiz-hsn"
                     type="text"
                     value={hsnCode}
                     onChange={(e) => setHsnCode(e.target.value)}
@@ -813,8 +818,9 @@ export function AddProductWizard({
                 </div>
 
                 <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1.5">Garment Tax Mode</label>
+                  <label htmlFor="wiz-tax-mode" className="block text-xs font-semibold text-slate-700 mb-1.5">Garment Tax Mode</label>
                   <select
+                id="wiz-tax-mode"
                     value={taxRateMode}
                     onChange={(e) => setTaxRateMode(e.target.value as "FIXED" | "APPAREL_SLAB")}
                     className="w-full rounded-xl border border-slate-200 bg-slate-50/50 px-3 py-2 text-sm font-medium text-slate-900 focus:border-primary focus:bg-white focus:outline-none"
@@ -825,8 +831,9 @@ export function AddProductWizard({
                 </div>
 
                 <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1.5">Default GST Rate</label>
+                  <label htmlFor="wiz-gst-rate" className="block text-xs font-semibold text-slate-700 mb-1.5">Default GST Rate</label>
                   <select
+                id="wiz-gst-rate"
                     value={taxRateBp}
                     disabled={taxRateMode === "APPAREL_SLAB"}
                     onChange={(e) => setTaxRateBp(parseInt(e.target.value, 10))}
@@ -1010,8 +1017,9 @@ export function AddProductWizard({
             </div>
             <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-7">
               <div>
-                <label className="text-[10px] font-bold text-slate-500 uppercase">Cost (₹)</label>
+                <label htmlFor="wiz-bulk-cost" className="text-[10px] font-bold text-slate-500 uppercase">Cost (₹)</label>
                 <input
+                  id="wiz-bulk-cost"
                   type="number"
                   step="0.01"
                   value={bulkCost}
@@ -1021,8 +1029,9 @@ export function AddProductWizard({
                 />
               </div>
               <div>
-                <label className="text-[10px] font-bold text-slate-500 uppercase">MRP (₹)</label>
+                <label htmlFor="wiz-bulk-mrp" className="text-[10px] font-bold text-slate-500 uppercase">MRP (₹)</label>
                 <input
+                  id="wiz-bulk-mrp"
                   type="number"
                   step="0.01"
                   value={bulkMrp}
@@ -1032,8 +1041,9 @@ export function AddProductWizard({
                 />
               </div>
               <div>
-                <label className="text-[10px] font-bold text-slate-500 uppercase">Retail Price (₹)</label>
+                <label htmlFor="wiz-bulk-retail" className="text-[10px] font-bold text-slate-500 uppercase">Retail Price (₹)</label>
                 <input
+                  id="wiz-bulk-retail"
                   type="number"
                   step="0.01"
                   value={bulkRetailPrice}
@@ -1043,8 +1053,9 @@ export function AddProductWizard({
                 />
               </div>
               <div>
-                <label className="text-[10px] font-bold text-slate-500 uppercase">Wholesale (₹)</label>
+                <label htmlFor="wiz-bulk-wholesale" className="text-[10px] font-bold text-slate-500 uppercase">Wholesale (₹)</label>
                 <input
+                  id="wiz-bulk-wholesale"
                   type="number"
                   step="0.01"
                   value={bulkWholesalePrice}
@@ -1054,8 +1065,9 @@ export function AddProductWizard({
                 />
               </div>
               <div>
-                <label className="text-[10px] font-bold text-slate-500 uppercase">Min Price (₹)</label>
+                <label htmlFor="wiz-bulk-min" className="text-[10px] font-bold text-slate-500 uppercase">Min Price (₹)</label>
                 <input
+                  id="wiz-bulk-min"
                   type="number"
                   step="0.01"
                   value={bulkMinPrice}
@@ -1065,8 +1077,9 @@ export function AddProductWizard({
                 />
               </div>
               <div>
-                <label className="text-[10px] font-bold text-slate-500 uppercase">Store</label>
+                <label htmlFor="wiz-bulk-store" className="text-[10px] font-bold text-slate-500 uppercase">Store</label>
                 <select
+                  id="wiz-bulk-store"
                   value={bulkStoreId}
                   onChange={(e) => setBulkStoreId(e.target.value)}
                   className="w-full rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs font-medium text-slate-800"
@@ -1079,9 +1092,10 @@ export function AddProductWizard({
                 </select>
               </div>
               <div>
-                <label className="text-[10px] font-bold text-slate-500 uppercase">Qty</label>
+                <label htmlFor="wiz-bulk-qty" className="text-[10px] font-bold text-slate-500 uppercase">Qty</label>
                 <div className="flex gap-1.5">
                   <input
+                  id="wiz-bulk-qty"
                     type="number"
                     value={bulkOpeningQty}
                     onChange={(e) => setBulkOpeningQty(e.target.value)}
@@ -1183,6 +1197,7 @@ export function AddProductWizard({
                       </td>
                       <td className="py-2 px-3">
                         <input
+                          aria-label={`SKU, ${row.size} / ${row.colour}`}
                           type="text"
                           value={row.sku}
                           onChange={(e) => {
@@ -1197,6 +1212,7 @@ export function AddProductWizard({
                       <td className="py-2 px-3">
                         <div className="flex items-center gap-1">
                           <input
+                          aria-label={`Barcode, ${row.size} / ${row.colour}`}
                             type="text"
                             value={row.barcode}
                             placeholder="Scan, type or leave blank"
@@ -1220,6 +1236,7 @@ export function AddProductWizard({
                       </td>
                       <td className="py-2 px-3">
                         <input
+                          aria-label={`Cost price, ${row.size} / ${row.colour}`}
                           type="number"
                           step="0.01"
                           value={row.costPrice}
@@ -1234,6 +1251,7 @@ export function AddProductWizard({
                       </td>
                       <td className="py-2 px-3">
                         <input
+                          aria-label={`MRP, ${row.size} / ${row.colour}`}
                           type="number"
                           step="0.01"
                           value={row.mrp}
@@ -1248,6 +1266,7 @@ export function AddProductWizard({
                       </td>
                       <td className="py-2 px-3">
                         <input
+                          aria-label={`Retail price, ${row.size} / ${row.colour}`}
                           type="number"
                           step="0.01"
                           value={row.retailPrice}
@@ -1262,6 +1281,7 @@ export function AddProductWizard({
                       </td>
                       <td className="py-2 px-3">
                         <input
+                          aria-label={`Wholesale price, ${row.size} / ${row.colour}`}
                           type="number"
                           step="0.01"
                           value={row.wholesalePrice}
@@ -1277,6 +1297,7 @@ export function AddProductWizard({
                       </td>
                       <td className="py-2 px-3">
                         <input
+                          aria-label={`Minimum price, ${row.size} / ${row.colour}`}
                           type="number"
                           step="0.01"
                           value={row.minPrice}
@@ -1310,6 +1331,7 @@ export function AddProductWizard({
                       <td className="py-2 px-3">
                         <div className="flex items-center gap-1.5">
                           <select
+                          aria-label={`Opening stock store, ${row.size} / ${row.colour}`}
                             value={Object.keys(row.openingStock)[0] || stores[0]?.id || ""}
                             onChange={(e) => {
                               const sId = e.target.value;
@@ -1329,6 +1351,7 @@ export function AddProductWizard({
                             ))}
                           </select>
                           <input
+                          aria-label={`Opening stock quantity, ${row.size} / ${row.colour}`}
                             type="number"
                             min="0"
                             placeholder="0"
@@ -1393,10 +1416,11 @@ export function AddProductWizard({
 
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+              <label htmlFor="wiz-pack-size" className="block text-xs font-semibold text-slate-700 mb-1.5">
                 Pack Size (Pieces per polybag / box)
               </label>
               <input
+                id="wiz-pack-size"
                 type="number"
                 min="1"
                 value={packSize}
@@ -1406,10 +1430,11 @@ export function AddProductWizard({
             </div>
 
             <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+              <label htmlFor="wiz-min-order" className="block text-xs font-semibold text-slate-700 mb-1.5">
                 Minimum Order Quantity (MOQ)
               </label>
               <input
+                id="wiz-min-order"
                 type="number"
                 min="1"
                 value={minOrderQty}

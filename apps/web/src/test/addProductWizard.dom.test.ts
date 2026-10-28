@@ -203,4 +203,34 @@ describe("AddProductWizard", () => {
       expect(inputByPlaceholder("e.g. 61091000").value).toBe("");
     });
   });
+
+  describe("bug 30: every field has a label", () => {
+    function unlabelled(): string[] {
+      const fields = Array.from(container.querySelectorAll("input, select, textarea")) as HTMLInputElement[];
+      return fields
+        .filter((el) => el.type !== "hidden" && el.type !== "file")
+        .filter((el) => {
+          if (el.getAttribute("aria-label")?.trim() || el.getAttribute("aria-labelledby")) return false;
+          if (el.closest("label")) return false;
+          return !(el.id && Array.from(container.querySelectorAll("label")).some((l) => l.htmlFor === el.id));
+        })
+        .map((el) => el.outerHTML.slice(0, 90));
+    }
+
+    it("on every step of the wizard", async () => {
+      await render(baseProps({ gstRegistered: true }));
+      expect(unlabelled()).toEqual([]);
+      await typeInto(inputByPlaceholder("e.g. Slim Fit Denim Cotton Shirt"), "Linen Shirt");
+      await click(buttonByText(/^Next: Tax/));
+      expect(unlabelled()).toEqual([]);
+      await click(buttonByText(/^Next: Size/));
+      expect(unlabelled()).toEqual([]);
+      await click(buttonByText(/^Generate Variant Grid/));
+      expect(unlabelled()).toEqual([]);
+      await typeInto(inputByPlaceholder("e.g. 1199"), "499");
+      await click(buttonByText(/^Apply$/));
+      await click(buttonByText(/^Next: Wholesale/));
+      expect(unlabelled()).toEqual([]);
+    });
+  });
 });
