@@ -7,6 +7,7 @@ import {
   LABEL_SIZES,
   layoutLabelBarcode,
   pageRule,
+  sheetBoxHeightMm,
   type LabelBarcodeLayout,
   type LabelSize,
   type LabelSizeId,
@@ -287,7 +288,7 @@ export function BarcodeLabelModal(props: {
               sheet
                 ? {
                     width: `${sheet.pageWidthMm}mm`,
-                    height: `${sheet.pageHeightMm}mm`,
+                    height: `${sheetBoxHeightMm(size)}mm`,
                     boxSizing: "border-box",
                     paddingTop: `${sheet.marginTopMm}mm`,
                     paddingLeft: `${sheet.marginLeftMm}mm`,

@@ -119,6 +119,17 @@ export function layoutLabelBarcode(value: string, size: LabelSize, dpi: PrinterD
   };
 }
 
+/**
+ * Height of one printed A4 sheet's box: the top margin plus the label rows, never the full page.
+ * A box exactly as tall as the @page rounds up past it in the browser's pixel layout, and with
+ * break-after that sliver becomes a blank page after every sheet.
+ */
+export function sheetBoxHeightMm(size: LabelSize): number {
+  if (!size.sheet) return size.heightMm;
+  const content = size.sheet.marginTopMm + size.sheet.rows * size.heightMm;
+  return Math.min(content, size.sheet.pageHeightMm - 1);
+}
+
 /** The CSS @page rule for a print run on this label size. */
 export function pageRule(size: LabelSize): string {
   return size.sheet
