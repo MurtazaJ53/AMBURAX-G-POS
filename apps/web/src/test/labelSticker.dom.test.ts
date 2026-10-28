@@ -68,4 +68,11 @@ describe("label price line", () => {
     const { text } = await priceLine(14900, null);
     expect(text).not.toMatch(/taxes/);
   });
+
+  it("bug 37: a discounted item shows the MRP plainly, never struck through", async () => {
+    const { text, struck } = await priceLine(119900, 149900);
+    expect(struck).toBe(false);
+    expect(text).toContain("MRP ₹1499");
+    expect(text).toContain("₹1199");
+  });
 });

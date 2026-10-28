@@ -97,7 +97,7 @@ export function LabelSticker(props: {
 }) {
   const { item: v, size } = props;
   // Legal Metrology: a declared MRP is stated inclusive of all taxes. Small, so it fits a 38 mm roll.
-  const taxNote: CSSProperties = { fontSize: "4.5pt", fontWeight: 500, textDecoration: "none" };
+  const taxNote: CSSProperties = { fontSize: "4.5pt", fontWeight: 500 };
   const line: CSSProperties = { whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", lineHeight: 1.15 };
   const variantText = [v.size ? `SIZE: ${v.size}` : null, v.colour].filter(Boolean).join(" | ");
   const showStore = props.includeStoreName && size.showStoreName && Boolean(props.storeName);
@@ -139,7 +139,8 @@ export function LabelSticker(props: {
         <div style={{ width: "100%", display: "flex", justifyContent: "space-between", fontSize: "7pt", fontWeight: 800, lineHeight: 1.1 }}>
           {v.mrpMinor != null && v.mrpMinor > v.priceMinor ? (
             <>
-              <span style={{ fontSize: "6pt", fontWeight: 500, textDecoration: "line-through" }}>
+              {/* Not struck through: a crossed-out MRP reads as "MRP no longer applies". */}
+              <span style={{ fontSize: "6pt", fontWeight: 500 }}>
                 MRP ₹{(v.mrpMinor / 100).toFixed(0)} <span style={taxNote}>(incl. of all taxes)</span>
               </span>
               <span>₹{(v.priceMinor / 100).toFixed(0)}</span>
