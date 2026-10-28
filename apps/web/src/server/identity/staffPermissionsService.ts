@@ -167,15 +167,6 @@ export async function updateStaffModulePermissions(params: {
 }
 
 export async function getUserAllowedModules(tenantId: string, userId: string): Promise<string[] | null> {
-  const latestLog = await db.auditLog.findFirst({
-    where: {
-      tenantId,
-      action: "staff_module_permissions",
-    },
-    orderBy: { createdAt: "desc" },
-    select: { metadata: true },
-  });
-
   // Filter for this user
   const logs = await db.auditLog.findMany({
     where: {
@@ -215,6 +206,15 @@ export async function updateStaffRole(params: {
   });
   if (!targetUser || targetUser.tenantRole === "OWNER") {
     return { status: "forbidden" };
+  }
+
+  // The store must be this tenant's: another business's store id must never get a membership.
+  const store = await db.store.findFirst({
+    where: { id: params.storeId, tenantId: params.tenantId },
+    select: { id: true },
+  });
+  if (!store) {
+    return { status: "not_found" };
   }
 
   const membership = await db.storeMembership.findUnique({
