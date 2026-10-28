@@ -15,7 +15,8 @@ import type { ImportKind } from "@/server/imports/importFields";
  *   SKU that already exists is skipped, so re-running a file never doubles anything. Opening stock
  *   is received through the stock ledger with its cost, keyed per batch + SKU.
  *   GST is taken only from the file: a GST % makes it taxable at that rate; "nil" / "non-gst" /
- *   "zero" / "slab" are honoured; nothing given means "needs a GST type" (never guessed).
+ *   "zero" / "slab" are honoured; nothing given means "needs a GST type" (never guessed) for a
+ *   GST-registered shop, and non-GST for a shop without a GSTIN (it can't charge GST).
  * - **Past sales** are kept as history (ImportedSale): they show in customer history and totals,
  *   but move no stock, post nothing and never go to ERPNext. A bill number already imported is skipped.
  *
@@ -77,6 +78,30 @@ export function gstFrom(row: ImportRow): { treatment: GstTaxTreatment; rateMode:
   return { treatment: "UNSPECIFIED", rateMode: "FIXED", rateBp: 0 };
 }
 
+/** The owner reads these: every refusal is a sentence, never an internal status code. */
+function refusalReason(res: { status: string; message?: string }): string {
+  switch (res.status) {
+    case "conflict":
+    case "duplicate_sku":
+    case "duplicate_barcode":
+      return "That SKU or barcode is already used.";
+    case "duplicate_product_name":
+      return "A product with this name already exists.";
+    case "invalid_tax_classification":
+      return "The GST details for this row don't fit this business. Check the GST type and GST %.";
+    case "price_exceeds_mrp":
+      return "Selling price is higher than the MRP.";
+    case "price_below_minimum":
+      return "Selling price is below the minimum price.";
+    case "forbidden":
+      return "You aren't allowed to add products.";
+    case "not_found":
+      return "The product this row belongs to couldn't be found.";
+    default:
+      return res.message ?? "This row couldn't be added. Check it and try again.";
+  }
+}
+
 function skuPart(text: string, max: number): string {
   return text.normalize("NFKD").replace(/[^A-Za-z0-9]+/g, "").toUpperCase().slice(0, max);
 }
@@ -111,6 +136,11 @@ async function importProducts(actor: Actor, storeId: string, batchId: string, ro
     out.errors.push({ row: first, reason: "Set up a unit (like PCS) before importing products." });
     return out;
   }
+  // A shop without a GSTIN can't charge GST: its rows are non-GST unless the file says
+  // otherwise, and a GST % in the file is refused with the reason. A GST shop's rows still
+  // must say their GST; it is never guessed.
+  const tenant = await db.tenant.findUnique({ where: { id: actor.tenantId }, select: { taxId: true } });
+  const isGstShop = Boolean(tenant?.taxId?.trim());
   const productIdByName = new Map<string, string>();
   for (const [i, row] of rows.entries()) {
     const n = first + i;
@@ -133,6 +163,20 @@ async function importProducts(actor: Actor, storeId: string, batchId: string, ro
     }
     if (typeof gst === "string") {
       out.errors.push({ row: n, reason: gst });
+      continue;
+    }
+    if (!isGstShop && gst.treatment === "UNSPECIFIED") {
+      gst.treatment = "NON_GST";
+    }
+    if (!isGstShop && (gst.treatment === "TAXABLE" || gst.rateBp > 0)) {
+      out.errors.push({
+        row: n,
+        reason: "This business has no GSTIN, so it can't charge GST. Remove the GST % (or add your GSTIN in Settings → Company first).",
+      });
+      continue;
+    }
+    if (gst.treatment === "UNSPECIFIED") {
+      out.errors.push({ row: n, reason: "Give this row a GST % (like 5) or a GST type (non-GST, nil, zero or slab)." });
       continue;
     }
     const size = row.size?.trim() || null;
@@ -172,7 +216,7 @@ async function importProducts(actor: Actor, storeId: string, batchId: string, ro
         ...tax,
       });
       if (v.status !== "ok") {
-        out.errors.push({ row: n, reason: v.status === "conflict" ? "That SKU or barcode is already used." : `Couldn't add (${v.status}).` });
+        out.errors.push({ row: n, reason: refusalReason(v) });
         continue;
       }
       variantId = v.variantId;
@@ -189,7 +233,7 @@ async function importProducts(actor: Actor, storeId: string, batchId: string, ro
         firstVariant: { sku, barcode: row.barcode?.trim() || null, size, colour, priceMinor: price, mrpMinor, isActive: true, ...tax },
       });
       if (p.status !== "ok") {
-        out.errors.push({ row: n, reason: p.status === "conflict" ? "That SKU or barcode is already used." : `Couldn't add (${p.status}).` });
+        out.errors.push({ row: n, reason: refusalReason(p) });
         continue;
       }
       productId = p.productId;
