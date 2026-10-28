@@ -87,6 +87,18 @@ function Step({
   );
 }
 
+/** The way forward when there is no terminal to choose: terminals are set up in Settings. */
+function SetUpTerminalLink() {
+  return (
+    <Link
+      href="/settings/terminals"
+      className="amb-press inline-flex min-h-touch items-center rounded-amb border border-amb-line-strong bg-amb-raised px-4 text-sm font-semibold text-amb-ink hover:bg-amb-sunken"
+    >
+      Set up a terminal
+    </Link>
+  );
+}
+
 function DevicePicker({
   devices,
   selectedId,
@@ -101,13 +113,13 @@ function DevicePicker({
 
   if (devices.length === 0) {
     return (
-      <p className="text-sm text-amb-ink-secondary">
-        This store has no terminals yet. An owner or store manager adds one in{" "}
-        <Link href="/settings/terminals" className="font-semibold text-amb-accent underline">
-          Settings → POS Terminals
-        </Link>
-        .
-      </p>
+      <div className="space-y-2">
+        <p className="text-sm text-amb-ink-secondary">
+          This store has no terminals yet. An owner or store manager adds one in Settings → POS
+          Terminals.
+        </p>
+        <SetUpTerminalLink />
+      </div>
     );
   }
 
@@ -318,11 +330,19 @@ export function SessionPanel({
         <ol>
           <Step n={1} title="Terminal" done={terminalDone} current={!terminalDone}>
             {devices.phase === "loading" && (
-              <p className="text-sm text-amb-ink-muted" role="status">
-                Looking for terminals…
-              </p>
+              <div className="space-y-2">
+                <p className="text-sm text-amb-ink-muted" role="status">
+                  Looking for terminals…
+                </p>
+                <SetUpTerminalLink />
+              </div>
             )}
-            {devices.phase === "error" && devices.error && <ErrorBanner error={devices.error} />}
+            {devices.phase === "error" && (
+              <div className="space-y-2">
+                {devices.error && <ErrorBanner error={devices.error} />}
+                <SetUpTerminalLink />
+              </div>
+            )}
             {devices.phase === "ready" && (
               <DevicePicker devices={devices.devices} selectedId={selectedDevice?.id ?? null} onSelect={onSelectDevice} />
             )}
