@@ -56,4 +56,16 @@ describe("label price line", () => {
     expect(text).toContain("₹149");
     expect(text).not.toMatch(/MRP/);
   });
+
+  it("bug 11: an MRP is always followed by (incl. of all taxes)", async () => {
+    for (const [price, mrp] of [[119900, 149900], [149900, 149900]] as const) {
+      const { text } = await priceLine(price, mrp);
+      expect(text).toMatch(/MRP ₹1499 \(incl\. of all taxes\)/);
+    }
+  });
+
+  it("bug 11: no tax wording without an MRP", async () => {
+    const { text } = await priceLine(14900, null);
+    expect(text).not.toMatch(/taxes/);
+  });
 });
