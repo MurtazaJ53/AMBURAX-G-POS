@@ -82,4 +82,32 @@ describe("product import", () => {
     const err = (res as { outcome: { errors: { reason: string }[] } }).outcome.errors[0]!;
     expect(err.reason).not.toMatch(/invalid_tax_classification|Couldn't add \(/);
   });
+
+  describe("bug 22: exempt rows", () => {
+    beforeEach(() => mockDb.tenant.findUnique.mockResolvedValue({ taxId: "27AAAPL1234C1ZV" }));
+
+    it("imports an exempt row that carries its exemption reference", async () => {
+      const res = await importRows([
+        { name: "Khadi Scarf", price: "299", gstType: "exempt", exemptionRef: "Notification 2/2017-CT(R) Sl. 1" },
+      ]);
+      expect(res).toMatchObject({ status: "ok", outcome: { created: 1, errors: [] } });
+      expect(sentFirstVariant()).toMatchObject({
+        taxTreatment: "EXEMPT",
+        taxRateBp: 0,
+        taxExemptionRef: "Notification 2/2017-CT(R) Sl. 1",
+      });
+    });
+
+    it("refuses one without a reference, telling the owner how to fix the file, not to set it after import", async () => {
+      const res = await importRows([{ name: "Khadi Scarf", price: "299", gstType: "exempt" }]);
+      const err = (res as { outcome: { errors: { reason: string }[] } }).outcome.errors[0]!;
+      expect(err.reason).not.toMatch(/after import/i);
+      expect(err.reason).toMatch(/Exemption reference/);
+    });
+
+    it("offers an Exemption reference column", async () => {
+      const { IMPORT_FIELDS } = await import("@/server/imports/importFields");
+      expect(IMPORT_FIELDS.products.map((f) => f.key)).toContain("exemptionRef");
+    });
+  });
 });

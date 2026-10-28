@@ -65,11 +65,20 @@ export function parseBillDate(raw: string | undefined): Date | null {
   return date.getUTCDate() === d ? date : null;
 }
 
-export function gstFrom(row: ImportRow): { treatment: GstTaxTreatment; rateMode: TaxRateMode; rateBp: number } | string {
+export function gstFrom(
+  row: ImportRow,
+): { treatment: GstTaxTreatment; rateMode: TaxRateMode; rateBp: number; exemptionRef?: string } | string {
   const type = (row.gstType ?? "").toLowerCase().replace(/[^a-z]/g, "");
   const rate = row.gstRate?.trim() ? Number(row.gstRate.replace("%", "")) : null;
   if (rate !== null && (!Number.isFinite(rate) || rate < 0 || rate > 40)) return "GST % should be a number like 5 or 18.";
-  if (type.includes("exempt")) return "Exempt items need a statutory reference — set them in Products → Set GST type after import.";
+  if (type.includes("exempt")) {
+    const exemptionRef = row.exemptionRef?.trim();
+    if (!exemptionRef) {
+      return "Exempt items need their exemption notification. Add it in an \"Exemption reference\" column (like \"Notification 2/2017-CT(R) Sl. 1\") and import this row again.";
+    }
+    if (rate !== null && rate > 0) return "An exempt item can't have a GST %. Leave GST % empty for this row.";
+    return { treatment: "EXEMPT", rateMode: "FIXED", rateBp: 0, exemptionRef };
+  }
   if (type.includes("nil")) return { treatment: "NIL_RATED", rateMode: "FIXED", rateBp: 0 };
   if (type.includes("nongst") || type === "none") return { treatment: "NON_GST", rateMode: "FIXED", rateBp: 0 };
   if (type.includes("zero")) return { treatment: "ZERO_RATED", rateMode: "FIXED", rateBp: 0 };
@@ -191,7 +200,7 @@ async function importProducts(actor: Actor, storeId: string, batchId: string, ro
       out.skipped++;
       continue;
     }
-    const tax = { taxTreatment: gst.treatment, taxRateMode: gst.rateMode, taxRateBp: gst.rateBp, taxExemptionRef: null };
+    const tax = { taxTreatment: gst.treatment, taxRateMode: gst.rateMode, taxRateBp: gst.rateBp, taxExemptionRef: gst.exemptionRef ?? null };
     const mrp = money(row.mrp);
     const mrpMinor = mrp !== null && !Number.isNaN(mrp) ? mrp : null;
     const key = name.toLowerCase();
