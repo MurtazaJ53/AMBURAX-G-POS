@@ -142,6 +142,33 @@ export function AddProductWizard({
   const baseUomId = wizardDraft.baseUomId;
   const setBaseUomId = (val: string) => setWizardDraft((p) => ({ ...p, baseUomId: val }));
 
+  // Businesses that signed up before sign-up created a default unit have none, and every
+  // product needs one. Let them add Pieces (PCS) from here instead of being stuck.
+  const [uomOptions, setUomOptions] = useState(uoms);
+  const [isAddingUom, setIsAddingUom] = useState(false);
+  async function addDefaultUom() {
+    setIsAddingUom(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/v1/uoms", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ code: "PCS", name: "Pieces", decimalPlaces: 0 }),
+      });
+      const data = await res.json().catch(() => null);
+      if (!res.ok || !data?.uom) {
+        throw new Error(data?.error?.message || "Couldn't add the unit. Try again.");
+      }
+      const uom = data.uom as { id: string; name: string; code: string };
+      setUomOptions((prev) => [...prev.filter((u) => u.id !== uom.id), uom]);
+      setBaseUomId(uom.id);
+    } catch (err: unknown) {
+      setError((err as Error).message);
+    } finally {
+      setIsAddingUom(false);
+    }
+  }
+
   const imageUrl = wizardDraft.imageUrl;
   const setImageUrl = (val: string) => setWizardDraft((p) => ({ ...p, imageUrl: val }));
 
@@ -682,12 +709,25 @@ export function AddProductWizard({
                 onChange={(e) => setBaseUomId(e.target.value)}
                 className="w-full rounded-xl border border-slate-200 bg-slate-50/50 px-3 py-2.5 text-sm font-medium text-slate-900 focus:border-primary focus:bg-white focus:outline-none focus:ring-2 focus:ring-primary/20"
               >
-                {uoms.map((u) => (
+                {uomOptions.map((u) => (
                   <option key={u.id} value={u.id}>
                     {u.name} ({u.code})
                   </option>
                 ))}
               </select>
+              {uomOptions.length === 0 && (
+                <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-slate-600">
+                  <span>This business has no unit yet. Products need one.</span>
+                  <button
+                    type="button"
+                    onClick={addDefaultUom}
+                    disabled={isAddingUom}
+                    className={buttonClass("secondary")}
+                  >
+                    {isAddingUom ? "Adding…" : "Add Pieces (PCS)"}
+                  </button>
+                </div>
+              )}
             </div>
 
             <div className="sm:col-span-2 pt-2">

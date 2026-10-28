@@ -138,4 +138,29 @@ describe("AddProductWizard", () => {
       });
     }
   });
+
+  describe("bug 1: a business with no unit of measure", () => {
+    it("offers to add Pieces (PCS) and selects it once created", async () => {
+      const fetchMock = vi.fn(async (url: string, init?: RequestInit) => {
+        if (url === "/api/v1/uoms" && init?.method === "POST") {
+          return new Response(
+            JSON.stringify({ status: "ok", uom: { id: "uom-new", code: "PCS", name: "Pieces" }, existing: false }),
+            { status: 201 },
+          );
+        }
+        return new Response(JSON.stringify({}), { status: 200 });
+      });
+      vi.stubGlobal("fetch", fetchMock);
+      await render(baseProps({ uoms: [] }));
+
+      await click(buttonByText(/Add Pieces \(PCS\)/));
+
+      const post = fetchMock.mock.calls.find(([u, i]) => u === "/api/v1/uoms" && i?.method === "POST");
+      expect(post).toBeDefined();
+      expect(JSON.parse(String(post![1]!.body))).toMatchObject({ code: "PCS", name: "Pieces" });
+      const select = container.querySelector("select") as HTMLSelectElement;
+      expect(select.value).toBe("uom-new");
+      expect(select.textContent).toContain("Pieces (PCS)");
+    });
+  });
 });
