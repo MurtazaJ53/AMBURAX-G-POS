@@ -1211,13 +1211,13 @@ export function PosTerminal(props: {
           {/* Entry modes, as the reference's underlined tabs. Products, Barcode Scan, and Quick Add now active. */}
           <div className="flex shrink-0 items-center justify-between border-b border-slate-200 bg-white px-5">
             {/* The tablist holds only the tabs; the offline pill sits beside it (axe: aria-required-children). */}
-            <div role="tablist" aria-label="Product entry mode" className="flex items-end gap-8">
+            <div role="tablist" aria-label="Product entry mode" className="flex items-end gap-4 sm:gap-8">
               <button
                 type="button"
                 role="tab"
                 aria-selected={entryMode === "products"}
                 onClick={() => setEntryMode("products")}
-                className={`relative h-14 text-[17px] font-semibold transition-colors [@media(max-height:820px)]:h-12 ${
+                className={`relative h-14 whitespace-nowrap text-[15px] font-semibold transition-colors sm:text-[17px] [@media(max-height:820px)]:h-12 ${
                   entryMode === "products"
                     ? "text-sky-700 after:absolute after:inset-x-0 after:bottom-0 after:h-[2.5px] after:rounded-full after:bg-primary"
                     : "text-slate-500 hover:text-slate-800"
@@ -1230,7 +1230,7 @@ export function PosTerminal(props: {
                 role="tab"
                 aria-selected={entryMode === "barcode"}
                 onClick={() => setEntryMode("barcode")}
-                className={`relative h-14 text-[17px] font-semibold transition-colors [@media(max-height:820px)]:h-12 ${
+                className={`relative h-14 whitespace-nowrap text-[15px] font-semibold transition-colors sm:text-[17px] [@media(max-height:820px)]:h-12 ${
                   entryMode === "barcode"
                     ? "text-sky-700 after:absolute after:inset-x-0 after:bottom-0 after:h-[2.5px] after:rounded-full after:bg-primary"
                     : "text-slate-500 hover:text-slate-800"
@@ -1243,7 +1243,7 @@ export function PosTerminal(props: {
                 role="tab"
                 aria-selected={entryMode === "quick_add"}
                 onClick={() => setEntryMode("quick_add")}
-                className={`relative h-14 text-[17px] font-semibold transition-colors flex items-center gap-1.5 [@media(max-height:820px)]:h-12 ${
+                className={`relative h-14 whitespace-nowrap text-[15px] font-semibold transition-colors sm:text-[17px] flex items-center gap-1.5 [@media(max-height:820px)]:h-12 ${
                   entryMode === "quick_add"
                     ? "text-sky-700 after:absolute after:inset-x-0 after:bottom-0 after:h-[2.5px] after:rounded-full after:bg-primary"
                     : "text-slate-500 hover:text-slate-800"

@@ -125,7 +125,7 @@ export function GlobalSearch() {
         aria-activedescendant={active >= 0 ? `gs-hit-${active}` : undefined}
         autoComplete="off"
         placeholder="Search product, SKU, barcode, customer…"
-        className="h-9 w-full rounded-md border border-slate-200 bg-slate-50 pl-9 pr-14 text-[13px] text-slate-900 outline-none transition placeholder:text-slate-400 hover:border-sky-400 focus:border-sky-500 focus:bg-white focus:ring-2 focus:ring-sky-100"
+        className="h-9 w-full rounded-md border border-slate-200 bg-slate-50 pl-9 pr-3 text-[13px] md:pr-14 text-slate-900 outline-none transition placeholder:text-slate-400 hover:border-sky-400 focus:border-sky-500 focus:bg-white focus:ring-2 focus:ring-sky-100"
       />
       <kbd className="pointer-events-none absolute right-2 top-1/2 hidden -translate-y-1/2 rounded border border-slate-200 bg-white px-1.5 py-0.5 text-[9px] text-slate-400 md:block">
         Ctrl K
