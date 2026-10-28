@@ -114,3 +114,12 @@ describe("till keyboard focus (bug 4)", () => {
     expect(skip?.textContent).toMatch(/skip to scan/i);
   });
 });
+
+describe("till page heading (bug 36)", () => {
+  it("has one h1 naming the till", async () => {
+    await render();
+    const headings = container.querySelectorAll("h1");
+    expect(headings.length).toBe(1);
+    expect(headings[0]!.textContent).toMatch(/till/i);
+  });
+});

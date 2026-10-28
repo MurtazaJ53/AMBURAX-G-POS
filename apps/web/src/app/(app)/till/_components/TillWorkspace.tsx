@@ -167,6 +167,9 @@ export function TillWorkspace({
         Skip to scan field
       </a>
 
+      {/* The page's one heading: a landmark for screen readers, not shown on the counter. */}
+      <h1 className="sr-only">Till: {storeName}</h1>
+
       <StatusRail
         cashierName={cashierName}
         roleLabel={roleLabel}
