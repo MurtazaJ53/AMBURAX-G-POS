@@ -512,7 +512,7 @@ export function ProductEditor({
                 className="w-full rounded-xl border border-slate-200 bg-slate-50/50 px-3 py-2 text-sm font-medium text-slate-900 focus:border-primary focus:bg-white focus:outline-none"
               >
                 <option value="APPAREL_SLAB">{slabLabel}</option>
-                <option value="FIXED">FIXED Rate</option>
+                <option value="FIXED">Fixed rate</option>
               </select>
             </div>
             <div>

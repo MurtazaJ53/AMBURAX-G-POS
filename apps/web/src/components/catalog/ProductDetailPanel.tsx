@@ -32,6 +32,7 @@ import {
 } from "@/server/catalog/catalogFilters";
 import type { ProductDetail } from "@/server/catalog/catalogQueries";
 import { formatMinor } from "@/server/sales/saleTotals";
+import { taxRateModeLabel, taxTreatmentLabel } from "@/lib/taxWording";
 import { cn } from "@/lib/utils";
 import { PrintBarcodeButton } from "@/app/(app)/products/[id]/PrintBarcodeButton";
 
@@ -522,11 +523,11 @@ export function ProductDetailPanel({
             />
             <Row
               label="Garment Tax Mode"
-              value={firstVariant?.taxRateMode || "FIXED"}
+              value={taxRateModeLabel(firstVariant?.taxRateMode)}
             />
             <Row
               label="Tax Treatment"
-              value={firstVariant?.taxTreatment || "TAXABLE"}
+              value={taxTreatmentLabel(firstVariant?.taxTreatment)}
             />
             <Row
               label="Default GST Rate"

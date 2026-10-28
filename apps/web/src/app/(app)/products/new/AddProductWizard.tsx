@@ -825,8 +825,8 @@ export function AddProductWizard({
                     onChange={(e) => setTaxRateMode(e.target.value as "FIXED" | "APPAREL_SLAB")}
                     className="w-full rounded-xl border border-slate-200 bg-slate-50/50 px-3 py-2 text-sm font-medium text-slate-900 focus:border-primary focus:bg-white focus:outline-none"
                   >
-                    <option value="APPAREL_SLAB">APPAREL_SLAB (5% up to ₹2500, 18% above)</option>
-                    <option value="FIXED">FIXED Rate</option>
+                    <option value="APPAREL_SLAB">Garment slab (5% up to ₹2,500, 18% above)</option>
+                    <option value="FIXED">Fixed rate</option>
                   </select>
                 </div>
 
