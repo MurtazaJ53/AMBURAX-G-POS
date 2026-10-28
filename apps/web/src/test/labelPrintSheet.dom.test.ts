@@ -57,5 +57,6 @@ describe("bug 20: A4 65-up print sheet", () => {
       // ...but still tall enough for all 13 rows below the top margin.
       expect(mm(page.style.height)).toBeGreaterThanOrEqual(10.7 + 13 * 21.2);
     }
-  });
+    // Rendering 70 labels in jsdom takes 5-12 s alone and more under a loaded full run.
+  }, 60_000);
 });
