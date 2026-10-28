@@ -108,7 +108,7 @@ describe("cancelling the ERPNext invoice of a voided bill", () => {
 describe("a voided bill whose invoice has a payment linked", () => {
   beforeEach(() => mockDb.sale.findUnique.mockResolvedValue(voided));
 
-  // ERPNext refuses with LinkExistsError (HTTP 417). Retrying can't help, so the event must fail at
+  // ERPNext refuses with LinkExistsError (HTTP 417); the message below is v16's, captured on scratch. Retrying can't help, so the event must fail at
   // once with a reason the owner can act on, and the payment must never be touched by us.
   function linkedPaymentErp() {
     const writes: ErpRequest[] = [];
@@ -123,7 +123,7 @@ describe("a voided bill whose invoice has a payment linked", () => {
             _server_messages: JSON.stringify([
               JSON.stringify({
                 message:
-                  'Cannot delete or cancel because Sales Invoice <a href="/app/sales-invoice/SINV-0005">SINV-0005</a> is linked with Payment Entry <a href="/app/payment-entry/ACC-PAY-2026-00007">ACC-PAY-2026-00007</a>',
+                  'Cannot delete or cancel because Sales Invoice <a href="http://scratch.local/desk/sales-invoice/SINV-0005">SINV-0005</a> is linked with Payment Entry <a href="http://scratch.local/desk/payment-entry/ACC-PAY-2026-00007">ACC-PAY-2026-00007</a> at Row: 1',
               }),
             ]),
           },
