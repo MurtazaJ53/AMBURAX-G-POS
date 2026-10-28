@@ -142,8 +142,12 @@ export function LabelSticker(props: {
               </span>
               <span>₹{(v.priceMinor / 100).toFixed(0)}</span>
             </>
+          ) : v.mrpMinor != null ? (
+            <span style={{ width: "100%" }}>MRP ₹{(v.mrpMinor / 100).toFixed(0)}</span>
           ) : (
-            <span style={{ width: "100%" }}>MRP ₹{(v.priceMinor / 100).toFixed(0)}</span>
+            // No MRP on file: print the price alone. Calling the selling price "MRP" would be a
+            // false statutory declaration.
+            <span style={{ width: "100%" }}>₹{(v.priceMinor / 100).toFixed(0)}</span>
           )}
         </div>
       )}
