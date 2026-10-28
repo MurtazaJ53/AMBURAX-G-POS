@@ -162,14 +162,6 @@ export async function POST(req: NextRequest) {
     });
 
     if (result.status !== "ok") {
-      if (result.status === "unspecified_tax_treatment") {
-        return apiError({
-          code: "validation_error",
-          message: "Statutory tax treatment UNSPECIFIED is prohibited. Variants must be classified as TAXABLE or NON_GST.",
-          status: 422,
-          correlationId,
-        });
-      }
       if (result.status === "invalid_tax_classification") {
         return apiError({ code: "validation_error", message: "Check the tax treatment, rate, and statutory reference.", status: 422, correlationId });
       }
