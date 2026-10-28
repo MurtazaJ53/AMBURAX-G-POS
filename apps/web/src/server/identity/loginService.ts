@@ -16,7 +16,7 @@ export type LoginResult =
   | { status: "invalid_credentials" }
   | { status: "account_locked"; lockedUntil: string }
   | { status: "account_disabled" }
-  | { status: "mfa_required"; challengeToken: string; expiresAt: string; maskedDestination: string; devCode?: string }
+  | { status: "mfa_required"; challengeToken: string; expiresAt: string; maskedDestination: string }
   | {
       status: "ok";
       sessionToken: string;
@@ -119,7 +119,6 @@ export async function login(params: {
       challengeToken: challenge.challengeToken,
       expiresAt: challenge.expiresAt,
       maskedDestination: challenge.maskedDestination,
-      ...(challenge.devCode ? { devCode: challenge.devCode } : {}),
     };
   }
 

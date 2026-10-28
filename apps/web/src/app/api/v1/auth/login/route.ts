@@ -109,7 +109,6 @@ export async function POST(req: NextRequest) {
           challengeToken: result.challengeToken,
           expiresAt: result.expiresAt,
           maskedDestination: result.maskedDestination,
-          ...(result.devCode ? { devCode: result.devCode } : {}),
           correlationId,
         },
         { status: 200 },

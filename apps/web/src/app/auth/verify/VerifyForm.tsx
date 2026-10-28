@@ -12,7 +12,6 @@ interface StoredChallenge {
   challengeToken: string;
   expiresAt: string;
   maskedDestination: string;
-  devCode?: string;
 }
 
 type Phase =
@@ -218,7 +217,6 @@ export function VerifyForm() {
           challengeToken: challenge.challengeToken,
           expiresAt: data.expiresAt,
           maskedDestination: data.maskedDestination,
-          devCode: data.devCode,
         };
         writeChallenge(updated);
         setChallenge(updated);
@@ -303,11 +301,6 @@ export function VerifyForm() {
         </p>
       )}
 
-      {challenge?.devCode && (
-        <div className="rounded-lg border border-dashed border-amber-300 bg-amber-50 px-4 py-2 text-xs text-amber-800">
-          DEV ONLY — no SMS/WhatsApp provider is connected yet. Code: <strong>{challenge.devCode}</strong>
-        </div>
-      )}
 
       {banner && (
         <div

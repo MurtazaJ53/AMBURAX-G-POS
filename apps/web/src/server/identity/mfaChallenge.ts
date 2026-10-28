@@ -23,7 +23,7 @@ export async function createMfaChallenge(params: {
   ip: string | null;
   userAgent: string | null;
   channel?: MfaChannel;
-}): Promise<{ challengeToken: string; expiresAt: string; maskedDestination: string; devCode?: string }> {
+}): Promise<{ challengeToken: string; expiresAt: string; maskedDestination: string }> {
   const code = generateOtpCode();
   const codeHash = await hashOtpCode(code);
   const token = generateOpaqueToken();
@@ -55,7 +55,6 @@ export async function createMfaChallenge(params: {
     challengeToken: token,
     expiresAt: expiresAt.toISOString(),
     maskedDestination: maskEmail(params.email),
-    ...(env.DEV_OTP_ECHO ? { devCode: code } : {}),
   };
 }
 
@@ -64,7 +63,7 @@ export type ResendResult =
   | { status: "expired" }
   | { status: "cooldown"; retryAfterSeconds: number }
   | { status: "max_resends" }
-  | { status: "ok"; expiresAt: string; maskedDestination: string; devCode?: string };
+  | { status: "ok"; expiresAt: string; maskedDestination: string };
 
 export async function resendMfaChallenge(params: {
   challengeToken: string;
@@ -126,7 +125,6 @@ export async function resendMfaChallenge(params: {
     status: "ok",
     expiresAt: expiresAt.toISOString(),
     maskedDestination: maskEmail(challenge.user.email),
-    ...(env.DEV_OTP_ECHO ? { devCode: code } : {}),
   };
 }
 

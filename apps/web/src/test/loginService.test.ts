@@ -108,6 +108,20 @@ describe("login", () => {
     expect(guard.clearFailedAttempts).toHaveBeenCalledWith("u1");
   });
 
+  it("never passes an MFA dev code back to the caller", async () => {
+    db.user.findUnique.mockResolvedValue(user({ mfaEnabled: true }));
+    verifyPassword.mockResolvedValue(true);
+    createMfaChallenge.mockResolvedValue({
+      challengeToken: "ch",
+      expiresAt: "x",
+      maskedDestination: "o***@example.test",
+      devCode: "000000",
+    });
+    const result = await login(params);
+    expect(result).not.toHaveProperty("devCode");
+    expect(JSON.stringify(result)).not.toContain("000000");
+  });
+
   it("signs in: clears failures, creates a session and audits success", async () => {
     db.user.findUnique.mockResolvedValue(user());
     verifyPassword.mockResolvedValue(true);

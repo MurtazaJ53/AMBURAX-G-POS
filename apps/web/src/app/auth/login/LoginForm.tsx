@@ -144,7 +144,6 @@ export function LoginForm() {
             challengeToken: data.challengeToken,
             expiresAt: data.expiresAt,
             maskedDestination: data.maskedDestination,
-            devCode: data.devCode,
           }),
         );
         router.push("/auth/verify");
