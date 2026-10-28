@@ -1,4 +1,3 @@
-// @vitest-environment jsdom
 import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
 import { createElement } from "react";
 import { createRoot, type Root } from "react-dom/client";
@@ -6,7 +5,6 @@ import { act } from "react";
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
-vi.mock("lucide-react", () => ({ PlugZap: () => null }));
 vi.mock("@/app/(app)/_components/ui", async () => {
   const { createElement: h } = await import("react");
   return {

@@ -1,4 +1,3 @@
-// @vitest-environment jsdom
 import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
 import { createElement, forwardRef } from "react";
 import { createRoot, type Root } from "react-dom/client";
@@ -9,7 +8,6 @@ import { act } from "react";
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
-vi.mock("lucide-react", () => ({ Lock: () => null, UserRound: () => null }));
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push: vi.fn(), refresh: vi.fn() }) }));
 vi.mock("@/app/(app)/till/_components/StatusRail", () => ({ StatusRail: () => null }));
 vi.mock("@/app/(app)/till/_components/OperatorBar", () => ({ OperatorBar: () => null }));
