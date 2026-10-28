@@ -102,7 +102,7 @@ export class ErpSaleAdapter {
    * invoice's stock (it was posted with update_stock) and its ledger entries; the void's own stock
    * movements are never synced separately, so nothing is reversed twice.
    *
-   *   submitted (1) -> cancelled          draft (0) -> deleted
+   *   submitted (1) -> cancelled          draft (0) -> id moved to <id>-VOIDED-<n>, never deleted
    *   cancelled (2) or none -> nothing to do (a sale that never reached ERPNext has nothing to undo)
    */
   public async cancelInvoice(tenantId: string, saleId: string, correlationId: string): Promise<void> {
@@ -126,9 +126,9 @@ export class ErpSaleAdapter {
     // Read the tracking id directly, cancelled invoices included: lookupInvoiceBySaleId would move
     // a cancelled invoice's id aside to make room for a new invoice, which a void must never do.
     const filters = encodeURIComponent(JSON.stringify([["amburax_sale_id", "=", saleId]]));
-    const fields = encodeURIComponent(JSON.stringify(["name", "docstatus"]));
+    const fields = encodeURIComponent(JSON.stringify(["name", "docstatus", "remarks"]));
     const found = await this.client.call(env, ctx, { method: "GET", path: `/api/resource/Sales Invoice?filters=${filters}&fields=${fields}` });
-    const invoices = (found.body as { data?: Array<{ name: string; docstatus?: number }> })?.data ?? [];
+    const invoices = (found.body as { data?: Array<{ name: string; docstatus?: number; remarks?: string | null }> })?.data ?? [];
 
     for (const invoice of invoices) {
       if (invoice.docstatus === 1) {
@@ -150,7 +150,27 @@ export class ErpSaleAdapter {
           });
         }
       } else if ((invoice.docstatus ?? 0) === 0) {
-        await this.client.call(env, ctx, { method: "DELETE", path: `/api/resource/Sales Invoice/${encodeURIComponent(invoice.name)}` });
+        // Never delete: the integration has no delete right, and must not (it would reach cancelled
+        // invoices too). A draft posts nothing, so moving its id aside and noting the void suffices.
+        const prefix = `${saleId}-VOIDED-`;
+        const usedFilters = encodeURIComponent(JSON.stringify([["amburax_sale_id", "like", `${prefix}%`]]));
+        const used = await this.client.call(env, ctx, {
+          method: "GET",
+          path: `/api/resource/Sales Invoice?filters=${usedFilters}&fields=${encodeURIComponent(JSON.stringify(["amburax_sale_id"]))}&limit_page_length=0`,
+        });
+        const usedRows = (used.body as { data?: Array<{ amburax_sale_id?: string }> })?.data ?? [];
+        const highest = usedRows.reduce((max, row) => {
+          const n = Number(String(row.amburax_sale_id ?? "").slice(prefix.length));
+          return Number.isInteger(n) && n > max ? n : max;
+        }, 0);
+        await this.client.call(env, ctx, {
+          method: "PUT",
+          path: `/api/resource/Sales Invoice/${encodeURIComponent(invoice.name)}`,
+          body: {
+            amburax_sale_id: `${prefix}${highest + 1}`,
+            remarks: invoice.remarks ? `${invoice.remarks}\nVoided in G-POS` : "Voided in G-POS",
+          },
+        });
       }
     }
   }

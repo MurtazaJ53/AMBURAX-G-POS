@@ -83,10 +83,28 @@ describe("cancelling the ERPNext invoice of a voided bill", () => {
     ]);
   });
 
-  it("deletes a draft invoice instead", async () => {
-    const { transport, writes } = erp([{ name: "SINV-0002", docstatus: 0 }]);
+  // Never delete: a delete right would also let the integration erase cancelled invoices. A draft
+  // touches neither stock nor ledger, so moving its id aside and noting the void is enough.
+  it("moves a draft invoice's id aside and notes the void, never deleting it", async () => {
+    const writes: ErpRequest[] = [];
+    const transport = {
+      async send(request: ErpRequest): Promise<ErpResponse> {
+        if (request.method === "GET" && request.path.includes("VOIDED")) {
+          return { status: 200, body: { data: [{ amburax_sale_id: "sale-1-VOIDED-1" }] } };
+        }
+        if (request.method === "GET") return { status: 200, body: { data: [{ name: "SINV-0002", docstatus: 0, remarks: "Counter sale" }] } };
+        writes.push(request);
+        return { status: 200, body: { data: {} } };
+      },
+    };
     await new ErpSaleAdapter(transport).cancelInvoice("t-1", "sale-1", "c-1");
-    expect(writes).toEqual([expect.objectContaining({ method: "DELETE", path: "/api/resource/Sales Invoice/SINV-0002" })]);
+    expect(writes).toEqual([
+      expect.objectContaining({
+        method: "PUT",
+        path: "/api/resource/Sales Invoice/SINV-0002",
+        body: { amburax_sale_id: "sale-1-VOIDED-2", remarks: "Counter sale\nVoided in G-POS" },
+      }),
+    ]);
   });
 
   it("does nothing when the invoice is already cancelled or was never created", async () => {
