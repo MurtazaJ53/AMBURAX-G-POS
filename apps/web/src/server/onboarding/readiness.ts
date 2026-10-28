@@ -358,30 +358,30 @@ function paymentsItem(): ReadinessItem {
  * sent once connected), so it never blocks a sale, but the owner should see where it stands.
  */
 function erpnextItem(status: string): ReadinessItem {
-  const base = { key: "erpnext" as const, label: "ERPNext connection", blocksSale: false };
+  const base = { key: "erpnext" as const, label: "Backend connection", blocksSale: false };
   switch (status) {
     case "PROVISIONED":
-      return { ...base, level: "READY", detail: "Your business is connected to ERPNext.", action: null };
+      return { ...base, level: "READY", detail: "Your business is connected to Backend.", action: null };
     case "PROVISIONING":
       return {
         ...base,
         level: "PENDING",
-        detail: "Connecting to ERPNext. This can take a few minutes; you can keep selling meanwhile.",
+        detail: "Connecting to Backend. This can take a few minutes; you can keep selling meanwhile.",
         action: null,
       };
     case "FAILED":
       return {
         ...base,
         level: "ATTENTION",
-        detail: "Connecting to ERPNext didn't finish. Try again from Company settings.",
+        detail: "Connecting to Backend didn't finish. Try again from Company settings.",
         action: { label: "Try connecting again", href: "/settings/company" },
       };
     default:
       return {
         ...base,
         level: "NOT_CONFIGURED",
-        detail: "Not connected yet. Sales are kept and sent to ERPNext once you connect.",
-        action: { label: "Connect to ERPNext", href: "/settings/company" },
+        detail: "Not connected yet. Sales are kept and sent to Backend once you connect.",
+        action: { label: "Connect to Backend", href: "/settings/company" },
       };
   }
 }
@@ -393,7 +393,7 @@ function bankBeforeConnectItem(): ReadinessItem {
     label: "Link your real bank account",
     level: "NOT_CONFIGURED",
     detail:
-      "After connecting to ERPNext, choose the bank account that UPI and card payments are recorded in.",
+      "After connecting to Backend, choose the bank account that UPI and card payments are recorded in.",
     blocksSale: false,
     action: null,
   };

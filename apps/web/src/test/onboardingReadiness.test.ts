@@ -442,9 +442,14 @@ describe("ERPNext connection item (bug 18)", () => {
     expect(erp.blocksSale).toBe(false);
   });
 
+  it("names the accounting system \"Backend\" on screen, never ERPNext (owner decision 2026-10-20)", async () => {
+    const r = await readiness();
+    for (const i of r.items) expect(`${i.detail} ${(i as Item & { label: string }).label}`).not.toMatch(/ERPNext/);
+  });
+
   it("links to the connect screen when not connected", async () => {
     const erp = item(await readiness(), "erpnext");
-    expect(erp.action).toEqual({ label: "Connect to ERPNext", href: "/settings/company" });
+    expect(erp.action).toEqual({ label: "Connect to Backend", href: "/settings/company" });
   });
 });
 
