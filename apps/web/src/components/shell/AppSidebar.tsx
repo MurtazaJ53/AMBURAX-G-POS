@@ -75,7 +75,7 @@ export function AppSidebar({
             {tenantName || 'OPERATIONS OS'} &middot; V1.0
           </div>
         </div>
-        <button type="button" className="rounded p-1 text-slate-500 hover:bg-slate-100 lg:hidden" onClick={onMobileClose} aria-label="Close navigation">
+        <button type="button" className="flex min-h-11 min-w-11 items-center justify-center rounded text-slate-500 hover:bg-slate-100 lg:hidden" onClick={onMobileClose} aria-label="Close navigation">
           <X size={17} />
         </button>
       </div>
@@ -114,7 +114,7 @@ export function AppSidebar({
                   // The active route is announced, not only shown in colour.
                   aria-current={active ? "page" : undefined}
                   className={cn(
-                    "group mb-1 flex items-center gap-3 rounded-md px-3 py-2 text-[11px] font-medium transition-colors",
+                    "group mb-1 flex min-h-11 items-center gap-3 rounded-md px-3 py-2 text-[11px] lg:min-h-0 font-medium transition-colors",
                     active ? "bg-sky-50 text-sky-700" : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
                   )}
                 >

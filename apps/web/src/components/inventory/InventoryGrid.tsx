@@ -109,7 +109,7 @@ export function InventoryToolbar({
               aria-pressed={view === id}
               onClick={() => onViewChange(id)}
               className={cn(
-                "rounded-sm p-1.5 text-secondary transition-colors",
+                "flex min-h-11 min-w-11 items-center justify-center rounded-sm p-1.5 text-secondary transition-colors",
                 view === id
                   ? "bg-background-card text-primary shadow-sm"
                   : "hover:bg-background-hover hover:text-primary",

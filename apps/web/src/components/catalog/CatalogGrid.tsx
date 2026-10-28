@@ -343,7 +343,7 @@ export function CatalogToolbar({
               aria-label={label}
               aria-pressed={active}
               className={cn(
-                "px-2.5 py-1.5 transition-colors",
+                "flex min-h-11 min-w-11 items-center justify-center px-2.5 py-1.5 transition-colors",
                 active ? "text-white" : "bg-background-card text-tertiary hover:text-secondary",
               )}
               style={active ? { background: "var(--color-primary)" } : undefined}

@@ -2134,7 +2134,7 @@ export function PosTerminal(props: {
                       key={amount}
                       type="button"
                       onClick={() => setAmountReceived(amount)}
-                      className="amb-press amb-focus h-7 cursor-pointer rounded-md border border-sky-200 bg-white text-[11.5px] font-semibold tabular-nums text-sky-700 transition-colors hover:bg-sky-50"
+                      className="amb-press amb-focus min-h-11 cursor-pointer rounded-md border border-sky-200 bg-white text-[11.5px] font-semibold tabular-nums text-sky-700 transition-colors hover:bg-sky-50"
                     >
                       ₹{amount.toLocaleString("en-IN")}
                     </button>
@@ -2142,7 +2142,7 @@ export function PosTerminal(props: {
                   <button
                     type="button"
                     onClick={() => setAmountReceived(totals.totalMinor / 100)}
-                    className="amb-press amb-focus h-7 cursor-pointer rounded-md border border-slate-200 bg-white text-[11.5px] font-semibold text-slate-700 transition-colors hover:bg-slate-50"
+                    className="amb-press amb-focus min-h-11 cursor-pointer rounded-md border border-slate-200 bg-white text-[11.5px] font-semibold text-slate-700 transition-colors hover:bg-slate-50"
                   >
                     Exact
                   </button>
