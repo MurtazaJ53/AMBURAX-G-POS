@@ -76,3 +76,40 @@ describe("label price line", () => {
     expect(text).toContain("₹1199");
   });
 });
+
+describe("bug 12: barcode placement on the label", () => {
+  for (const sizeId of ["roll-38x25", "roll-50x25", "a4-65"] as const) {
+    for (const dpi of [203, 300] as const) {
+      for (const code of ["2100000000067", "2100000000098", "2100000000012"]) {
+        it(`${sizeId} at ${dpi} dpi, ${code}: bars start on a whole printer dot`, async () => {
+          const size = LABEL_SIZES[sizeId];
+          const layout = layoutLabelBarcode(code, size, dpi);
+          if (!layout.ok) throw new Error(layout.reason);
+          await act(async () => {
+            root.render(
+              createElement(LabelSticker, {
+                item: { id: "v1", sku: "S1", barcode: code, productName: "Linen", size: "M", colour: null, priceMinor: 99900 },
+                code,
+                layout,
+                size,
+                includeStoreName: false,
+                includeMrp: true,
+              }),
+            );
+          });
+          const svg = container.querySelector("svg") as SVGElement;
+          const block = svg.parentElement as HTMLElement;
+          // Centring with flexbox puts the barcode at a fractional dot, so 2-dot modules print
+          // 1, 3, 5 and 9 dots wide and some codes never scan. The block is placed explicitly.
+          expect(block.style.marginLeft).toMatch(/mm$/);
+          const leftMm = size.paddingMm + parseFloat(block.style.marginLeft);
+          const dots = (leftMm * dpi) / 25.4;
+          expect(Math.abs(dots - Math.round(dots))).toBeLessThan(1e-6);
+          // Still centred to within a dot.
+          const centred = (size.widthMm - layout.totalWidthMm) / 2;
+          expect(Math.abs(leftMm - centred)).toBeLessThanOrEqual(25.4 / dpi);
+        });
+      }
+    }
+  }
+});

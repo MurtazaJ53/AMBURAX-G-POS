@@ -130,7 +130,17 @@ export function LabelSticker(props: {
         <div style={{ ...line, fontSize: "7pt", fontWeight: 700, textTransform: "uppercase" }}>{v.productName}</div>
         {variantText && <div style={{ ...line, fontSize: "6pt", fontWeight: 600 }}>{variantText}</div>}
       </div>
-      <div style={{ display: "flex", flexDirection: "column", alignItems: "center", flexShrink: 0 }}>
+      <div
+        style={{
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          flexShrink: 0,
+          // Placed explicitly at a whole printer dot rather than centred by flexbox (see leftMm).
+          alignSelf: "flex-start",
+          marginLeft: `${props.layout.leftMm - size.paddingMm}mm`,
+        }}
+      >
         <LabelBarcodeSvg layout={props.layout} heightMm={size.barHeightMm} />
         <div style={{ fontFamily: "monospace", fontSize: "6.5pt", fontWeight: 700, letterSpacing: "0.08em", lineHeight: 1.1 }}>
           {props.code}

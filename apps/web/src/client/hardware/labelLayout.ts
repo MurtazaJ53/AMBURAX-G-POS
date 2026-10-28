@@ -84,6 +84,11 @@ export function moduleWidthMm(dpi: PrinterDpi): number {
   return (dotsPerModule(dpi) * 25.4) / dpi;
 }
 
+/** Round a length to a whole number of printer dots. */
+export function snapToDot(mm: number, dpi: PrinterDpi): number {
+  return (Math.round((mm * dpi) / 25.4) * 25.4) / dpi;
+}
+
 export type LabelBarcodeLayout =
   | {
       ok: true;
@@ -93,6 +98,12 @@ export type LabelBarcodeLayout =
       moduleWidthMm: number;
       /** Bars plus both quiet zones. */
       totalWidthMm: number;
+      /**
+       * Where the barcode (quiet zone included) starts, from the label's left edge: centred, then
+       * snapped to a whole printer dot. Centring alone lands on a fractional dot, and 2-dot modules
+       * then print 1 or 3 dots wide, which some codes can't survive at 203 dpi.
+       */
+      leftMm: number;
     }
   | { ok: false; reason: string };
 
@@ -116,6 +127,7 @@ export function layoutLabelBarcode(value: string, size: LabelSize, dpi: PrinterD
     quietZoneModules: quiet,
     moduleWidthMm: moduleMm,
     totalWidthMm,
+    leftMm: snapToDot((size.widthMm - totalWidthMm) / 2, dpi),
   };
 }
 
