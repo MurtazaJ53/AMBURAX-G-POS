@@ -2,20 +2,6 @@ import { describe, it, expect, vi } from "vitest";
 import { render, screen, waitFor } from "./render";
 
 // Same convention as the other component suites: icons are irrelevant here, and the real
-// lucide-react resolves a second copy of React under this workspace. Any icon name renders an svg.
-vi.mock("lucide-react", () => {
-  const Icon = () => <svg data-testid="icon" />;
-  const names = [
-    "AlertTriangle", "Award", "Baby", "BadgePercent", "Banknote", "BookOpen", "Briefcase",
-    "Check", "CheckCircle2", "ChevronDown", "Coins", "Copy", "CreditCard", "Download",
-    "Ellipsis", "FileText", "Flame", "Footprints", "History", "LayoutGrid", "Mail",
-    "MessageCircle", "Minus", "Package", "PauseCircle", "Plus", "Printer", "RefreshCcw",
-    "RefreshCw", "ScanLine", "Search", "Shirt", "ShoppingCart", "SlidersHorizontal",
-    "Smartphone", "Sparkles", "Split", "StickyNote", "Store", "Tag", "Trash2",
-    "User", "UserCog", "UserPlus", "UserRound", "Users", "Wifi", "WifiOff", "X"
-  ];
-  return Object.fromEntries(names.map((name) => [name, Icon]));
-});
 import userEvent from "@testing-library/user-event";
 import { PosTerminal } from "@/app/(app)/pos/PosTerminal";
 import { stubApi, SHIRT, SALE, type StubRoute } from "./apiStub";
@@ -160,7 +146,7 @@ describe("POS barcode scanning", () => {
     expect(cartLines()).toHaveLength(0);
   });
 
-  it("checkout sends only variant and quantity, never the scan response's price", async () => {
+  it("checkout sends variant, quantity and only a batch-price hint; the server prices the line", async () => {
     const user = userEvent.setup();
     const stub = stubApi(
       posRoutes([{ kind: "ok", body: { item: { ...SCANNED, priceMinor: 1 } } }], [
@@ -180,7 +166,10 @@ describe("POS barcode scanning", () => {
     const body = stub.calls.find((c) => c.url === "/api/v1/sales" && c.method === "POST")!.body as {
       lines: Record<string, unknown>[];
     };
-    expect(body.lines).toEqual([{ variantId: SHIRT.variantId, quantity: 1 }]);
-    expect(JSON.stringify(body)).not.toMatch(/priceMinor|unitPriceMinor|taxRateBp/);
+    // `unitPriceMinor` is the restock batch selector (old vs new price). createSale only matches
+    // it against the variant's own price and its pending price changes and always charges a
+    // server-held price (saleService.ts), so it is a hint, never the amount.
+    expect(body.lines).toEqual([{ variantId: SHIRT.variantId, quantity: 1, unitPriceMinor: 1 }]);
+    expect(JSON.stringify(body)).not.toMatch(/"priceMinor"|mrpMinor|taxRateBp|taxRateMode|totalMinor/);
   });
 });

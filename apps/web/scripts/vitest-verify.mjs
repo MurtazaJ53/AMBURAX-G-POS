@@ -6,6 +6,7 @@
  * 2. Runs the suite with a JSON report next to the normal output.
  * 3. Fails (exit 1) unless: vitest exited 0, the files that ran equal the listed files,
  *    and no "Failed to start … worker" error appeared. Prints both numbers either way.
+ * 4. Also runs the component suite (`vitest.component.config.ts`) and fails unless it passes.
  */
 import { spawnSync } from "node:child_process";
 import { mkdtempSync, readFileSync, rmSync } from "node:fs";
@@ -77,6 +78,44 @@ console.log(
 for (const f of missing) console.log(`  missing: ${f}`);
 for (const f of unexpected) console.log(`  not listed: ${f}`);
 
-const clean = run.status === 0 && missing.length === 0 && unexpected.length === 0 && workerStartErrors === 0;
+// 4. The component suite (jsdom, its own config) must pass too: a broken screen is not a clean run.
+const componentDir = mkdtempSync(path.join(tmpdir(), "vitest-verify-component-"));
+const componentReport = path.join(componentDir, "report.json");
+const component = spawnSync(
+  process.execPath,
+  [
+    resolvedBin,
+    "run",
+    "--config",
+    "vitest.component.config.ts",
+    "--reporter=default",
+    "--reporter=json",
+    `--outputFile.json=${componentReport}`,
+  ],
+  { cwd, encoding: "utf8", maxBuffer: 256 * 1024 * 1024, stdio: ["ignore", "pipe", "pipe"] },
+);
+process.stdout.write(component.stdout ?? "");
+process.stderr.write(component.stderr ?? "");
+let componentTests = { files: 0, total: 0, passed: 0, failed: 0 };
+try {
+  const report = JSON.parse(readFileSync(componentReport, "utf8"));
+  componentTests = {
+    files: report.testResults.length,
+    total: report.numTotalTests,
+    passed: report.numPassedTests,
+    failed: report.numFailedTests,
+  };
+} catch {
+  console.error("[test:verify] the component run wrote no JSON report");
+}
+rmSync(componentDir, { recursive: true, force: true });
+console.log(
+  `[test:verify] component: files ${componentTests.files}, tests ${componentTests.passed}/${componentTests.total} ` +
+    `passed (${componentTests.failed} failed), vitest exit ${component.status}`,
+);
+const componentClean = component.status === 0 && componentTests.total > 0;
+
+const clean =
+  run.status === 0 && missing.length === 0 && unexpected.length === 0 && workerStartErrors === 0 && componentClean;
 console.log(clean ? "[test:verify] CLEAN" : "[test:verify] NOT CLEAN");
 process.exit(clean ? 0 : 1);

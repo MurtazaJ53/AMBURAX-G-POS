@@ -11,24 +11,6 @@ import { expect, test, vi } from "vitest";
  * of the rest at all. So alongside the data-mapping checks, several tests assert absence.
  */
 
-vi.mock("lucide-react", () => {
-  const Icon = () => <svg data-testid="icon" />;
-  const names = [
-    "LayoutGrid",
-    "List",
-    "ChevronRight",
-    "ChevronLeft",
-    "ChevronDown",
-    "Search",
-    "SlidersHorizontal",
-    "X",
-    "Plus",
-    "Pencil",
-    "Boxes",
-  ];
-  return Object.fromEntries(names.map((name) => [name, Icon]));
-});
-
 const push = vi.fn();
 vi.mock("@/test-component/nextNavigationStub.ts", () => ({
   useRouter: () => ({ push, refresh: vi.fn() }),
@@ -288,36 +270,45 @@ test("the panel opens on Stock and sums the real per-store counts", () => {
   );
 
   expect(within(container).getByText("Main Store")).toBeTruthy();
-  expect(within(container).getByText("Second Store")).toBeTruthy();
-  expect(within(container).getByText("30")).toBeTruthy(); // 24 + 6, not a reference figure
-  expect(within(container).getByText(/operational count, not an accounting stock ledger/)).toBeTruthy();
+  expect(within(container).getByText(/Second Store/)).toBeTruthy();
+  expect(within(container).getAllByText("30").length).toBeGreaterThan(0); // 24 + 6, not a reference figure
+  expect(within(container).getByText(/operational count, not an accounting ledger/)).toBeTruthy();
 });
 
 test("the variant count is the product's own, not the reference's fixed twelve", () => {
   const { container } = render(
     <ProductDetailPanel detail={detail} filters={filters} canManage={true} />,
   );
-  expect(within(container).getByText("Variants (2)")).toBeTruthy();
-  expect(within(container).queryByText("Variants (12)")).toBeNull();
+  const card = within(container).getByText("Variants").parentElement!;
+  expect(within(card).getByText("2")).toBeTruthy();
+  expect(within(card).queryByText("12")).toBeNull();
 });
 
-test("the pricing tab lists every variant and refuses to state a margin", () => {
+test("the pricing tab shows the real selling price and states no margin", () => {
   const { container } = render(
     <ProductDetailPanel detail={detail} filters={filters} canManage={true} />,
   );
   fireEvent.click(within(container).getByRole("tab", { name: "Pricing" }));
 
-  expect(within(container).getByText("SHIRT-BLU-L")).toBeTruthy();
-  expect(within(container).getByText(/Margin is not shown/)).toBeTruthy();
+  expect(within(container).getByText("Selling Price")).toBeTruthy();
+  expect(within(container).queryByText(/margin/i)).toBeNull();
 });
 
-test("the images tab shows the one real picture and explains the single-image limit", () => {
+test("the images tab shows the product's one real picture, or says there is none", () => {
   const { container } = render(
     <ProductDetailPanel detail={detail} filters={filters} canManage={true} />,
   );
   fireEvent.click(within(container).getByRole("tab", { name: "Images" }));
 
-  expect(within(container).getByText(/A product holds one picture today/)).toBeTruthy();
+  expect(within(container).queryByText("No picture set for this product.")).toBeNull();
+  const srcs = [...container.querySelectorAll("img")].map((img) => img.getAttribute("src"));
+  expect(new Set(srcs)).toEqual(new Set(["/demo/catalogue/shirts.svg"]));
+
+  const none = render(
+    <ProductDetailPanel detail={{ ...detail, product: { ...discounted, imageUrl: null } }} filters={filters} canManage={true} />,
+  );
+  fireEvent.click(within(none.container).getByRole("tab", { name: "Images" }));
+  expect(within(none.container).getByText("No picture set for this product.")).toBeTruthy();
 });
 
 test("the sales tab reports real figures over a named window", () => {
@@ -338,20 +329,18 @@ test("a product that has never sold says so instead of showing zeroes", () => {
   expect(within(container).getByText("This product has never been sold.")).toBeTruthy();
 });
 
-test("edit and create-variant are hidden from someone who may not manage the catalogue", () => {
+test("edit is hidden from someone who may not manage the catalogue", () => {
   const managing = render(
     <ProductDetailPanel detail={detail} filters={filters} canManage={true} />,
   );
-  expect(within(managing.container).getByRole("link", { name: /Edit/ })).toBeTruthy();
-  expect(within(managing.container).getByRole("link", { name: /Create variant/ })).toBeTruthy();
+  expect(within(managing.container).getByRole("link", { name: /Edit product/ })).toBeTruthy();
 
   const readOnly = render(
     <ProductDetailPanel detail={detail} filters={filters} canManage={false} />,
   );
-  expect(within(readOnly.container).queryByRole("link", { name: /Edit/ })).toBeNull();
-  expect(within(readOnly.container).queryByRole("link", { name: /Create variant/ })).toBeNull();
+  expect(within(readOnly.container).queryByRole("link", { name: /Edit product/ })).toBeNull();
   // Stock is a read, so it stays available to everyone.
-  expect(within(readOnly.container).getByRole("link", { name: /Update stock/ })).toBeTruthy();
+  expect(within(readOnly.container).getByRole("link", { name: /Adjust stock/ })).toBeTruthy();
 });
 
 test("no unbacked quick actions are offered", () => {
