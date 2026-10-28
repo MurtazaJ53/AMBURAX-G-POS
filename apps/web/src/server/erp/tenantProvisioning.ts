@@ -8,6 +8,7 @@ import { HttpErpTransport } from "@/server/erp/httpTransport";
 import type { ErpTransport } from "@/server/erp/transport";
 import { enqueueOutboxEvent } from "@/server/events/outbox";
 import { writeAuditLog } from "@/server/identity/audit";
+import { erpDate } from "@/server/erp/documentSync";
 
 /**
  * Connect a business to ERPNext (ADR-077: Tenant 1:1 site, Tenant 1:1 Company, Store 1:1 Warehouse).
@@ -285,7 +286,10 @@ export class TenantProvisioner {
 
   /** This company's Indian financial year (1 April - 31 March) for today, and the next one. */
   private async ensureFiscalYears(env: ErpEnvironment, ctx: ErpCallContext, company: string, abbr: string, today: Date) {
-    const firstYear = today.getMonth() >= 3 ? today.getFullYear() : today.getFullYear() - 1;
+    // The India date, not the server's time zone: on a UTC server 1 April 00:30 IST is still
+    // 31 March, which would start from the year that is just ending.
+    const [yearText, monthText] = erpDate(today).split("-");
+    const firstYear = Number(monthText) >= 4 ? Number(yearText) : Number(yearText) - 1;
     for (const y of [firstYear, firstYear + 1]) {
       const year = `${abbr} FY ${y}-${String((y + 1) % 100).padStart(2, "0")}`;
       await this.ensure(env, ctx, "Fiscal Year", year, {

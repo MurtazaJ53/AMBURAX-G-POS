@@ -389,3 +389,34 @@ describe("TenantProvisioner - fiscal-year renewal uses each shop's own site keys
     expect([...(keyByUrl.get("http://other-site.local") ?? [])]).toEqual(["prov-key-other"]);
   });
 });
+
+describe("TenantProvisioner - fiscal year follows the India date, not the server time zone", () => {
+  it("on 1 April 00:30 IST (still 31 March in UTC) renews FY 2027-28 and 2028-29", async () => {
+    const originalTz = process.env.TZ;
+    process.env.TZ = "UTC";
+    process.env["ERP_SITE_TEST_SITE_LOCAL_URL"] = "http://test-site.local";
+    process.env["ERP_SITE_TEST_SITE_LOCAL_PROVISIONER_KEY"] = "prov-key";
+    process.env["ERP_SITE_TEST_SITE_LOCAL_PROVISIONER_SECRET"] = "prov-secret";
+    try {
+      (mockDb.tenant as any).findMany = vi.fn().mockResolvedValue([
+        { id: "t-a", erpnextSiteId: "test-site.local", erpnextCompanyId: "Acme A" },
+      ]);
+      mockDb.company.findFirst.mockResolvedValue({ code: "AA" });
+      const sent: string[] = [];
+      const t = new FakeErpTransport();
+      t.send = async (req) => {
+        sent.push(decodeURIComponent(JSON.stringify(req)));
+        return { status: 200, body: { data: { name: "mock" } } };
+      };
+      await new TenantProvisioner(t, { kind: "existing", ensureSite: async () => ({ status: "ready", siteId: "x" }) })
+        .renewFiscalYears(new Date("2027-03-31T19:00:00Z"));
+      const all = sent.join("\n");
+      expect(all).toContain("AA FY 2027-28");
+      expect(all).toContain("AA FY 2028-29");
+      expect(all).not.toContain("AA FY 2026-27");
+    } finally {
+      if (originalTz === undefined) delete process.env.TZ;
+      else process.env.TZ = originalTz;
+    }
+  });
+});
