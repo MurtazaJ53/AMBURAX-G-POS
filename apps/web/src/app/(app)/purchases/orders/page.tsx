@@ -40,7 +40,7 @@ export default async function PurchaseOrdersPage() {
     <div className="px-4 py-6 sm:px-6">
       <PageHeader
         title="Purchase orders"
-        subtitle={`Orders placed for ${ctx.storeName}. Each one is a Purchase Order in Backend.`}
+        subtitle={`Orders placed for ${ctx.storeName}. Each one is a Purchase Order in accounting.`}
         breadcrumb={[{ label: "Purchases", href: "/purchases" }]}
         actions={
           canOrder ? (

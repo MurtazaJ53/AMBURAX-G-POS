@@ -73,7 +73,7 @@ export function SystemHealthHeader({
       ? `${liveFailed} failed · ${liveWaiting} waiting`
       : liveWaiting > 0
         ? `${liveWaiting.toLocaleString("en-IN")} waiting to sync`
-        : "Everything has reached Backend";
+        : "Everything has reached accounting";
 
   return (
     <PageHeader

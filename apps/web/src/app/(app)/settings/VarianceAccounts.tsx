@@ -19,9 +19,9 @@ export function VarianceAccounts(props: { companyName: string; cash: string | nu
           <Landmark aria-hidden="true" className="h-5 w-5" />
         </span>
         <div className="min-w-0 flex-1">
-          <h2 className="text-sm font-semibold text-slate-900">Till differences in Backend</h2>
+          <h2 className="text-sm font-semibold text-slate-900">Till differences in accounting</h2>
           <p className="mt-1 text-sm text-slate-600">
-            Approved cash differences for {props.companyName} post as a Journal Entry between these two Backend accounts. Finance
+            Approved cash differences for {props.companyName} post as a Journal Entry between these two accounts in accounting. Finance
             chooses them; nothing posts until both are set.
             {props.waiting > 0 && <span className="font-semibold text-amber-800"> {props.waiting} approved differences are waiting.</span>}
           </p>
@@ -47,7 +47,7 @@ export function VarianceAccounts(props: { companyName: string; cash: string | nu
                 defaultValue={props.overShort ?? ""}
                 required
                 maxLength={140}
-                placeholder="As named in Backend"
+                placeholder="As named in accounting"
                 className={INPUT}
               />
             </label>

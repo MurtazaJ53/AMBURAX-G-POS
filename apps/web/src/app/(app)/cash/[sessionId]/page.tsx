@@ -224,8 +224,8 @@ export default async function RegisterPage(props: { params: Promise<{ sessionId:
                 {reg.varianceApprovalNote && <p>&ldquo;{reg.varianceApprovalNote}&rdquo;</p>}
                 <p className="text-xs text-slate-500">
                   {reg.variancePostingStatus === "POSTED"
-                    ? "Posted to Backend."
-                    : "Not posted to Backend yet: waiting for finance to map the cash over/short account."}
+                    ? "Posted to accounting."
+                    : "Not posted to accounting yet: waiting for finance to map the cash over/short account."}
                 </p>
               </div>
             </Card>

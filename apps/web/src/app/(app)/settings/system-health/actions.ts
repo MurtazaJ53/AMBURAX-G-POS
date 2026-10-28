@@ -62,6 +62,6 @@ export async function syncNowAction(_prev: SyncNowState): Promise<SyncNowState> 
     return { status: "success", message: "Sync started in background. Live progress updating below." };
   } catch (err) {
     logError("system health: sync now failed", err);
-    return { status: "error", message: "Sync didn't run. Check that Backend is reachable and try again." };
+    return { status: "error", message: "Sync didn't run. Check that accounting is reachable and try again." };
   }
 }

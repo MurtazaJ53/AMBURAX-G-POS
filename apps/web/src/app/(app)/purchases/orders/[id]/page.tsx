@@ -151,7 +151,7 @@ export default async function PurchaseOrderPage(props: { params: Promise<{ id: s
             </Card>
           )}
           <Card>
-            <CardHeader title="Backend" />
+            <CardHeader title="Accounting" />
             <div className="px-5 pb-5 text-sm text-slate-700">
               {order.erpSyncStatus === "SYNCED" ? (
                 <p>

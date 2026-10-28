@@ -231,7 +231,7 @@ export class ErpPurchaseAdapter {
         if (errMsg.includes("Party Account") || errMsg.includes("Currency must be equal to")) {
           throw new ErpError({
             kind: "validation_failed",
-            message: `Stock arrived but the supplier's bill was refused: the supplier's payable account is in another currency. Set the supplier's currency to INR in the Backend and retry. (${errMsg.slice(0, 200)})`,
+            message: `Stock arrived but the supplier's bill was refused: the supplier's payable account is in another currency. Set the supplier's currency to INR in the accounting and retry. (${errMsg.slice(0, 200)})`,
             correlationId,
           });
         }

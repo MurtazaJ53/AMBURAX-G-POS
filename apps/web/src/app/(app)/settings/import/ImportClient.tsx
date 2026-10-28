@@ -204,7 +204,7 @@ export function ImportClient({ aiOn }: { aiOn: boolean }) {
         {kind === "sales" && (
           <p className="mx-5 mb-5 rounded-lg bg-slate-50 px-3 py-2 text-xs text-slate-600">
             Past bills are kept as history (customer history and old totals). They don&apos;t change stock, aren&apos;t counted as today&apos;s
-            sales and aren&apos;t sent to Backend. Bring your current stock in with “Products &amp; stock”.
+            sales and aren&apos;t sent to accounting. Bring your current stock in with “Products &amp; stock”.
           </p>
         )}
       </Card>

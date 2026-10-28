@@ -88,7 +88,7 @@ export default async function StoreDetailPage({
             <dd className="text-slate-900">{store.company?.name ?? "Not linked"}</dd>
           </div>
           <div>
-            <dt className="text-slate-500">Backend warehouse</dt>
+            <dt className="text-slate-500">Accounting warehouse</dt>
             <dd className="text-slate-900">{store.erpnextWarehouseId ?? "Not provisioned"}</dd>
           </div>
         </dl>

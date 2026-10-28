@@ -181,7 +181,7 @@ export default async function SupplierDetailPage({ params }: { params: Promise<{
           </DataTable>
         </>
       )}
-      <p className="mt-6 text-xs text-slate-500">Amounts owed to the supplier and payments made are kept in Backend.</p>
+      <p className="mt-6 text-xs text-slate-500">Amounts owed to the supplier and payments made are kept in accounting.</p>
     </div>
   );
 }

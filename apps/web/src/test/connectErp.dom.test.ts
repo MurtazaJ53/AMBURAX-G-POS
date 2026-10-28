@@ -33,7 +33,7 @@ afterEach(() => {
 
 const badge = () => container.querySelector("[data-badge]")?.textContent;
 
-describe("Connect to Backend (bug 17)", () => {
+describe("Connect to accounting (bug 17)", () => {
   it("says Connecting… once the request is queued, though the tenant is still NOT_PROVISIONED", async () => {
     connectErpAction.mockResolvedValue({ status: "success", message: "Connecting. This page updates when it's done." });
     await act(async () => {

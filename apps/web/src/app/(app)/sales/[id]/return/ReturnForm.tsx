@@ -227,7 +227,7 @@ export function ReturnForm({
             </div>
             <div>
               <dt className="text-[10px] font-semibold uppercase tracking-wider text-success">
-                Backend sync
+                Accounting sync
               </dt>
               <dd className="mt-0.5 text-[13px] font-medium text-success">
                 {posted ? "Submitted" : "Pending"}
@@ -236,7 +236,7 @@ export function ReturnForm({
           </dl>
           {!posted && (
             <p className="mt-2 text-[11px] leading-relaxed text-success">
-              The return is queued for Backend and has not been posted there yet.
+              The return is queued for accounting and has not been posted there yet.
             </p>
           )}
         </div>

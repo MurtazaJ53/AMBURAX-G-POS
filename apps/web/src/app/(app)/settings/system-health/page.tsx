@@ -37,7 +37,7 @@ export default async function SystemHealthPage() {
     return (
       <div className="px-4 py-6 sm:px-6">
         <PageHeader title="System health" breadcrumb={[{ label: "Settings", href: "/settings" }]} />
-        <PermissionDeniedState title="System health is for owners and store managers" description="It shows what has synced to Backend." />
+        <PermissionDeniedState title="System health is for owners and store managers" description="It shows what has synced to accounting." />
       </div>
     );
   }
@@ -60,7 +60,7 @@ export default async function SystemHealthPage() {
         initialRunning={backgroundSyncStatus(ctx.tenantId)}
       />
       <p className="text-xs text-slate-500">
-        Records are sent to Backend automatically in the background. Use Sync now if they are waiting and you want them sent at once.
+        Records are sent to accounting automatically in the background. Use Sync now if they are waiting and you want them sent at once.
       </p>
       {data.oldestPendingAt && (
         <p className="amb-fade-in rounded-lg bg-amber-50 px-4 py-3 text-sm text-amber-900">
@@ -69,9 +69,9 @@ export default async function SystemHealthPage() {
       )}
 
       {data.types.length === 0 ? (
-        <EmptyState title="Nothing sent yet" description="Sales, purchases and other records appear here once they are queued for Backend." />
+        <EmptyState title="Nothing sent yet" description="Sales, purchases and other records appear here once they are queued for accounting." />
       ) : (
-        <DataTable caption="Backend sync by record type">
+        <DataTable caption="Accounting sync by record type">
           <thead>
             <tr>
               <Th>Record</Th>
@@ -109,7 +109,7 @@ export default async function SystemHealthPage() {
             </h2>
             {isOwner && <RetryAllButton count={data.failures.length} />}
           </div>
-          <DataTable caption="Records that could not reach Backend">
+          <DataTable caption="Records that could not reach accounting">
             <thead>
               <tr>
                 <Th>Record</Th>

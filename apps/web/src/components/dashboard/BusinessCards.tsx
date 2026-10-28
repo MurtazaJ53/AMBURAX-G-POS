@@ -155,7 +155,7 @@ export function SystemStatusCard({
         <div className="flex justify-between pt-0.5">
           <span>Accounting:</span>
           <span className={`font-semibold ${erpConnected ? "text-emerald-800" : "text-slate-600"}`}>
-            {erpConnected ? "Connected (Backend)" : "Not connected"}
+            {erpConnected ? "Connected to accounting" : "Not connected"}
           </span>
         </div>
       </div>

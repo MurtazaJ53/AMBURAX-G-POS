@@ -171,7 +171,7 @@ export function ReplenishForm({ rows, canEdit, formatCost }: { rows: Replenishme
       )}
       <p className="text-xs text-slate-500">
         Leave both reorder fields blank to use the shared low-stock line (10 units). Levels and requests are kept in
-        Backend: levels on the item&apos;s reorder table for this store&apos;s warehouse, requests as draft Material
+        Accounting: levels on the item&apos;s reorder table for this store&apos;s warehouse, requests as draft Material
         Requests that purchasing turns into orders.
       </p>
     </form>

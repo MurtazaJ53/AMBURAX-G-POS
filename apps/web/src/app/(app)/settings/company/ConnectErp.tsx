@@ -26,7 +26,7 @@ export function ConnectErp(props: { status: string; error: string | null }) {
         )}
         {working
           ? "Setting up your company and a warehouse for each store. You can keep selling meanwhile."
-          : "Connecting creates your company in Backend (Indian rupees, India) and a warehouse for every store."}
+          : "Connecting creates your company in accounting (Indian rupees, India) and a warehouse for every store."}
       </p>
       {props.status === "FAILED" && props.error && (
         <p role="alert" className="rounded-lg bg-rose-50 px-3 py-2 text-rose-800">
@@ -42,7 +42,7 @@ export function ConnectErp(props: { status: string; error: string | null }) {
         <form action={action}>
           <button type="submit" disabled={pending} aria-busy={pending} className={`${buttonClass("primary")} amb-press`}>
             <PlugZap aria-hidden="true" className="h-4 w-4" />
-            {props.status === "FAILED" ? "Try again" : "Connect to Backend"}
+            {props.status === "FAILED" ? "Try again" : "Connect to accounting"}
           </button>
         </form>
       )}

@@ -92,9 +92,9 @@ export default async function SettingsPage() {
 
       <nav aria-label="More settings" className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
         {[
-          { href: "/settings/company", title: "Company", text: "Legal company, read from Backend" },
+          { href: "/settings/company", title: "Company", text: "Legal company, read from accounting" },
           { href: "/settings/pos", title: "POS configuration", text: "Held bills and attendance rules" },
-          { href: "/settings/system-health", title: "System health", text: "What has synced to Backend" },
+          { href: "/settings/system-health", title: "System health", text: "What has synced to accounting" },
           { href: "/settings/export", title: "Export data", text: "CSV of products, customers, sales" },
           { href: "/settings/import", title: "Import data", text: "Migrate inventory, customers, past sales" },
         ].map((l) => (

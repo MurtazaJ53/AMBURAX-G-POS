@@ -158,7 +158,7 @@ export function GstTaxSummaryModal(props: {
         <div className="mt-4 flex items-center gap-2 rounded-lg bg-sky-50 p-2.5 text-xs text-sky-800">
           <Info className="h-4 w-4 shrink-0 text-sky-600" />
           <span>
-            Complies with Section 31 of CGST Act. Both intra-state and inter-state tax liabilities reflect the ledger posted to Backend GST GSTR-1.
+            Complies with Section 31 of CGST Act. Both intra-state and inter-state tax liabilities reflect the ledger posted to accounting for GSTR-1.
           </span>
         </div>
 

@@ -27,7 +27,7 @@ export async function saveVarianceAccountsAction(_prev: VarianceAccountsState, f
     revalidatePath("/settings");
     return {
       status: "success",
-      message: res.requeued > 0 ? `Saved. ${res.requeued} approved till differences are being posted to Backend.` : "Saved.",
+      message: res.requeued > 0 ? `Saved. ${res.requeued} approved till differences are being posted to accounting.` : "Saved.",
     };
   } catch (err) {
     logError("settings: variance accounts failed", err);

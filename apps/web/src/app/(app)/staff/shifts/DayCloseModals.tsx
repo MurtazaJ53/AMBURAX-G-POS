@@ -264,7 +264,7 @@ export function ApproveVarianceModal(props: {
         </div>
 
         <p className="mt-2 text-xs text-slate-500">
-          Approve counted cash variance for <strong>{props.session.cashierName}</strong> to allow Backend Cash Short/Over Journal Entry posting.
+          Approve counted cash variance for <strong>{props.session.cashierName}</strong> to allow its Cash Short/Over Journal Entry to post to accounting.
         </p>
 
         {error && (

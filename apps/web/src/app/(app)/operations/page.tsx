@@ -53,7 +53,7 @@ export default async function OperationsPage() {
     { n: data.approvals.corrections, label: "attendance corrections", href: "/staff/attendance" },
     { n: data.approvals.leave, label: "leave requests", href: "/staff/leave" },
     { n: data.lowStock, label: "items running low", href: "/inventory?status=low_stock" },
-    { n: data.failedSyncs, label: "Backend syncs failed", href: "/settings/system-health" },
+    { n: data.failedSyncs, label: "Accounting syncs failed", href: "/settings/system-health" },
   ].filter((t) => t.n > 0);
 
   return (
@@ -158,7 +158,7 @@ export default async function OperationsPage() {
             {data.failedSyncs > 0 && (
               <Link href="/settings/system-health" className="amb-focus col-span-2 flex items-center gap-3 rounded-lg border border-rose-200 bg-rose-50 p-3 text-rose-800">
                 <CloudOff aria-hidden="true" className="h-5 w-5" />
-                {data.failedSyncs} {data.failedSyncs === 1 ? "record hasn't" : "records haven't"} reached Backend
+                {data.failedSyncs} {data.failedSyncs === 1 ? "record hasn't" : "records haven't"} reached accounting
               </Link>
             )}
           </div>

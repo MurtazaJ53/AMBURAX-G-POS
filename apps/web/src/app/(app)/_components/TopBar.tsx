@@ -98,7 +98,7 @@ export function TopBar(props: {
       <div className="ml-auto flex items-center gap-3">
         {/* A true statement about system state, not a decorative "all systems operational". */}
         <span
-          title="No Backend adapter is connected. Sales are recorded in AMBURAX and not yet posted to accounting."
+          title="Accounting is not connected. Sales are recorded in AMBURAX and not yet posted to accounting."
           className="hidden items-center gap-1.5 rounded-lg bg-amber-50 px-2.5 py-1.5 text-xs font-medium text-amber-700 ring-1 ring-inset ring-amber-600/20 xl:inline-flex"
         >
           <span aria-hidden="true" className="h-1.5 w-1.5 rounded-full bg-amber-500" />

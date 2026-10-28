@@ -50,7 +50,7 @@ export async function setVarianceAccounts(input: {
   const overShort = clean(input.overShortAccount);
   const reason = clean(input.reason);
   if (cash.length < 2 || cash.length > 140 || overShort.length < 2 || overShort.length > 140) {
-    return { status: "validation_error", reason: "Enter both account names exactly as they appear in the Backend." };
+    return { status: "validation_error", reason: "Enter both account names exactly as they appear in accounting." };
   }
   if (cash === overShort) return { status: "validation_error", reason: "The cash and over/short accounts must be different." };
   if (reason.length < 3 || reason.length > 200) return { status: "validation_error", reason: "Give a reason for the change." };

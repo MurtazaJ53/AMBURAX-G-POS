@@ -31,7 +31,7 @@ export async function bulkGstAction(_prev: BulkGstState, formData: FormData): Pr
     if (res.status === "invalid") return { status: "error", message: res.reason };
     revalidatePath("/products/gst");
     revalidatePath("/products");
-    return { status: "success", message: `${res.updated.toLocaleString("en-IN")} products updated. They can be sold now and will sync to Backend.` };
+    return { status: "success", message: `${res.updated.toLocaleString("en-IN")} products updated. They can be sold now and will sync to accounting.` };
   } catch (err) {
     logError("products: bulk gst failed", err);
     return { status: "error", message: "That didn't save. Try again." };

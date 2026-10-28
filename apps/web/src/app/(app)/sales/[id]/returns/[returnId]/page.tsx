@@ -228,7 +228,7 @@ export default async function ReturnDetailPage({ params: paramsPromise }: { para
             </dl>
           </Card>
 
-          <Card title="Backend Status" index={4}>
+          <Card title="Accounting Status" index={4}>
             <dl className="pb-2">
               <Row label="Sync Status">
                 <Pill tone={erpTone}>{erpText}</Pill>

@@ -3208,10 +3208,10 @@ function SaleSuccess(props: {
           </div>
 
           {/*
-            Backend is not connected, so PENDING is the truthful state and the only thing this
+            Accounting is not connected, so PENDING is the truthful state and the only thing this
             screen may say about it. It must never read as "posted" — schema.prisma says so at
             the column, and the receipt deliberately carries no invoice number for the same
-            reason: AMBURAX allocates a bill number, Backend allocates invoice numbers, and
+            reason: AMBURAX allocates a bill number, accounting allocates invoice numbers, and
             only one of those has happened.
           */}
           {erpPending && (

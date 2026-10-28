@@ -76,14 +76,14 @@ export function DataSecurityClient({ metrics }: { metrics: DataSecurityMetrics }
       <div className="grid gap-4 sm:grid-cols-3">
         <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-xs">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Backend core</span>
+            <span className="text-xs font-semibold text-slate-500 uppercase tracking-wide">AMBURAX core</span>
             <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-bold text-emerald-700 border border-emerald-200">
               <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
               Connected
             </span>
           </div>
           <div className="mt-3 flex items-baseline gap-2">
-            <span className="text-2xl font-bold text-slate-900">Backend database</span>
+            <span className="text-2xl font-bold text-slate-900">AMBURAX database</span>
           </div>
           <p className="mt-1 text-[11px] text-slate-500">Local ACID-isolated database cluster</p>
         </div>
@@ -207,7 +207,7 @@ export function DataSecurityClient({ metrics }: { metrics: DataSecurityMetrics }
               <Layers className="h-3.5 w-3.5 text-indigo-600" /> Transactional Outbox
             </span>
             <p className="mt-1 text-slate-500">
-              At-least-once delivery guarantees prevent financial discrepancies between the POS counter and the Backend ledgers.
+              At-least-once delivery guarantees prevent financial discrepancies between the POS counter and the accounting ledgers.
             </p>
           </div>
         </div>

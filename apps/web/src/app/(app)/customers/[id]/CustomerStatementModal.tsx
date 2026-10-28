@@ -171,7 +171,7 @@ export function CustomerStatementModal(props: {
             {/* Note & Statutory terms */}
             <div className="mt-6 border-t border-slate-200 pt-4 text-[10px] text-slate-400">
               <p>
-                * Dues are synchronized with Backend accounting ledgers. Please quote your customer name and invoice number when settling by UPI or bank transfer.
+                * Dues are synchronized with the accounting ledgers. Please quote your customer name and invoice number when settling by UPI or bank transfer.
               </p>
             </div>
           </div>

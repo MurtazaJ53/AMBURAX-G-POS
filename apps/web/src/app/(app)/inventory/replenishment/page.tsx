@@ -85,7 +85,7 @@ export default async function ReplenishmentPage() {
               <Th>Sent</Th>
               <Th align="right">Items</Th>
               <Th align="right">Units</Th>
-              <Th>Backend</Th>
+              <Th>Accounting</Th>
             </tr>
           </thead>
           <tbody>

@@ -68,7 +68,7 @@ export default async function CompanyPage() {
       <PageHeader title="Company" subtitle={tenant.name} breadcrumb={[{ label: "Settings", href: "/settings" }]} />
 
       <Card className="amb-fade-in">
-        <CardHeader title="In Backend" subtitle="The legal company and its tax identity live here. Change them in Backend." />
+        <CardHeader title="In accounting" subtitle="The legal company and its tax identity live here. Change them in accounting." />
         <div className="px-5 pb-5">
           {erp.status === "ok" ? (
             <dl className="grid gap-4 text-sm sm:grid-cols-3">
@@ -88,7 +88,7 @@ export default async function CompanyPage() {
             <ConnectErp status={tenant.erpnextProvisionStatus} error={tenant.erpnextProvisionError} />
           ) : (
             <p role="status" className="flex items-center gap-2 text-sm text-amber-900">
-              <StatusBadge tone="warning">Unreachable</StatusBadge> Backend didn&apos;t answer just now. Your AMBURAX records are unaffected.
+              <StatusBadge tone="warning">Unreachable</StatusBadge> Accounting didn&apos;t answer just now. Your AMBURAX records are unaffected.
             </p>
           )}
         </div>
@@ -102,11 +102,11 @@ export default async function CompanyPage() {
           {row("Country", tenant.country)}
           {row("Contact email", tenant.contactEmail)}
           {row("Contact phone", tenant.contactPhone)}
-          {row("Backend site", tenant.erpnextProvisionStatus.replace(/_/g, " ").toLowerCase())}
+          {row("Accounting site", tenant.erpnextProvisionStatus.replace(/_/g, " ").toLowerCase())}
         </dl>
         {erp.status === "ok" && erp.taxId && tenant.taxId && erp.taxId.toUpperCase() !== tenant.taxId.toUpperCase() && (
           <p role="alert" className="mx-5 mb-5 rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-900">
-            The tax ID here differs from Backend&apos;s. Backend&apos;s is the one used on documents; correct whichever is wrong.
+            The tax ID here differs from accounting&apos;s. Accounting&apos;s is the one used on documents; correct whichever is wrong.
           </p>
         )}
       </Card>
@@ -120,12 +120,12 @@ export default async function CompanyPage() {
             subtitle={`${c.code} · ${c.currency} · ${c.stores.length} ${c.stores.length === 1 ? "store" : "stores"}`}
             action={
               <StatusBadge tone={erp.status === "ok" ? "success" : "neutral"}>
-                {erp.status === "ok" ? "Backend Linked" : "Local Only"}
+                {erp.status === "ok" ? "Accounting Linked" : "Local Only"}
               </StatusBadge>
             }
           />
           <div className="border-b border-slate-100 bg-slate-50/60 px-5 py-2 text-xs text-slate-500">
-            Stores mapped to Backend dedicated warehouses for automated stock movements &amp; accounting entries.
+            Stores mapped to dedicated warehouses in accounting for automated stock movements &amp; accounting entries.
           </div>
           <ul className="divide-y divide-slate-100 px-5 pb-5 text-sm">
             {c.stores.map((s) => (

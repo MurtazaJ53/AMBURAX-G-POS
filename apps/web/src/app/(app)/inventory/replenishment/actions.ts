@@ -74,7 +74,7 @@ export async function replenishAction(_prev: ReplenishActionState, formData: For
       revalidatePath("/inventory/replenishment");
       return {
         status: "success",
-        message: `Request sent for ${lines.length} ${lines.length === 1 ? "item" : "items"}. It goes to Backend as a draft Material Request for purchasing.`,
+        message: `Request sent for ${lines.length} ${lines.length === 1 ? "item" : "items"}. It goes to accounting as a draft Material Request for purchasing.`,
       };
     }
   } catch (err) {

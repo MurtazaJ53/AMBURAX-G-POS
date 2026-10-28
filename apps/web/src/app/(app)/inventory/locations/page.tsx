@@ -40,7 +40,7 @@ export default async function LocationsPage() {
     <div className="px-4 py-6 sm:px-6">
       <PageHeader
         title="Locations"
-        subtitle="Stock held at each store you can reach. Every store is one warehouse in Backend."
+        subtitle="Stock held at each store you can reach. Every store is one warehouse in accounting."
         breadcrumb={[{ label: "Inventory", href: "/inventory" }]}
       />
 
@@ -79,9 +79,9 @@ export default async function LocationsPage() {
                   </p>
                 </div>
                 {r.erpStatus === "PROVISIONED" && r.erpWarehouse ? (
-                  <StatusBadge tone="success">Backend linked</StatusBadge>
+                  <StatusBadge tone="success">Accounting linked</StatusBadge>
                 ) : (
-                  <StatusBadge tone="warning">Not in Backend yet</StatusBadge>
+                  <StatusBadge tone="warning">Not in accounting yet</StatusBadge>
                 )}
               </div>
 

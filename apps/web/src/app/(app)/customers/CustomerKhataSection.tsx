@@ -94,7 +94,7 @@ export function CustomerKhataSection({ customerId }: { customerId: string }) {
           ) : (
             <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-2.5 py-0.5 text-[11px] font-semibold text-emerald-700 ring-1 ring-inset ring-emerald-600/20">
               <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
-              Backend Connected
+              Accounting Connected
             </span>
           )}
         </div>
@@ -102,7 +102,7 @@ export function CustomerKhataSection({ customerId }: { customerId: string }) {
         {loading ? (
           <div className="mt-4 flex items-center gap-3 rounded-xl border border-slate-100 bg-slate-50/50 p-4 text-xs text-slate-600">
             <Loader2 className="h-4 w-4 animate-spin text-blue-600" />
-            <span>Fetching live receivables from Backend...</span>
+            <span>Fetching live receivables from accounting...</span>
           </div>
         ) : error ? (
           <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50/60 p-4">
@@ -111,7 +111,7 @@ export function CustomerKhataSection({ customerId }: { customerId: string }) {
               <div>
                 <p className="text-sm font-medium text-amber-900">Accounting sync unavailable</p>
                 <p className="mt-0.5 text-xs text-amber-700">
-                  {error} Outstanding balances are held authoritative in Backend and will resume once reachable.
+                  {error} Outstanding balances are held authoritative in accounting and will resume once reachable.
                 </p>
               </div>
             </div>
@@ -183,7 +183,7 @@ export function CustomerKhataSection({ customerId }: { customerId: string }) {
               <div className="rounded-xl border border-dashed border-slate-200 p-4 text-center">
                 <CheckCircle2 className="mx-auto h-5 w-5 text-emerald-500" />
                 <p className="mt-1.5 text-xs font-medium text-slate-800">All invoices cleared</p>
-                <p className="text-[11px] text-slate-500">No outstanding customer dues recorded in Backend.</p>
+                <p className="text-[11px] text-slate-500">No outstanding customer dues recorded in accounting.</p>
               </div>
             )}
 

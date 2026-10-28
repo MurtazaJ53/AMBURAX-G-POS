@@ -34,5 +34,5 @@ export async function addStoreAction(_prev: AddStoreState, formData: FormData): 
     return { status: "error", message: "That didn't save. Try again." };
   }
   revalidatePath("/stores");
-  return { status: "success", nonce: Date.now(), message: "Store added. Its Backend warehouse is being set up." };
+  return { status: "success", nonce: Date.now(), message: "Store added. Its accounting warehouse is being set up." };
 }
