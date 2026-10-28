@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { gstinStateCode, gstStateCode, storeStateOutsideGstin, storesOutsideGstin } from "@/lib/gstStates";
+import { INDIAN_STATES, gstinStateCode, gstStateCode, storeStateOutsideGstin, storesOutsideGstin } from "@/lib/gstStates";
 
 describe("GST state codes", () => {
   it("maps full names, abbreviations and common spellings", () => {
@@ -48,5 +48,19 @@ describe("GST state codes", () => {
         { name: "Delhi", state: "Delhi" },
       ]),
     ).toMatch(/^Your GSTIN is registered in Gujarat, but Pune \(Maharashtra\), Delhi \(Delhi\) are in another state\./);
+  });
+});
+
+describe("state names for the add-store picker (bug 34)", () => {
+  it("are title case, with 'and' left lowercase", () => {
+    expect(INDIAN_STATES).toContain("Gujarat");
+    expect(INDIAN_STATES).toContain("Madhya Pradesh");
+    expect(INDIAN_STATES).toContain("Jammu and Kashmir");
+    expect(INDIAN_STATES).toContain("Dadra and Nagar Haveli and Daman and Diu");
+    for (const name of INDIAN_STATES) expect(name).toMatch(/^[A-Z][a-z]*( (and|[A-Z][a-z]*))*$/);
+  });
+
+  it("still map to their GST codes", () => {
+    for (const name of INDIAN_STATES) expect(gstStateCode(name)).toMatch(/^\d{2}$/);
   });
 });

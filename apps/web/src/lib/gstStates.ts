@@ -44,7 +44,12 @@ const STATE_CODES: Record<string, string> = {
 
 /** State and union-territory names for pickers, in title case and alphabetical order. */
 export const INDIAN_STATES: string[] = Object.keys(STATE_CODES)
-  .map((n) => n.replace(/(and)|([a-z])/g, (m, and: string | undefined) => (and ? and : m.toUpperCase())))
+  .map((n) =>
+    n
+      .split(" ")
+      .map((word) => (word === "and" ? word : word.charAt(0).toUpperCase() + word.slice(1)))
+      .join(" "),
+  )
   .sort((a, b) => a.localeCompare(b));
 
 const ALIASES: Record<string, string> = {
