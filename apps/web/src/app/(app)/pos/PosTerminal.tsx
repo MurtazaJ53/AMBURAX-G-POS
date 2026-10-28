@@ -1209,8 +1209,9 @@ export function PosTerminal(props: {
           className="flex min-w-0 shrink-0 flex-col lg:min-h-0 lg:flex-1 lg:shrink"
         >
           {/* Entry modes, as the reference's underlined tabs. Products, Barcode Scan, and Quick Add now active. */}
-          <div role="tablist" aria-label="Product entry mode" className="flex shrink-0 items-center justify-between border-b border-slate-200 bg-white px-5">
-            <div className="flex items-end gap-8">
+          <div className="flex shrink-0 items-center justify-between border-b border-slate-200 bg-white px-5">
+            {/* The tablist holds only the tabs; the offline pill sits beside it (axe: aria-required-children). */}
+            <div role="tablist" aria-label="Product entry mode" className="flex items-end gap-8">
               <button
                 type="button"
                 role="tab"
@@ -1378,7 +1379,7 @@ export function PosTerminal(props: {
               </div>
 
               {/* Product grid */}
-              <div className="h-[60vh] min-h-[320px] overflow-y-auto overscroll-contain px-5 py-3 lg:h-auto lg:min-h-0 lg:flex-1">
+              <div tabIndex={0} role="region" aria-label="Product results" className="h-[60vh] min-h-[320px] overflow-y-auto overscroll-contain px-5 py-3 lg:h-auto lg:min-h-0 lg:flex-1">
                 {searchError && (
                   <p role="alert" className="mb-3 rounded-xl border border-rose-200 bg-rose-50 p-3 text-[13px] text-rose-700">
                     {searchError}
