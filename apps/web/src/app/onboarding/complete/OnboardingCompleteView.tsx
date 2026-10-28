@@ -160,10 +160,10 @@ export function OnboardingCompleteView({ readiness: initial }: Props) {
                 {i > 0 && ", "}
                 {item.action ? (
                   <Link href={item.action.href} className="font-medium text-brand-600 hover:text-brand-700">
-                    {item.label.toLowerCase()}
+                    {item.label}
                   </Link>
                 ) : (
-                  <span className="font-medium text-slate-700">{item.label.toLowerCase()}</span>
+                  <span className="font-medium text-slate-700">{item.label}</span>
                 )}
               </span>
             ))}
