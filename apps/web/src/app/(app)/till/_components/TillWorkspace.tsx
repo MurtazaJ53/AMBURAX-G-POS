@@ -42,6 +42,16 @@ import { OperatorBar } from "./OperatorBar";
  * decision, it only avoids wasting the cashier's time discovering one.
  */
 
+/** A control that takes typed text, so keystrokes there belong to it and not the scan field. */
+function isTextEntry(el: Element | null): boolean {
+  if (!el) return false;
+  if (el instanceof HTMLTextAreaElement || el instanceof HTMLSelectElement) return true;
+  if (el instanceof HTMLInputElement) {
+    return !["button", "submit", "reset", "checkbox", "radio", "range", "color", "file"].includes(el.type);
+  }
+  return (el as HTMLElement).isContentEditable === true;
+}
+
 export function TillWorkspace({
   currentUserId,
   cashierName,
@@ -111,6 +121,22 @@ export function TillWorkspace({
         else if (!busy) till.takePayment();
         return;
       }
+      // A keyboard-wedge scanner types into whatever has focus. If focus has wandered onto a
+      // button, a link or the page itself, a printable key is sent to the scan field instead of
+      // being lost. Keys typed into another field (customer, opening cash) are left alone.
+      if (
+        event.key.length === 1 &&
+        event.key !== " " &&
+        !event.ctrlKey &&
+        !event.metaKey &&
+        !event.altKey &&
+        scanRef.current &&
+        !scanRef.current.disabled &&
+        !isTextEntry(document.activeElement)
+      ) {
+        focusScan();
+        return;
+      }
       if (event.key === "Escape") {
         if (till.completion.phase === "completed") {
           till.startNewBill();
@@ -130,6 +156,17 @@ export function TillWorkspace({
       data-amburax
       className="flex min-h-screen flex-col gap-4 bg-amb-surface p-4 text-amb-ink lg:h-screen lg:overflow-hidden"
     >
+      <a
+        href="#till-scan"
+        onClick={(event) => {
+          event.preventDefault();
+          focusScan();
+        }}
+        className="sr-only focus:not-sr-only focus:self-start focus:rounded-amb focus:bg-amb-raised focus:px-4 focus:py-2 focus:text-sm focus:font-semibold focus:text-amb-ink focus:shadow-amb"
+      >
+        Skip to scan field
+      </a>
+
       <StatusRail
         cashierName={cashierName}
         roleLabel={roleLabel}
