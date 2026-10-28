@@ -25,13 +25,14 @@ export default defineConfig({
           name: "unit",
           environment: "node",
           include: ["src/test/**/*.test.ts"],
-          exclude: ["src/test/**/*.dom.test.ts"],
           env,
           testTimeout: 15000,
           sequence: { groupOrder: 0 },
         },
       },
       {
+        // Rendered component tests: `src/test/**/*.test.tsx` runs in jsdom, `*.test.ts` in node.
+        // The file extension is the convention, so no per-file environment pragma is needed.
         // jsdom suites. Setting up jsdom is the slow part of these files; started alongside
         // ~15 node workers it regularly took longer than Vitest's 60 s worker-start timeout
         // ("Failed to start forks worker"). They now run as their own group after the node
@@ -40,7 +41,7 @@ export default defineConfig({
         test: {
           name: "dom",
           environment: "jsdom",
-          include: ["src/test/**/*.dom.test.ts"],
+          include: ["src/test/**/*.test.tsx"],
           env,
           testTimeout: 15000,
           maxWorkers: 2,

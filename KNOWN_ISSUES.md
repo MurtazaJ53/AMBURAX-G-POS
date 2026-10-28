@@ -2,7 +2,7 @@
 
 ## Vitest: jsdom test files can fail to start under load (mitigated, watch)
 
-**Symptom.** In a full unit run (`npm test` in `apps/web`) one or more `*.dom.test.ts` files
+**Symptom.** In a full unit run (`npm test` in `apps/web`) one or more jsdom files (then `*.dom.test.ts`, now `src/test/**/*.test.tsx`)
 were reported as `Error: [vitest-pool]: Failed to start forks worker … Timeout waiting for worker
 to respond`, and the run still ended "N passed (N)" with exit 0. Seen 2026-10-28: 115 files /
 1232 tests where the suite was 118 / 1264.
