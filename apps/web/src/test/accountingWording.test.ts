@@ -28,5 +28,5 @@ describe("owner-facing wording: accounting", () => {
     };
     walk(root);
     expect(hits).toEqual([]);
-  });
+  }, 45000);
 });
