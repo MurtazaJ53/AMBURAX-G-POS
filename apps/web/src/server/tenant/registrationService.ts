@@ -3,6 +3,7 @@ import { Prisma } from "@prisma/client";
 import { db } from "@/server/db";
 import { env } from "@/lib/env";
 import { generateTenantSlug } from "@/server/tenant/slug";
+import { GSTIN_TAKEN_MESSAGE, isGstinTakenByAnotherTenant } from "@/server/tenant/gstinUniqueness";
 import { createOnboardingSession } from "@/server/tenant/onboardingSession";
 import { generateOpaqueToken, hashOpaqueToken } from "@/server/identity/token";
 import { isIpRateLimited, recordAttempt } from "@/server/identity/loginGuard";
@@ -97,6 +98,11 @@ export async function registerBusiness(input: RegisterBusinessInput): Promise<Re
       onboardingToken: session.token,
       expiresAt: session.expiresAt.toISOString(),
     };
+  }
+
+  // After the replay check above: a retried sign-up is its own tenant re-saving its GSTIN.
+  if (input.taxId && input.taxId.trim() && (await isGstinTakenByAnotherTenant(input.taxId, null))) {
+    return { status: "validation_error", reason: GSTIN_TAKEN_MESSAGE };
   }
 
   for (let attempt = 1; attempt <= MAX_SLUG_ATTEMPTS; attempt++) {

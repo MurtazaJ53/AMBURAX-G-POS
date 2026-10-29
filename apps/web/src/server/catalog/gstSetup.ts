@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { GSTIN_TAKEN_MESSAGE, isGstinTakenByAnotherTenant } from "@/server/tenant/gstinUniqueness";
 import { GstTaxTreatment, type TaxRateMode } from "@prisma/client";
 import { db } from "@/server/db";
 import { writeAuditLog } from "@/server/identity/audit";
@@ -70,6 +71,9 @@ export async function turnOnGst(input: { actor: Owner; gstin: string; scheme?: G
   const result = await db.$transaction(async (tx) => {
     const tenant = await tx.tenant.findUnique({ where: { id: input.actor.tenantId }, select: { taxId: true } });
     if (tenant?.taxId?.trim()) return { status: "already_registered" as const };
+    if (await isGstinTakenByAnotherTenant(gstin, input.actor.tenantId, tx)) {
+      return { status: "invalid" as const, reason: GSTIN_TAKEN_MESSAGE };
+    }
     // One GSTIN is one state: every existing store must already be in it.
     const stores = await tx.store.findMany({ where: { tenantId: input.actor.tenantId }, select: { name: true, state: true }, orderBy: { name: "asc" } });
     const outside = storesOutsideGstin(gstin, stores);
