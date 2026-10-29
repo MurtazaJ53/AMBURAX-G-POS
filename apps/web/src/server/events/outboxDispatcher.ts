@@ -322,10 +322,12 @@ export async function dispatchOutboxOnce(params?: {
       const isUnrecoverable = !isMissingItemDependency && (isMissingWarehouse || isMissingValuation || isFiscalYearError || isStatutoryValidationError || isPermanentConfig || (err instanceof ErpError && !err.retryable));
       const exhausted = isUnrecoverable || row.attempts >= MAX_ATTEMPTS;
 
+      const failureCode = err instanceof ErpError ? err.code ?? null : null;
       const written = await db.outboxEvent.updateMany({
         where: stillOurs(row),
         data: {
           lastError: safeErrorText(err),
+          failureCode,
           ...(exhausted ? { deadLetteredAt: new Date() } : {}),
         },
       });

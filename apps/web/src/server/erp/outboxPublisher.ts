@@ -42,6 +42,7 @@ export class ErpOutboxPublisher implements OutboxPublisher {
     if (!tenant?.erpnextSiteId) {
       throw new ErpError({
         kind: "configuration_error",
+        code: "ERP_SITE_NOT_SET",
         message: `Tenant ${event.tenantId} has no ERP site configured and cannot publish outbox events.`,
         correlationId: event.correlationId,
       });

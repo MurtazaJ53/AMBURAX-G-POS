@@ -128,6 +128,7 @@ export function isRetryable(kind: ErpErrorKind): boolean {
  */
 export class ErpError extends Error {
   readonly kind: ErpErrorKind;
+  readonly code: string | undefined;
   readonly category: ErpErrorCategory;
   readonly retryable: boolean;
   /** Ties the failure back to the request that caused it, for logs and for reconciliation. */
@@ -138,12 +139,14 @@ export class ErpError extends Error {
   constructor(params: {
     kind: ErpErrorKind;
     message: string;
+    code?: string;
     correlationId?: string;
     ambiguous?: boolean;
   }) {
     super(params.message);
     this.name = "ErpError";
     this.kind = params.kind;
+    this.code = params.code;
     this.category = categoryOf(params.kind);
     this.retryable = isRetryable(params.kind);
     this.correlationId = params.correlationId;

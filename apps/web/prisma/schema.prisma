@@ -697,6 +697,7 @@ model OutboxEvent {
   publishedAt    DateTime?
   deadLetteredAt DateTime?
   lastError      String?
+  failureCode    String?
   createdAt      DateTime  @default(now())
 
   tenant Tenant @relation(fields: [tenantId], references: [id])
