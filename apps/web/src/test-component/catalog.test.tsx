@@ -370,3 +370,23 @@ test("no unbacked quick actions are offered", () => {
   expect(within(container).queryByText("Add to Offer")).toBeNull();
   expect(within(container).queryByText("View in ERPNext")).toBeNull();
 });
+
+test("the setup checklist links to the edit page only for someone who may manage the catalogue", () => {
+  const noPhoto = { ...detail, product: { ...discounted, imageUrl: null } };
+
+  const managing = render(<ProductDetailPanel detail={noPhoto} filters={filters} canManage={true} />);
+  for (const name of [/Add cost price/, /Add photo/]) {
+    const links = within(managing.container).getAllByRole("link", { name });
+    expect(links.map((l) => l.getAttribute("href"))).toEqual(links.map(() => "/products/p1/edit"));
+  }
+
+  const readOnly = render(<ProductDetailPanel detail={noPhoto} filters={filters} canManage={false} />);
+  for (const name of [/Add cost price/, /Add photo/]) {
+    expect(within(readOnly.container).queryByRole("link", { name })).toBeNull();
+    expect(within(readOnly.container).getByText(name)).toBeTruthy();
+  }
+  const editLinks = [...readOnly.container.querySelectorAll("a")].filter((a) =>
+    (a.getAttribute("href") ?? "").includes("/edit"),
+  );
+  expect(editLinks).toHaveLength(0);
+});

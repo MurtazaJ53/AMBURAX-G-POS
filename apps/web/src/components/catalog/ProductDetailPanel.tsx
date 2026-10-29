@@ -200,7 +200,8 @@ export function ProductDetailPanel({
             </span>
           )}
 
-          {/* Top-right "Add photo" or "Change photo" button */}
+          {/* Top-right "Add photo" or "Change photo" button, for catalogue managers only */}
+          {canManage && (
           <Link
             href={`/products/${product.id}/edit`}
             className="absolute right-3.5 top-3.5 inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white/95 px-3 py-1.5 text-xs font-bold text-sky-900 shadow-sm backdrop-blur hover:bg-white transition-all"
@@ -208,6 +209,7 @@ export function ProductDetailPanel({
             <Camera className="h-3.5 w-3.5 text-sky-600" />
             <span>{product.imageUrl ? "Change photo" : "Add photo"}</span>
           </Link>
+          )}
 
           {/* Bottom-left Swatch Capsule */}
           {colours.length > 0 && (
@@ -352,6 +354,17 @@ export function ProductDetailPanel({
                     className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50/80 px-3 py-1 text-xs font-bold text-emerald-800 border border-emerald-200/70"
                   >
                     <Check className="h-3 w-3 stroke-[3] text-emerald-600" />
+                    <span>{task.label}</span>
+                  </span>
+                );
+              }
+              // Only someone who may edit the catalogue gets a link to the edit page.
+              if (!canManage) {
+                return (
+                  <span
+                    key={idx}
+                    className="inline-flex items-center gap-1.5 rounded-full border border-dashed border-amber-300 bg-amber-50/60 px-3 py-1 text-xs font-bold text-amber-900"
+                  >
                     <span>{task.label}</span>
                   </span>
                 );
