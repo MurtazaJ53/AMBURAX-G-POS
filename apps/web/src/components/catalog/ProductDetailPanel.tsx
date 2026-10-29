@@ -533,6 +533,22 @@ export function ProductDetailPanel({
               label="Default GST Rate"
               value={`${(firstVariant?.taxRateBp ?? 0) / 100}%`}
             />
+            {product.variants.length > 0 && (
+              <ul aria-label="Variant prices" className="mt-3 space-y-1.5 border-t border-slate-100 pt-3">
+                {product.variants.map((variant) => (
+                  <li key={variant.id} className="flex items-center justify-between gap-2 text-xs">
+                    <span className="min-w-0">
+                      <span className="block truncate font-bold text-slate-800">{variant.sku}</span>
+                      <span className="block text-[10px] text-slate-500">
+                        {[variant.colour, variant.size].filter(Boolean).join(" · ") || "No options"}
+                        {variant.mrpMinor != null ? ` · MRP ${formatMinor(variant.mrpMinor)}` : ""}
+                      </span>
+                    </span>
+                    <span className="shrink-0 font-bold text-slate-900">{formatMinor(variant.priceMinor)}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
           </div>
         )}
 
@@ -584,6 +600,16 @@ export function ProductDetailPanel({
             >
               <Pencil className="h-3.5 w-3.5" />
               <span>Edit product</span>
+            </Link>
+          )}
+
+          {canManage && (
+            <Link
+              href={`/products/${product.id}/variants/new`}
+              className="flex items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-white py-2.5 text-xs font-bold text-slate-700 shadow-2xs hover:bg-slate-50 transition-colors"
+            >
+              <Plus className="h-3.5 w-3.5 text-slate-500" />
+              <span>Create variant</span>
             </Link>
           )}
 

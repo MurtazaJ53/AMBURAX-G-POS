@@ -294,6 +294,21 @@ test("the pricing tab shows the real selling price and states no margin", () => 
   expect(within(container).queryByText(/margin/i)).toBeNull();
 });
 
+test("the pricing tab lists every variant by SKU with its own price", () => {
+  const { container } = render(
+    <ProductDetailPanel detail={detail} filters={filters} canManage={true} />,
+  );
+  fireEvent.click(within(container).getByRole("tab", { name: "Pricing" }));
+
+  const list = within(container).getByRole("list", { name: "Variant prices" });
+  const rows = within(list).getAllByRole("listitem");
+  expect(rows).toHaveLength(2);
+  expect(within(rows[0]!).getByText("SHIRT-WHT-M")).toBeTruthy();
+  expect(within(rows[0]!).getByText("₹1,299.00")).toBeTruthy();
+  expect(within(rows[1]!).getByText("SHIRT-BLU-L")).toBeTruthy();
+  expect(within(rows[1]!).getByText("₹1,349.00")).toBeTruthy();
+});
+
 test("the images tab shows the product's one real picture, or says there is none", () => {
   const { container } = render(
     <ProductDetailPanel detail={detail} filters={filters} canManage={true} />,
@@ -334,11 +349,15 @@ test("edit is hidden from someone who may not manage the catalogue", () => {
     <ProductDetailPanel detail={detail} filters={filters} canManage={true} />,
   );
   expect(within(managing.container).getByRole("link", { name: /Edit product/ })).toBeTruthy();
+  expect(
+    within(managing.container).getByRole("link", { name: /Create variant/ }).getAttribute("href"),
+  ).toBe("/products/p1/variants/new");
 
   const readOnly = render(
     <ProductDetailPanel detail={detail} filters={filters} canManage={false} />,
   );
   expect(within(readOnly.container).queryByRole("link", { name: /Edit product/ })).toBeNull();
+  expect(within(readOnly.container).queryByRole("link", { name: /Create variant/ })).toBeNull();
   // Stock is a read, so it stays available to everyone.
   expect(within(readOnly.container).getByRole("link", { name: /Adjust stock/ })).toBeTruthy();
 });
