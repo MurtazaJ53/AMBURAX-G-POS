@@ -241,6 +241,22 @@ export async function POST(req: NextRequest) {
           correlationId,
         });
 
+      case "price_mismatch":
+        // Machine-readable so the till can offer a one-tap "update the bill" for that line.
+        return NextResponse.json(
+          {
+            error: {
+              code: "price_mismatch",
+              message: "An item's price changed while the bill was open.",
+              variantId: result.variantId,
+              sentPriceMinor: result.sentPriceMinor,
+              currentPriceMinor: result.currentPriceMinor,
+            },
+            correlationId,
+          },
+          { status: 409 },
+        );
+
       case "inactive_variant":
         return apiError({
           code: "inactive_variant",

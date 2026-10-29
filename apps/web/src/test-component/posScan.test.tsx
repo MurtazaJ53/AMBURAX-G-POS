@@ -172,4 +172,55 @@ describe("POS barcode scanning", () => {
     expect(body.lines).toEqual([{ variantId: SHIRT.variantId, quantity: 1, unitPriceMinor: 1 }]);
     expect(JSON.stringify(body)).not.toMatch(/"priceMinor"|mrpMinor|taxRateBp|taxRateMode|totalMinor/);
   });
+  it("a price changed while the bill was open: offers a one-tap update, then checks out at the new price", async () => {
+    const user = userEvent.setup();
+    const stub = stubApi(
+      posRoutes([{ kind: "ok", body: { item: { ...SCANNED, priceMinor: 99_900 } } }], [
+        {
+          path: "/api/v1/sales",
+          method: "POST",
+          replies: [
+            {
+              kind: "ok",
+              status: 409,
+              body: {
+                error: {
+                  code: "price_mismatch",
+                  message: "An item's price changed while the bill was open.",
+                  variantId: SHIRT.variantId,
+                  sentPriceMinor: 99_900,
+                  currentPriceMinor: 119_900,
+                },
+              },
+            },
+            { kind: "ok", body: { sale: SALE, duplicate: false } },
+          ],
+        },
+      ]),
+    );
+    renderPos();
+
+    await user.type(searchBox(), "8901234567890{Enter}");
+    await waitFor(() => expect(cartLines()).toHaveLength(1));
+    const complete = () => screen.getByRole("button", { name: /complete sale/i }) as HTMLButtonElement;
+    await waitFor(() => expect(complete().disabled).toBe(false));
+    await user.click(complete());
+
+    const prompt = await screen.findByText(/Price of Cotton Shirt changed to .*1,199.*Update the bill\?/);
+    expect(prompt).toBeTruthy();
+    await user.click(screen.getByRole("button", { name: /^update$/i }));
+    expect(screen.queryByText(/Update the bill\?/)).toBeNull();
+
+    await waitFor(() => expect(complete().disabled).toBe(false));
+    await user.click(complete());
+    await waitFor(() =>
+      expect(stub.calls.filter((c) => c.url === "/api/v1/sales" && c.method === "POST")).toHaveLength(2),
+    );
+    const posts = stub.calls.filter((c) => c.url === "/api/v1/sales" && c.method === "POST");
+    const first = posts[0]!.body as { idempotencyKey: string; lines: Record<string, unknown>[] };
+    const second = posts[1]!.body as { idempotencyKey: string; lines: Record<string, unknown>[] };
+    expect(first.lines[0]).toMatchObject({ unitPriceMinor: 99_900 });
+    expect(second.lines[0]).toMatchObject({ variantId: SHIRT.variantId, quantity: 1, unitPriceMinor: 119_900 });
+    expect(second.idempotencyKey).toBe(first.idempotencyKey);
+  });
 });

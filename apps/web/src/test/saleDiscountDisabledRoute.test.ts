@@ -72,3 +72,22 @@ describe("POST /api/v1/sales with a discount", () => {
     );
   });
 });
+
+describe("POST /api/v1/sales when a price changed while the bill was open", () => {
+  it("returns a machine-readable 409 naming the variant, the price sent and the current price", async () => {
+    mockCreateSale.mockResolvedValue({
+      status: "price_mismatch",
+      variantId: "var-1",
+      sentPriceMinor: 99_900,
+      currentPriceMinor: 119_900,
+    });
+    const res = await POST(request({ ...BASE, lines: [{ variantId: "var-1", quantity: 1, unitPriceMinor: 99_900 }] }));
+    expect(res.status).toBe(409);
+    expect((await res.json()).error).toMatchObject({
+      code: "price_mismatch",
+      variantId: "var-1",
+      sentPriceMinor: 99_900,
+      currentPriceMinor: 119_900,
+    });
+  });
+});

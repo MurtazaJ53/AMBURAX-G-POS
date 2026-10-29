@@ -380,6 +380,13 @@ export function PosTerminal(props: {
   const [lineDiscountLine, setLineDiscountLine] = useState<CartLine | null>(null);
   const [salesPerson, setSalesPerson] = useState<SalesPerson | null>(null);
   const [saleError, setSaleError] = useState<string | null>(null);
+  // Checkout refused because an item's price changed while the bill was open.
+  const [priceChange, setPriceChange] = useState<{
+    variantId: string;
+    productName: string;
+    sentPriceMinor: number;
+    currentPriceMinor: number;
+  } | null>(null);
   const [completed, setCompleted] = useState<CompletedSale | null>(null);
   const [lastCompletedReceipt, setLastCompletedReceipt] = useState<SaleReceipt | null>(null);
   // Customer loyalty points state
@@ -1005,6 +1012,7 @@ export function PosTerminal(props: {
     if (cart.length === 0 || submitting) return;
     setSubmitting(true);
     setSaleError(null);
+    setPriceChange(null);
 
     // Validate amount received if cash
     if (method === "CASH" && amountReceived !== null && amountReceived * 100 < totals.totalMinor) {
@@ -1096,6 +1104,16 @@ export function PosTerminal(props: {
       const data = await res.json();
 
       if (!res.ok) {
+        if (data?.error?.code === "price_mismatch" && typeof data.error.currentPriceMinor === "number") {
+          const line = cart.find((l) => l.variantId === data.error.variantId);
+          setPriceChange({
+            variantId: data.error.variantId,
+            productName: line?.productName ?? "an item",
+            sentPriceMinor: data.error.sentPriceMinor,
+            currentPriceMinor: data.error.currentPriceMinor,
+          });
+          return;
+        }
         if (data?.error?.code === "discount_not_allowed") {
           // The discount itself was refused (wrong or locked PIN, over the limit): take it off the
           // bill and say why beside the discount controls, so the cashier can fix it and retry.
@@ -2417,6 +2435,38 @@ export function PosTerminal(props: {
                 </div>
               )}
             </div>
+
+            {priceChange && (
+              <div role="alert" className="mt-2 flex items-center justify-between gap-2 rounded-lg bg-amber-50 px-3 py-2 text-xs font-medium text-amber-900">
+                <span>
+                  Price of {priceChange.productName} changed to {formatMinor(priceChange.currentPriceMinor)}. Update the bill?
+                </span>
+                <button
+                  type="button"
+                  className="shrink-0 rounded-md bg-amber-600 px-3 py-1.5 font-bold text-white hover:bg-amber-700"
+                  onClick={() => {
+                    const change = priceChange;
+                    setCart((current) =>
+                      current.map((l) =>
+                        l.variantId === change.variantId && l.unitPriceMinor === change.sentPriceMinor
+                          ? {
+                              ...l,
+                              unitPriceMinor: change.currentPriceMinor,
+                              originalUnitPriceMinor: undefined,
+                              lineDiscountReason: undefined,
+                              batchChoice: undefined,
+                            }
+                          : l,
+                      ),
+                    );
+                    setPriceChange(null);
+                    setSaleError(null);
+                  }}
+                >
+                  Update
+                </button>
+              </div>
+            )}
 
             {saleError && (
               <p role="alert" className="mt-2 rounded-lg bg-rose-50 px-3 py-2 text-xs font-medium text-rose-700">

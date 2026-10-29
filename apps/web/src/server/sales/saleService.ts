@@ -129,6 +129,7 @@ export type CreateSaleResult =
   | { status: "too_many_lines" }
   | { status: "invalid_quantity"; variantId: string; reason: string }
   | { status: "unknown_variant"; variantId: string }
+  | { status: "price_mismatch"; variantId: string; sentPriceMinor: number; currentPriceMinor: number }
   | { status: "inactive_variant"; variantId: string }
   | { status: "unresolved_tax_treatment"; variantId: string }
   | { status: "unsupported_tax_treatment"; variantId: string; taxTreatment: string }
@@ -382,6 +383,22 @@ export async function createSale(input: CreateSaleInput): Promise<CreateSaleResu
     if (!variant.isActive) return { status: "inactive_variant", variantId: id };
     if (variant.taxTreatment === "UNSPECIFIED") {
       return { status: "unresolved_tax_treatment", variantId: id };
+    }
+  }
+
+  // A line's unitPriceMinor only selects a batch: it must be the variant's current price or one
+  // of its pending (new batch) prices. Anything else is refused, never quietly repriced.
+  for (const line of input.lines) {
+    if (line.unitPriceMinor === undefined || line.unitPriceMinor === null) continue;
+    const variant = byId.get(line.variantId)!;
+    const pending = pendingByVariant.get(line.variantId) ?? [];
+    if (line.unitPriceMinor !== variant.priceMinor && !pending.some((p) => p.newPriceMinor === line.unitPriceMinor)) {
+      return {
+        status: "price_mismatch",
+        variantId: line.variantId,
+        sentPriceMinor: line.unitPriceMinor,
+        currentPriceMinor: variant.priceMinor,
+      };
     }
   }
 
