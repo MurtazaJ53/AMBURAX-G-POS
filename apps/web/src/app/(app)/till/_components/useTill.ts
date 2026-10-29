@@ -63,6 +63,13 @@ export interface DeviceState {
  * closed (a suggestion the cashier confirms or corrects); `recordedMinor` is what this shift has on
  * record. `phase: "unavailable"` means the lookup failed — selling is never blocked on it.
  */
+export interface PriceChange {
+  variantId: string;
+  productName: string;
+  sentPriceMinor: number;
+  currentPriceMinor: number;
+}
+
 export interface OpeningCashState {
   phase: "loading" | "ready" | "unavailable";
   suggestedMinor: number | null;
@@ -99,6 +106,7 @@ export function useTill(currentUserId: string, gstRegistered: boolean) {
   const [scanning, setScanning] = useState(false);
   const [method, setMethod] = useState<PaymentMethod>("CASH");
   const [reference, setReference] = useState("");
+  const [priceChange, setPriceChange] = useState<PriceChange | null>(null);
 
   /**
    * The request as it was at the moment the operator committed.
@@ -296,7 +304,7 @@ export function useTill(currentUserId: string, gstRegistered: boolean) {
     let live = true;
     void (async () => {
       let result = await api.createSale(request);
-
+            
       // If the browser is explicitly offline, enqueue in durable local queue
       if (!result.ok && typeof navigator !== "undefined" && navigator.onLine === false) {
         await offlineStore.enqueueSale({
@@ -332,7 +340,22 @@ export function useTill(currentUserId: string, gstRegistered: boolean) {
         };
       }
 
-      if (live) dispatchCompletion({ type: "answered", result });
+      if (live) {
+        if (!result.ok && result.kind === "api" && result.code === "price_mismatch" && typeof result.error?.currentPriceMinor === "number") {
+          const varId = String(result.error.variantId ?? "");
+          const line = bill.lines.find((l) => l.variantId === varId);
+          setPriceChange({
+            variantId: varId,
+            productName: line?.productName ?? "an item",
+            sentPriceMinor: Number(result.error.sentPriceMinor),
+            currentPriceMinor: Number(result.error.currentPriceMinor),
+          });
+          dispatchCompletion({ type: "answered", result });
+          dispatchCompletion({ type: "reset" });
+          return;
+        }
+        dispatchCompletion({ type: "answered", result });
+      }
     })();
     return () => {
       // The request is not cancelled — only this component's interest in it. Aborting an
@@ -352,6 +375,16 @@ export function useTill(currentUserId: string, gstRegistered: boolean) {
     return () => clearTimeout(timer);
   }, [unresolvedAttempt]);
 
+  const updatePrice = useCallback(() => {
+    if (!priceChange) return;
+    dispatchBill({
+      type: "price_updated",
+      variantId: priceChange.variantId,
+      unitPriceMinor: priceChange.currentPriceMinor,
+    });
+    setPriceChange(null);
+  }, [priceChange]);
+
   const startNewBill = useCallback(() => {
     submission.current = null;
     dispatchCompletion({ type: "reset" });
@@ -359,6 +392,7 @@ export function useTill(currentUserId: string, gstRegistered: boolean) {
     setScan(null);
     setReference("");
     setMethod("CASH");
+    setPriceChange(null);
   }, []);
 
   const selectedDevice = useMemo(
@@ -380,6 +414,8 @@ export function useTill(currentUserId: string, gstRegistered: boolean) {
     bill,
     dispatchBill,
     totals,
+    priceChange,
+    updatePrice,
     scan,
     scanning,
     submitScan,

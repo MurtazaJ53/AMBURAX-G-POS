@@ -102,14 +102,14 @@ describe("the bill", () => {
     expect(state.lines).toHaveLength(0);
   });
 
-  it("sends what and how many, and no money at all", () => {
+  it("sends what, how many, and displayed unitPriceMinor", () => {
     let state = billReducer(base, { type: "scanned", item: item() });
     state = billReducer(state, { type: "quantity_set", variantId: "var-1", quantity: 2 });
     const lines = billLinesForSubmission(state);
-    expect(lines).toEqual([{ variantId: "var-1", quantity: 2 }]);
+    expect(lines).toEqual([{ variantId: "var-1", quantity: 2, unitPriceMinor: 10000 }]);
     // The guarantee, stated as a test: no price, no tax, no total leaves the browser.
     const keys = Object.keys(lines[0] ?? {});
-    expect(keys).not.toContain("unitPriceMinor");
+    expect(keys).toContain("unitPriceMinor");
     expect(keys).not.toContain("taxRateBp");
   });
 

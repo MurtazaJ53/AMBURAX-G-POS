@@ -85,7 +85,7 @@ export function createCustomer(
 
 export interface CreateSaleRequest {
   idempotencyKey: string;
-  lines: { variantId: string; quantity: number }[];
+  lines: { variantId: string; quantity: number; unitPriceMinor?: number }[];
   customerId: string | null;
   posSessionId: string | null;
   payment: { method: PaymentMethod; reference?: string };

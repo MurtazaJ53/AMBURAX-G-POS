@@ -20,7 +20,7 @@ export interface StubRoute {
 
 export type StubReply =
   | { kind: "ok"; status?: number; body: Record<string, unknown> }
-  | { kind: "error"; status: number; code: string; message: string }
+  | { kind: "error"; status: number; code: string; message: string; extra?: Record<string, unknown> }
   /** The request never lands — the outcome is genuinely unknown to the caller. */
   | { kind: "offline" };
 
@@ -71,7 +71,7 @@ export function stubApi(routes: StubRoute[]): ApiStub {
       if (reply.kind === "error") {
         return new Response(
           JSON.stringify({
-            error: { code: reply.code, message: reply.message },
+            error: { code: reply.code, message: reply.message, ...(reply.extra ?? {}) },
             correlationId: "cid-test",
           }),
           { status: reply.status, headers: { "Content-Type": "application/json" } },

@@ -19,7 +19,7 @@
 export type ApiResult<T> =
   | { ok: true; status: number; data: T; correlationId: string | null }
   /** The server answered, and the answer was a refusal. The outcome is known. */
-  | { ok: false; kind: "api"; status: number; code: string; message: string; correlationId: string | null }
+  | { ok: false; kind: "api"; status: number; code: string; message: string; correlationId: string | null; error?: Record<string, unknown> }
   /** The request never completed. The outcome is unknown — it may well have succeeded. */
   | { ok: false; kind: "timeout" }
   | { ok: false; kind: "network" }
@@ -96,6 +96,7 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}):
           code,
           message,
           correlationId: envelope?.correlationId ?? null,
+          error: (envelope?.error as Record<string, unknown>) ?? undefined,
         };
       }
       // A non-2xx that is not our envelope is not something to paraphrase to a cashier.

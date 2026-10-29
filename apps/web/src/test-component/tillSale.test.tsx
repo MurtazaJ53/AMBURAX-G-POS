@@ -97,7 +97,7 @@ describe("taking payment", () => {
     await waitFor(() => expect(stub.countFor("/api/v1/sales")).toBe(1));
 
     const body = stub.calls.at(-1)?.body as Record<string, unknown>;
-    expect(body.lines).toEqual([{ variantId: "var-1", quantity: 1 }]);
+    expect(body.lines).toEqual([{ variantId: "var-1", quantity: 1, unitPriceMinor: 10000 }]);
     expect(body.posSessionId).toBe(SESSION.id);
     expect(body.payment).toEqual({ method: "CASH" });
     // The client names what is being sold and how it is paid for. Every figure that decides
@@ -319,5 +319,62 @@ describe("a refusal the server actually made", () => {
     // The correlation id is the one internal detail worth showing: it identifies a log line,
     // not a tenant, a table or a query.
     expect(alert.textContent).toMatch(/cid-test/);
+  });
+  it("offers a one-tap update when an item price changed, then checks out at the new price", async () => {
+    const stub = stubApi(
+      routes([
+        {
+          path: "/api/v1/sales",
+          method: "POST",
+          replies: [
+            {
+              kind: "error",
+              status: 409,
+              code: "price_mismatch",
+              message: "An item's price changed while the bill was open.",
+              extra: {
+                variantId: SHIRT.variantId,
+                sentPriceMinor: 10000,
+                currentPriceMinor: 12000,
+              },
+            },
+            {
+              kind: "ok",
+              body: { sale: { ...SALE, totalMinor: 12000, subtotalMinor: 11429, taxMinor: 571 }, duplicate: false },
+            },
+          ],
+        },
+      ]),
+    );
+    const user = await billWithOneItem(stub);
+
+    // First attempt at taking payment
+    await user.click(payButton());
+
+    // Should see prompt: "Price of Cotton Shirt changed to ₹120. Update the bill?"
+    const prompt = await screen.findByText(/Price of Cotton Shirt changed to .*120.*Update the bill\?/);
+    expect(prompt).toBeTruthy();
+
+    // Click Update
+    await user.click(screen.getByRole("button", { name: /^update$/i }));
+    expect(screen.queryByText(/Update the bill\?/)).toBeNull();
+
+    // Line total and take payment button reflect the new price
+    await waitFor(() => expect(payButton().disabled).toBe(false));
+    await user.click(payButton());
+
+    await waitFor(() =>
+      expect(stub.calls.filter((c) => c.url === "/api/v1/sales" && c.method === "POST")).toHaveLength(2),
+    );
+    const posts = stub.calls.filter((c) => c.url === "/api/v1/sales" && c.method === "POST");
+    const first = posts[0]!.body as { idempotencyKey: string; lines: Record<string, unknown>[] };
+    const second = posts[1]!.body as { idempotencyKey: string; lines: Record<string, unknown>[] };
+
+    expect(first.lines[0]).toMatchObject({ variantId: SHIRT.variantId, quantity: 1, unitPriceMinor: 10000 });
+    expect(second.lines[0]).toMatchObject({ variantId: SHIRT.variantId, quantity: 1, unitPriceMinor: 12000 });
+    expect(second.idempotencyKey).toBe(first.idempotencyKey);
+
+    // Completed sale panel appears
+    await screen.findByText(/sale complete/i);
   });
 });

@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { billItemCount } from "@/client/pos/bill";
+import { formatMinor } from "@/server/sales/saleTotals";
 import { isSellable } from "@/client/pos/session";
 import { useTill } from "./useTill";
 import { StatusRail } from "./StatusRail";
@@ -200,6 +201,20 @@ export function TillWorkspace({
                 disabled={!sellable}
                 disabledReason="Open a shift to start scanning"
               />
+              {till.priceChange && (
+                <div role="alert" className="flex items-center justify-between gap-2 rounded-lg bg-amber-50 px-3 py-2 text-xs font-medium text-amber-900">
+                  <span>
+                    Price of {till.priceChange.productName} changed to {formatMinor(till.priceChange.currentPriceMinor)}. Update the bill?
+                  </span>
+                  <button
+                    type="button"
+                    className="shrink-0 rounded-md bg-amber-600 px-3 py-1.5 font-bold text-white hover:bg-amber-700"
+                    onClick={till.updatePrice}
+                  >
+                    Update
+                  </button>
+                </div>
+              )}
               {sellable ? (
                 <BillPanel
                   bill={till.bill}

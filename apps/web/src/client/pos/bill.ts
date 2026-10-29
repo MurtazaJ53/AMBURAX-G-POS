@@ -57,6 +57,7 @@ export type BillAction =
   | { type: "quantity_set"; variantId: string; quantity: number }
   | { type: "quantity_step"; variantId: string; by: number }
   | { type: "line_removed"; variantId: string }
+  | { type: "price_updated"; variantId: string; unitPriceMinor: number }
   | { type: "customer_attached"; customer: CustomerHit }
   | { type: "customer_cleared" }
   /** After a completed sale, or an explicit abandon. Takes a fresh idempotency key. */
@@ -168,6 +169,14 @@ export function billReducer(state: BillState, action: BillAction): BillState {
     case "line_removed":
       return { ...state, lines: state.lines.filter((l) => l.variantId !== action.variantId) };
 
+    case "price_updated":
+      return {
+        ...state,
+        lines: state.lines.map((l) =>
+          l.variantId === action.variantId ? { ...l, unitPriceMinor: action.unitPriceMinor } : l,
+        ),
+      };
+
     case "customer_attached":
       return { ...state, customer: action.customer };
 
@@ -195,8 +204,16 @@ export function billTotals(state: BillState, isGstRegistered: boolean): SaleTota
 }
 
 /** Exactly what `POST /sales` accepts from a client: what, and how paid. No money. */
-export function billLinesForSubmission(state: BillState): { variantId: string; quantity: number }[] {
-  return state.lines.map((line) => ({ variantId: line.variantId, quantity: line.quantity }));
+export function billLinesForSubmission(state: BillState): {
+  variantId: string;
+  quantity: number;
+  unitPriceMinor: number;
+}[] {
+  return state.lines.map((line) => ({
+    variantId: line.variantId,
+    quantity: line.quantity,
+    unitPriceMinor: line.unitPriceMinor,
+  }));
 }
 
 export function billItemCount(state: BillState): number {
