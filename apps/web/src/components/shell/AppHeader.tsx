@@ -80,7 +80,7 @@ export function AppHeader({
         <div className="hidden h-9 items-center gap-2 rounded-md border border-slate-200 bg-slate-50 px-3 text-[10px] lg:flex">
           <span className="text-left leading-tight">
             <b className="block font-bold text-slate-700">{tillOpen ? "Shift Active" : "Shift"}</b>
-            <small className="text-slate-400 font-semibold text-[9px] leading-none">
+            <small className="text-slate-500 font-semibold text-[9px] leading-none">
               {tillOpen ? "Live" : "No shift"}
             </small>
           </span>

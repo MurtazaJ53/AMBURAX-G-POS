@@ -71,7 +71,7 @@ export function AppSidebar({
             <span className="flex size-5 items-center justify-center rounded bg-primary text-[12px] font-bold text-white">A</span>
             AMBURAX
           </div>
-          <div className="mt-1 pl-7 text-[9px] tracking-[.08em] text-slate-400">
+          <div className="mt-1 pl-7 text-[9px] tracking-[.08em] text-slate-500">
             {tenantName || 'OPERATIONS OS'} &middot; V1.0
           </div>
         </div>
@@ -87,7 +87,7 @@ export function AppSidebar({
           </span>
           <div className="min-w-0">
             <p className="truncate text-[11px] font-semibold text-slate-800">{storeName}</p>
-            <p className="mt-0.5 text-[9px] text-slate-400">{storeCode ? `Store #${storeCode}` : 'No Store'}</p>
+            <p className="mt-0.5 text-[9px] text-slate-500">{storeCode ? `Store #${storeCode}` : 'No Store'}</p>
           </div>
         </div>
         <div className="mt-3 flex items-center justify-between border-t border-slate-200 pt-2 text-[9px]">
@@ -102,7 +102,7 @@ export function AppSidebar({
       <nav className="relative mt-5 flex-1 overflow-y-auto px-3 pb-4">
         {filteredNav.map((group) => (
           <div key={group.title || 'group'} className="mb-5">
-            <p className="mb-2 px-3 text-[9px] font-semibold uppercase tracking-[.14em] text-slate-400">{group.title}</p>
+            <p className="mb-2 px-3 text-[9px] font-semibold uppercase tracking-[.14em] text-slate-500">{group.title}</p>
             {group.items.map((item) => {
               const active = isActive(pathname, item.href);
               const Icon = item.icon;

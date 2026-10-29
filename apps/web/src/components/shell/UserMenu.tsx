@@ -41,7 +41,7 @@ export function UserMenu({ userName, roleLabel }: UserMenuProps) {
         </span>
         <span className="hidden text-left lg:block">
           <b className="block text-[10px] text-slate-700">{userName}</b>
-          <small className="text-[9px] text-slate-400 leading-none">{roleLabel}</small>
+          <small className="text-[9px] text-slate-500 leading-none">{roleLabel}</small>
         </span>
         <ChevronDown className="hidden size-3 text-slate-400 lg:block" />
       </DropdownMenuTrigger>

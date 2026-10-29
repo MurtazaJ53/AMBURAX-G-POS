@@ -1402,7 +1402,7 @@ export function PosTerminal(props: {
                       >
                         <look.icon aria-hidden="true" className={`h-6 w-6 ${look.tone} [@media(max-height:820px)]:h-4 [@media(max-height:820px)]:w-4`} fill="currentColor" fillOpacity={0.18} strokeWidth={1.8} />
                         <span className="max-w-[120px] truncate whitespace-nowrap">{cat.value || "All"}</span>
-                        <span className="text-[10px] tabular-nums text-slate-500 [@media(max-height:820px)]:hidden">{cat.count} {cat.count === 1 ? "item" : "items"}</span>
+                        <span className="text-[10px] tabular-nums text-slate-600 [@media(max-height:820px)]:hidden">{cat.count} {cat.count === 1 ? "item" : "items"}</span>
                       </button>
                     );
                   })}
