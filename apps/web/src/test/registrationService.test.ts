@@ -109,6 +109,15 @@ describe("registerBusiness", () => {
     const result = await registerBusiness(baseInput());
     expect(result.status).toBe("ok");
     expect(mockTx.tenant.create).toHaveBeenCalledTimes(1);
+    expect(mockTx.tenant.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          erpnextSiteId: null,
+          isSyncPaused: true,
+          syncPausedReason: "ERP_SITE_NOT_SET",
+        }),
+      })
+    );
     expect(mockTx.onboardingSession.create).toHaveBeenCalledTimes(1);
   });
 

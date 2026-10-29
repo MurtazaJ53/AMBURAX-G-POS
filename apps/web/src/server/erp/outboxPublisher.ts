@@ -13,6 +13,8 @@ import { ErpTillVarianceAdapter } from "@/server/erp/tillVarianceAdapter";
 import { TENANT_PROVISION_EVENT, TenantProvisioner } from "@/server/erp/tenantProvisioning";
 import { ErpCompanyGstAdapter, TENANT_GST_REGISTERED_EVENT } from "@/server/erp/companyGstAdapter";
 import type { PublishableEvent, OutboxPublisher } from "@/server/events/publisher";
+import { db } from "@/server/db";
+import { ErpError } from "@/server/erp/errors";
 
 export class ErpOutboxPublisher implements OutboxPublisher {
   constructor(
@@ -33,6 +35,18 @@ export class ErpOutboxPublisher implements OutboxPublisher {
   ) {}
 
   async publish(event: PublishableEvent): Promise<void> {
+    const tenant = await db.tenant.findUnique({
+      where: { id: event.tenantId },
+      select: { erpnextSiteId: true },
+    });
+    if (!tenant?.erpnextSiteId) {
+      throw new ErpError({
+        kind: "configuration_error",
+        message: `Tenant ${event.tenantId} has no ERP site configured and cannot publish outbox events.`,
+        correlationId: event.correlationId,
+      });
+    }
+
     if (event.eventType === "SaleCompleted") {
       if (!event.entityId) {
         throw new Error("SaleCompleted event missing entityId");

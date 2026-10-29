@@ -10,6 +10,7 @@ const mockTx = { sale: { update: vi.fn() }, salePayment: { updateMany: vi.fn() }
 const mockDb = {
   sale: { findUnique: vi.fn() },
   user: { findUnique: vi.fn() },
+  tenant: { findUnique: vi.fn(async () => ({ erpnextSiteId: "frontend" })) },
   $transaction: vi.fn(async (fn: (tx: typeof mockTx) => Promise<unknown>) => fn(mockTx)),
 };
 vi.mock("@/server/db", () => ({ db: mockDb }));
