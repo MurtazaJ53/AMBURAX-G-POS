@@ -151,6 +151,7 @@ export function BillPanel({
                         onClick={() => dispatch({ type: "line_removed", variantId: line.variantId })}
                         disabled={readOnly}
                         aria-label={`Remove ${line.productName} from the bill`}
+                        className="min-h-11 min-w-11"
                       >
                         Remove
                       </Button>

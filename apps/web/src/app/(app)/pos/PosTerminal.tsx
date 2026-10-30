@@ -1319,7 +1319,7 @@ export function PosTerminal(props: {
                           setQuery("");
                           searchInput.current?.focus();
                         }}
-                        className="absolute right-2 top-1/2 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-lg text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-sky-600"
+                        className="absolute right-2 top-1/2 flex min-h-11 min-w-11 lg:h-7 lg:w-7 -translate-y-1/2 items-center justify-center rounded-lg text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-sky-600"
                       >
                         <X className="h-4 w-4" />
                       </button>
@@ -1878,7 +1878,7 @@ export function PosTerminal(props: {
                       onClick={() => setLineDiscountLine(line)}
                       title="Item discount (% or ₹ off)"
                       aria-label={`Apply discount on ${line.productName}`}
-                      className="amb-focus flex h-6 w-6 cursor-pointer items-center justify-center rounded-md text-sky-600 transition-colors hover:bg-sky-50 hover:text-sky-700"
+                      className="amb-focus flex min-h-11 min-w-11 lg:h-6 lg:w-6 lg:min-h-0 lg:min-w-0 cursor-pointer items-center justify-center rounded-md text-sky-600 transition-colors hover:bg-sky-50 hover:text-sky-700"
                     >
                       <Tag className="h-3.5 w-3.5" />
                     </button>
@@ -1886,7 +1886,7 @@ export function PosTerminal(props: {
                       type="button"
                       onClick={() => setQuantity(line.variantId, 0)}
                       aria-label={`Remove ${line.productName} from cart`}
-                      className="amb-focus flex h-6 w-6 cursor-pointer items-center justify-center rounded-md text-rose-500 transition-colors hover:bg-rose-50 hover:text-rose-600"
+                      className="amb-focus flex min-h-11 min-w-11 lg:h-6 lg:w-6 lg:min-h-0 lg:min-w-0 cursor-pointer items-center justify-center rounded-md text-rose-500 transition-colors hover:bg-rose-50 hover:text-rose-600"
                     >
                       <Trash2 className="h-3.5 w-3.5" />
                     </button>
@@ -1925,12 +1925,12 @@ export function PosTerminal(props: {
                       )}
                     </p>
                   </div>
-                  <div className="flex h-6 shrink-0 items-center justify-self-end overflow-hidden rounded-md border border-slate-200 bg-white text-slate-700">
+                  <div className="flex min-h-11 lg:h-6 shrink-0 items-center justify-self-end overflow-hidden rounded-md border border-slate-200 bg-white text-slate-700">
                     <button
                       type="button"
                       onClick={() => setQuantity(line.variantId, line.quantity - 1)}
                       aria-label={`Decrease quantity of ${line.productName}`}
-                      className="amb-focus flex h-full w-6 cursor-pointer items-center justify-center text-sky-700 transition-colors hover:bg-slate-100 active:bg-slate-200"
+                      className="amb-focus flex min-h-11 min-w-11 lg:h-full lg:w-6 lg:min-h-0 lg:min-w-0 cursor-pointer items-center justify-center text-sky-700 transition-colors hover:bg-slate-100 active:bg-slate-200"
                     >
                       <Minus className="h-3.5 w-3.5" />
                     </button>
@@ -1941,7 +1941,7 @@ export function PosTerminal(props: {
                       type="button"
                       onClick={() => setQuantity(line.variantId, line.quantity + 1)}
                       aria-label={`Increase quantity of ${line.productName}`}
-                      className="amb-focus flex h-full w-6 cursor-pointer items-center justify-center text-sky-700 transition-colors hover:bg-slate-100 active:bg-slate-200"
+                      className="amb-focus flex min-h-11 min-w-11 lg:h-full lg:w-6 lg:min-h-0 lg:min-w-0 cursor-pointer items-center justify-center text-sky-700 transition-colors hover:bg-slate-100 active:bg-slate-200"
                     >
                       <Plus className="h-3.5 w-3.5" />
                     </button>
@@ -1996,14 +1996,14 @@ export function PosTerminal(props: {
                     inputMode="decimal"
                     placeholder={discountKind === "percent" ? "Discount %" : "Discount ₹"}
                     aria-label={discountKind === "percent" ? "Discount percent" : "Discount amount in rupees"}
-                    className="amb-focus h-8 min-w-0 flex-1 rounded-lg border border-slate-300 bg-white px-2.5 text-[12px] tabular-nums placeholder:text-slate-500 disabled:cursor-not-allowed disabled:bg-slate-50"
+                    className="amb-focus min-h-11 lg:h-8 min-w-0 flex-1 rounded-lg border border-slate-300 bg-white px-2.5 text-[12px] tabular-nums placeholder:text-slate-500 disabled:cursor-not-allowed disabled:bg-slate-50"
                   />
                   <button
                     type="button"
                     aria-pressed={discountKind === "percent"}
                     aria-label="Discount as a percentage"
                     onClick={() => setDiscountKind("percent")}
-                    className={`amb-focus h-8 w-8 rounded-lg border text-[11.5px] font-semibold transition-colors ${discountKind === "percent" ? "border-sky-600 bg-sky-50 text-sky-700" : "border-slate-300 text-slate-600 hover:bg-slate-50"}`}
+                    className={`amb-focus min-h-11 min-w-11 lg:h-8 lg:w-8 rounded-lg border text-[11.5px] font-semibold transition-colors ${discountKind === "percent" ? "border-sky-600 bg-sky-50 text-sky-700" : "border-slate-300 text-slate-600 hover:bg-slate-50"}`}
                   >
                     %
                   </button>
@@ -2012,7 +2012,7 @@ export function PosTerminal(props: {
                     aria-pressed={discountKind === "amount"}
                     aria-label="Discount as an amount"
                     onClick={() => setDiscountKind("amount")}
-                    className={`amb-focus h-8 w-8 rounded-lg border text-[11.5px] font-semibold transition-colors ${discountKind === "amount" ? "border-sky-600 bg-sky-50 text-sky-700" : "border-slate-300 text-slate-600 hover:bg-slate-50"}`}
+                    className={`amb-focus min-h-11 min-w-11 lg:h-8 lg:w-8 rounded-lg border text-[11.5px] font-semibold transition-colors ${discountKind === "amount" ? "border-sky-600 bg-sky-50 text-sky-700" : "border-slate-300 text-slate-600 hover:bg-slate-50"}`}
                   >
                     ₹
                   </button>
@@ -2024,12 +2024,12 @@ export function PosTerminal(props: {
                     maxLength={200}
                     placeholder="Reason (required)"
                     aria-label="Discount reason"
-                    className="amb-focus h-8 min-w-0 flex-1 rounded-lg border border-slate-300 bg-white px-2.5 text-[12px] placeholder:text-slate-500 disabled:cursor-not-allowed disabled:bg-slate-50"
+                    className="amb-focus min-h-11 lg:h-8 min-w-0 flex-1 rounded-lg border border-slate-300 bg-white px-2.5 text-[12px] placeholder:text-slate-500 disabled:cursor-not-allowed disabled:bg-slate-50"
                   />
                   <button
                     type="button"
                     onClick={applyDiscount}
-                    className="amb-focus amb-press h-8 rounded-lg border border-slate-300 px-3 text-[11.5px] font-semibold text-slate-700 transition-colors hover:bg-slate-100 bg-white"
+                    className="amb-focus amb-press min-h-11 lg:h-8 rounded-lg border border-slate-300 px-3 text-[11.5px] font-semibold text-slate-700 transition-colors hover:bg-slate-100 bg-white"
                   >
                     Apply
                   </button>
@@ -2040,7 +2040,7 @@ export function PosTerminal(props: {
                       value={approverId}
                       onChange={(e) => setApproverId(e.target.value)}
                       aria-label="Manager approving this discount"
-                      className="amb-focus h-8 min-w-0 flex-1 rounded-lg border border-amber-300 bg-white px-2 text-[11.5px] text-slate-800"
+                      className="amb-focus min-h-11 lg:h-8 min-w-0 flex-1 rounded-lg border border-amber-300 bg-white px-2 text-[11.5px] text-slate-800"
                     >
                       <option value="">Approved by…</option>
                       {(props.approvers ?? []).map((a) => (
@@ -2137,12 +2137,12 @@ export function PosTerminal(props: {
                     key={m.value}
                     type="button"
                     aria-pressed={selected}
+                    className={`amb-focus flex min-h-11 lg:h-8 min-w-0 flex-1 cursor-pointer items-center justify-center gap-1 rounded-lg border px-1 text-[11.5px] font-medium transition-colors ${selected ? "border-emerald-300 bg-emerald-50 text-emerald-700" : "border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:text-slate-900"}`}
                     onClick={() => {
                       setMethod(m.value);
                       if (m.value !== "SPLIT") setAmountReceived(null);
                       if (m.value === "UDHAR" && !customer) openPicker(true, "search");
                     }}
-                    className={`amb-focus flex h-8 min-w-0 flex-1 cursor-pointer items-center justify-center gap-1 rounded-lg border px-1 text-[11.5px] font-medium transition-colors ${selected ? "border-emerald-300 bg-emerald-50 text-emerald-700" : "border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:text-slate-900"}`}
                   >
                     <Icon aria-hidden="true" className="h-3.5 w-3.5 shrink-0" />
                     <span className="truncate">{m.label}</span>
@@ -2164,12 +2164,12 @@ export function PosTerminal(props: {
                     </span>
                     <input
                       id="amount-received"
+                      className="min-h-11 lg:h-8 w-32 rounded-lg border border-slate-200 bg-white pl-7 pr-2.5 text-right text-[14px] font-bold tabular-nums text-slate-900 outline-none transition-colors placeholder:font-normal placeholder:text-slate-500 focus:border-sky-500 focus:ring-4 focus:ring-sky-500/15"
                       type="number"
                       value={amountReceived ?? ""}
                       onChange={(e) => setAmountReceived(e.target.value ? parseFloat(e.target.value) : null)}
                       placeholder="0.00"
                       inputMode="decimal"
-                      className="h-8 w-32 rounded-lg border border-slate-200 bg-white pl-7 pr-2.5 text-right text-[14px] font-bold tabular-nums text-slate-900 outline-none transition-colors placeholder:font-normal placeholder:text-slate-500 focus:border-sky-500 focus:ring-4 focus:ring-sky-500/15"
                     />
                   </div>
                 </div>
@@ -2274,7 +2274,7 @@ export function PosTerminal(props: {
                       aria-label={`Payment ${i + 1} method`}
                       value={p.method}
                       onChange={(e) => setSplitPayments((curr) => curr.map((x) => (x.id === p.id ? { ...x, method: e.target.value as SplitMethod } : x)))}
-                      className="h-8 w-20 cursor-pointer rounded-lg border-none bg-slate-100 px-1.5 text-xs font-bold text-slate-700 outline-none focus:ring-2 focus:ring-blue-500"
+                      className="min-h-11 lg:h-8 w-20 cursor-pointer rounded-lg border-none bg-slate-100 px-1.5 text-xs font-bold text-slate-700 outline-none focus:ring-2 focus:ring-blue-500"
                     >
                       <option value="CASH">Cash</option>
                       <option value="UPI">UPI</option>
@@ -2286,7 +2286,7 @@ export function PosTerminal(props: {
                         placeholder="Ref (Opt)"
                         value={p.reference}
                         onChange={(e) => setSplitPayments((curr) => curr.map((x) => (x.id === p.id ? { ...x, reference: e.target.value } : x)))}
-                        className="h-8 w-16 flex-1 rounded-lg border border-slate-200 px-2 text-xs outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/15"
+                        className="min-h-11 lg:h-8 w-16 flex-1 rounded-lg border border-slate-200 px-2 text-xs outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/15"
                       />
                     ) : (
                       <div className="w-16 flex-1" />
@@ -2297,13 +2297,13 @@ export function PosTerminal(props: {
                       placeholder="Amt"
                       value={p.amount ?? ""}
                       onChange={(e) => setSplitPayments((curr) => curr.map((x) => (x.id === p.id ? { ...x, amount: e.target.value ? parseFloat(e.target.value) : null } : x)))}
-                      className="h-8 w-[78px] rounded-lg border border-slate-200 px-2 text-right text-xs font-bold tabular-nums outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/15"
+                      className="min-h-11 lg:h-8 w-[78px] rounded-lg border border-slate-200 px-2 text-right text-xs font-bold tabular-nums outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/15"
                     />
                     <button
                       type="button"
                       aria-label={`Remove payment ${i + 1}`}
                       onClick={() => setSplitPayments((curr) => curr.filter((x) => x.id !== p.id))}
-                      className="amb-focus flex h-8 w-8 items-center justify-center rounded-lg text-slate-500 transition-colors hover:bg-rose-50 hover:text-rose-600"
+                      className="amb-focus flex min-h-11 min-w-11 lg:h-8 lg:w-8 items-center justify-center rounded-lg text-slate-500 transition-colors hover:bg-rose-50 hover:text-rose-600"
                     >
                       <X aria-hidden="true" className="h-3.5 w-3.5" />
                     </button>
@@ -2312,7 +2312,7 @@ export function PosTerminal(props: {
                 <button
                   type="button"
                   onClick={() => setSplitPayments((curr) => [...curr, { id: Date.now().toString(), method: "CASH", amount: null, reference: "" }])}
-                  className="h-9 w-full shrink-0 rounded-xl border border-dashed border-blue-300 bg-blue-50/70 text-xs font-semibold text-blue-700 transition-colors hover:bg-blue-100"
+                  className="min-h-11 lg:h-9 w-full shrink-0 rounded-xl border border-dashed border-blue-300 bg-blue-50/70 text-xs font-semibold text-blue-700 transition-colors hover:bg-blue-100"
                 >
                   + Add Payment Row
                 </button>
@@ -2339,7 +2339,8 @@ export function PosTerminal(props: {
                     <button
                       type="button"
                       onClick={() => openPicker(true, "search")}
-                      className="amb-press h-7 shrink-0 cursor-pointer rounded-md bg-white px-2.5 text-[11.5px] font-semibold text-amber-900 ring-1 ring-amber-300 hover:bg-amber-100"
+                      aria-label="Add customer for udhar"
+                      className="amb-press min-h-11 lg:h-7 shrink-0 cursor-pointer rounded-md bg-white px-2.5 text-[11.5px] font-semibold text-amber-900 ring-1 ring-amber-300 hover:bg-amber-100"
                     >
                       Add customer
                     </button>
@@ -2355,7 +2356,7 @@ export function PosTerminal(props: {
                           aria-label="Paid now by"
                           value={udharPayMethod}
                           onChange={(e) => setUdharPayMethod(e.target.value as SplitMethod)}
-                          className="h-8 cursor-pointer rounded-lg border border-slate-200 bg-white px-1.5 text-[11.5px] font-semibold text-slate-700 outline-none focus:border-sky-500"
+                          className="min-h-11 lg:h-8 cursor-pointer rounded-lg border border-slate-200 bg-white px-1.5 text-[11.5px] font-semibold text-slate-700 outline-none focus:border-sky-500"
                         >
                           <option value="CASH">Cash</option>
                           <option value="UPI">UPI</option>
@@ -2372,7 +2373,7 @@ export function PosTerminal(props: {
                             onChange={(e) => setUdharPaidRaw(e.target.value.replace(/[^\d.]/g, ""))}
                             placeholder="0"
                             aria-invalid={!udharPaidValid || undefined}
-                            className="h-8 w-24 rounded-lg border border-slate-200 bg-white pl-6 pr-2 text-right text-[13px] font-bold tabular-nums text-slate-900 outline-none focus:border-sky-500 focus:ring-4 focus:ring-sky-500/15"
+                            className="min-h-11 lg:h-8 w-24 rounded-lg border border-slate-200 bg-white pl-6 pr-2 text-right text-[13px] font-bold tabular-nums text-slate-900 outline-none focus:border-sky-500 focus:ring-4 focus:ring-sky-500/15"
                           />
                         </div>
                       </div>

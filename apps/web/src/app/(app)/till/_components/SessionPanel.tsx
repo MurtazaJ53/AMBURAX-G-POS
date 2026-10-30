@@ -288,9 +288,7 @@ export function SessionPanel({
           </Link>
 
           <details className="group">
-            <summary className="cursor-pointer text-sm font-semibold text-amb-ink-secondary hover:text-amb-ink">
-              Quick close without counting
-            </summary>
+            <summary className="cursor-pointer text-sm font-semibold text-amb-ink-secondary hover:text-amb-ink min-h-11 flex items-center">Quick close without counting</summary>
             <div className="mt-3 space-y-3">
               <Field label="Closing note" hint="Handover note only. Count the drawer later in Cash & Day Close.">
                 <input
