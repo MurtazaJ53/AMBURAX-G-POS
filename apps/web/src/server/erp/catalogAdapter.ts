@@ -90,8 +90,24 @@ export class ErpCatalogAdapter {
 
     // Every decided GST type syncs (owner B3, 2026-10-16). EXEMPT / NIL_RATED are flagged
     // "nil rated or exempted" and NON_GST "non-GST" on the ERPNext Item (India Compliance fields;
-    // ERPNext ignores them where India Compliance isn't installed). Only UNSPECIFIED is refused.
-    if (variant.taxTreatment === GstTaxTreatment.UNSPECIFIED) {
+    // ERPNext ignores them where India Compliance isn't installed).
+    const tenant = await db.tenant.findUnique({
+      where: { id: tenantId },
+      select: { taxId: true },
+    });
+    const isGstShop = Boolean(tenant?.taxId?.trim());
+
+    let everTurnedOnGst = false;
+    if (!isGstShop && variant.taxTreatment === GstTaxTreatment.UNSPECIFIED) {
+      const gstAudit = await db.auditLog.findFirst({
+        where: { tenantId, action: "tenant.gst_registered" },
+        select: { id: true },
+      });
+      everTurnedOnGst = Boolean(gstAudit);
+    }
+
+    // UNSPECIFIED is refused for GST-registered shops and tenants that have ever registered for GST.
+    if (variant.taxTreatment === GstTaxTreatment.UNSPECIFIED && (isGstShop || everTurnedOnGst)) {
       await db.productVariant.update({
         where: { id: variantId, tenantId },
         data: { erpSyncStatus: "FAILED" },
@@ -122,6 +138,10 @@ export class ErpCatalogAdapter {
     // ERPNext, so only an absolute http(s) address is sent.
     const imageUrl = variant.product.imageUrl;
     const hsn = variant.product.hsnCode?.trim();
+    const isNonGstItem =
+      variant.taxTreatment === GstTaxTreatment.NON_GST ||
+      (!isGstShop && variant.taxTreatment === GstTaxTreatment.UNSPECIFIED);
+
     const itemPayload: Record<string, unknown> = {
       item_code: variant.id,
       item_name: itemName,
@@ -132,8 +152,8 @@ export class ErpCatalogAdapter {
       disabled: variant.isActive ? 0 : 1,
       is_nil_exempt:
         variant.taxTreatment === GstTaxTreatment.EXEMPT || variant.taxTreatment === GstTaxTreatment.NIL_RATED ? 1 : 0,
-      is_non_gst: variant.taxTreatment === GstTaxTreatment.NON_GST ? 1 : 0,
-      ...(variant.taxTreatment !== GstTaxTreatment.NON_GST && hsn ? { gst_hsn_code: hsn } : {}),
+      is_non_gst: isNonGstItem ? 1 : 0,
+      ...(!isNonGstItem && hsn ? { gst_hsn_code: hsn } : {}),
       image: imageUrl && /^https?:\/\//i.test(imageUrl) ? imageUrl : null,
     };
 
