@@ -264,7 +264,7 @@ export function CustomerPicker(props: {
         <button
           type="button"
           onClick={() => onOpenChange(true, "search")}
-          className="amb-press inline-flex h-8 cursor-pointer items-center gap-1 rounded-lg border border-sky-200 bg-sky-50 px-2.5 text-xs font-semibold text-sky-700 transition-colors hover:bg-sky-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-sky-600"
+          className="amb-press inline-flex min-h-11 lg:min-h-0 lg:h-8 cursor-pointer items-center gap-1 rounded-lg border border-sky-200 bg-sky-50 px-2.5 text-xs font-semibold text-sky-700 transition-colors hover:bg-sky-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-sky-600"
         >
           <Plus aria-hidden="true" className="h-3.5 w-3.5" />
           Add

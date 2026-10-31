@@ -32,7 +32,7 @@ export function UserMenu({ userName, roleLabel }: UserMenuProps) {
 
   return (
     <DropdownMenu>
-      <DropdownMenuTrigger aria-label={`Account menu, ${userName}`} className="flex items-center gap-2 rounded-md p-1 hover:bg-slate-100 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-100">
+      <DropdownMenuTrigger aria-label={`Account menu, ${userName}`} className="flex min-h-11 min-w-11 lg:min-h-0 lg:min-w-0 items-center gap-2 rounded-md p-1 hover:bg-slate-100 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-100">
         <span
           aria-hidden="true"
           className="flex size-8 items-center justify-center rounded-full bg-slate-800 text-[10px] font-bold text-white"

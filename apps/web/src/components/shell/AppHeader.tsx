@@ -56,7 +56,7 @@ export function AppHeader({
       <button
         type="button"
         onClick={onMobileMenuToggle}
-        className="rounded-md p-2 text-slate-600 hover:bg-slate-100 lg:hidden"
+        className="flex min-h-11 min-w-11 items-center justify-center rounded-md p-2 text-slate-600 hover:bg-slate-100 lg:hidden"
         aria-label="Open navigation"
       >
         <Menu size={19} />
@@ -89,7 +89,7 @@ export function AppHeader({
         {canSell && (
           <Link
             href="/pos"
-            className="flex h-9 items-center gap-1.5 rounded-md bg-primary px-3 text-[11px] font-semibold text-white shadow-sm shadow-sky-700/20 transition hover:bg-primary-hover"
+            className="flex min-h-11 lg:min-h-0 lg:h-9 items-center gap-1.5 rounded-md bg-primary px-3 text-[11px] font-semibold text-white shadow-sm shadow-sky-700/20 transition hover:bg-primary-hover"
           >
             <Plus size={14} />
             <span className="hidden sm:inline">New Sale (F2)</span>
@@ -100,7 +100,7 @@ export function AppHeader({
         <button
           type="button"
           disabled
-          className="relative rounded-md p-2 text-slate-300 opacity-60 cursor-not-allowed"
+          className="relative flex min-h-11 min-w-11 items-center justify-center rounded-md p-2 text-slate-300 opacity-60 cursor-not-allowed"
           aria-label="Notifications"
           title="Notifications coming soon"
         >

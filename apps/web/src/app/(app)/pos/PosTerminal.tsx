@@ -1363,7 +1363,7 @@ export function PosTerminal(props: {
                         <select
                           value={value}
                           onChange={(e) => setFilters((cur) => ({ ...cur, [f.key]: e.target.value }))}
-                          className={`h-9 max-w-[180px] cursor-pointer rounded-lg border px-2.5 text-[12px] transition-colors focus:outline-none focus:ring-2 focus:ring-sky-500/30 ${value ? "border-sky-400 bg-sky-50 font-medium text-sky-800" : "border-slate-200 bg-white text-slate-700 hover:border-slate-300"}`}
+                          className={`min-h-11 lg:min-h-0 lg:h-9 max-w-[180px] cursor-pointer rounded-lg border px-2.5 text-[12px] transition-colors focus:outline-none focus:ring-2 focus:ring-sky-500/30 ${value ? "border-sky-400 bg-sky-50 font-medium text-sky-800" : "border-slate-200 bg-white text-slate-700 hover:border-slate-300"}`}
                         >
                           <option value="">{f.label}</option>
                           {f.options.map((o) => (
@@ -2405,7 +2405,7 @@ export function PosTerminal(props: {
               <button
                 type="button"
                 onClick={() => setBillNoteOpen((o) => !o)}
-                className={`flex w-full items-center justify-between rounded-lg border px-2.5 py-1.5 text-xs transition-colors ${
+                className={`flex w-full min-h-11 items-center justify-between rounded-lg border px-2.5 py-2.5 text-xs transition-colors ${
                   billNote.trim()
                     ? "border-sky-300 bg-sky-50/70 text-sky-800"
                     : "border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100"
